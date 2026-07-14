@@ -1,0 +1,28 @@
+{{- if eq .Values.rbac.mode "explicit" }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Values.rbac.clusterReadRoleName }}
+  labels:
+    {{- include "hub.labels" . | nindent 4 }}
+rules:
+  # Mirror of the join chart's ClusterRole — used to scrape the LOCAL cluster.
+  - apiGroups: ["config.openshift.io"]
+    resources: ["clusterversions", "clusteroperators"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["clusterserviceversions", "subscriptions"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["core.libopenstorage.org"]
+    resources: ["storageclusters"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["storage.dell.com"]
+    resources: ["containerstoragemodules"]
+    verbs: ["get", "list", "watch"]
+  {{- with .Values.rbac.additionalRules }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

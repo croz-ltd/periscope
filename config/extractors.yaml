@@ -1,0 +1,27 @@
+# Optional extractor configuration. Pass with `--config config/extractors.yaml`.
+# When set, the built-in OpenShift / OLM / node extractors stay on and the CR
+# extractors below fully replace the compiled-in Portworx/Dell defaults — so you
+# can fix a field path or add a new vendor CR without rebuilding the binary.
+#
+# versionPath is the nested path into the CR object. Verify against your installs:
+#   oc get storagecluster -A -o yaml
+#   oc get containerstoragemodule -A -o yaml
+crExtractors:
+  - key: portworx-csi
+    display: Portworx (CSI)
+    kind: csi
+    group: core.libopenstorage.org
+    version: v1
+    resource: storageclusters
+    versionPath: [status, version]
+    # If status.version is empty on your install, use the image tag instead:
+    #   versionPath: [spec, image]
+    #   imageTag: true
+
+  - key: dell-csi
+    display: Dell CSM (CSI)
+    kind: csi
+    group: storage.dell.com
+    version: v1
+    resource: containerstoragemodules
+    versionPath: [spec, driver, configVersion]

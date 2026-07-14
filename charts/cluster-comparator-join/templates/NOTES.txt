@@ -1,0 +1,30 @@
+Cluster Comparator — join credentials created on THIS cluster.
+
+  ServiceAccount : {{ .Values.namespace }}/{{ .Values.serviceAccount.name }}
+  ClusterRole    : {{ .Values.rbac.clusterRoleName }}  (read-only)
+  Token Secret   : {{ .Values.namespace }}/{{ .Values.token.secretName }}
+
+Next: register this cluster on the HUB.
+
+1) On THIS cluster, capture the API URL, token, and CA:
+
+     API_URL=$(oc whoami --show-server)
+     TOKEN=$(oc -n {{ .Values.namespace }} get secret {{ .Values.token.secretName }} \
+       -o jsonpath='{.data.token}' | base64 -d)
+     CA_B64=$(oc -n {{ .Values.namespace }} get secret {{ .Values.token.secretName }} \
+       -o jsonpath='{.data.ca\.crt}')
+
+2) On the HUB cluster, create the labeled Secret. Its NAME is the cluster name
+   that will be shown in the matrix (e.g. "prod-emea", "dev-01"):
+
+     oc -n cluster-comparator create secret generic <CLUSTER_NAME> \
+       --from-literal=apiURL="$API_URL" \
+       --from-literal=token="$TOKEN"
+
+     oc -n cluster-comparator patch secret <CLUSTER_NAME> --type merge \
+       -p "{\"data\":{\"caBundle\":\"$CA_B64\"}}"
+
+     oc -n cluster-comparator label secret <CLUSTER_NAME> {{ .Values.secretLabel }}
+
+The hub watches for Secrets carrying label "{{ .Values.secretLabel }}" and will
+pick this cluster up automatically — no restart required.

@@ -1,0 +1,18 @@
+{{- if .Values.oauthProxy.enabled }}
+# oauth-proxy validates incoming tokens via TokenReview/SubjectAccessReview,
+# which requires the built-in system:auth-delegator ClusterRole.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Values.serviceAccount.name }}-auth-delegator
+  labels:
+    {{- include "hub.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.serviceAccount.name }}
+    namespace: {{ .Values.namespace }}
+{{- end }}

@@ -1,0 +1,38 @@
+# Namespace that holds the read-only ServiceAccount + its token.
+# (The ClusterRole / ClusterRoleBinding are cluster-scoped regardless.)
+namespace: cluster-comparator
+# Create the namespace as part of this release.
+namespaceCreate: true
+
+serviceAccount:
+  name: cluster-comparator-reader
+
+rbac:
+  # How much read access the reader ServiceAccount gets:
+  #   clusterReader — bind to OpenShift's built-in read-only "cluster-reader"
+  #                   ClusterRole. Read-only across the whole cluster, so NEW
+  #                   operator CRDs never cause a "forbidden" and adding an
+  #                   extractor needs no RBAC change. Broad read (incl. most
+  #                   resources) — the token the hub stores can read widely.
+  #   explicit      — the curated least-privilege ClusterRole below. A new deep
+  #                   extractor reading a new CRD 403s until you add a rule.
+  mode: clusterReader
+
+  # Name of the custom read role (used only when mode == "explicit").
+  # >>> KEEP THE RULES IN SYNC with the hub chart's clusterrole-read.yaml <<<
+  clusterRoleName: cluster-comparator-reader
+
+  # Extra rules appended to the explicit ClusterRole. Add an entry here when a new
+  # deep extractor needs a new CRD — no template edit required. (mode == "explicit")
+  additionalRules: []
+  # - apiGroups: ["example.com"]
+  #   resources: ["widgets"]
+  #   verbs: ["get", "list", "watch"]
+
+# Long-lived (non-expiring) ServiceAccount token Secret to hand to the hub.
+token:
+  create: true
+  secretName: cluster-comparator-reader-token
+
+# The label the hub uses to discover joined-cluster Secrets (shown in NOTES only).
+secretLabel: clustercomparator.io/cluster=true

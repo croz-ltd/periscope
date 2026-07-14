@@ -1,0 +1,12 @@
+{{- if .Values.extractorConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.serviceAccount.name }}-extractors
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "hub.labels" . | nindent 4 }}
+data:
+  extractors.yaml: |
+    {{- toYaml .Values.extractorConfig | nindent 4 }}
+{{- end }}

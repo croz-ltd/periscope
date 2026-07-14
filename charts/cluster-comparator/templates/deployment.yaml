@@ -1,0 +1,114 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "hub.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "hub.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hub.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      containers:
+        - name: cluster-comparator
+          image: {{ include "hub.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - serve
+            - --addr=:{{ .Values.appPort }}
+            - --namespace={{ .Release.Namespace }}
+            - --label-key={{ .Values.secretDiscovery.labelKey }}
+            - --label-value={{ .Values.secretDiscovery.labelValue }}
+            - --local-name={{ .Values.scrape.localClusterName }}
+            - --db={{ .Values.persistence.mountPath }}/cluster-comparator.db
+            - --interval={{ .Values.scrape.interval }}
+            - --timeout={{ .Values.scrape.timeout }}
+            - --concurrency={{ .Values.scrape.concurrency }}
+            - --stale-after={{ .Values.scrape.staleAfter }}
+            {{- if .Values.extractorConfig }}
+            - --config=/etc/cluster-comparator/extractors.yaml
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.appPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.appPort }}
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.appPort }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: {{ .Values.persistence.mountPath }}
+            {{- if .Values.extractorConfig }}
+            - name: extractor-config
+              mountPath: /etc/cluster-comparator
+              readOnly: true
+            {{- end }}
+        {{- if .Values.oauthProxy.enabled }}
+        - name: oauth-proxy
+          image: {{ .Values.oauthProxy.image }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - --provider=openshift
+            - --https-address=:{{ .Values.oauthProxy.port }}
+            - --http-address=
+            - --upstream=http://localhost:{{ .Values.appPort }}
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            - --cookie-secret-file=/etc/oauth/session/session_secret
+            - --openshift-service-account={{ .Values.serviceAccount.name }}
+            - --pass-user-headers=true
+            # Gate access on being able to read this namespace; widen/narrow as needed.
+            - '--openshift-sar={"namespace":"{{ .Release.Namespace }}","resource":"services","verb":"get"}'
+          ports:
+            - name: public
+              containerPort: {{ .Values.oauthProxy.port }}
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          volumeMounts:
+            - name: tls-certs
+              mountPath: /etc/tls/private
+              readOnly: true
+            - name: oauth-session
+              mountPath: /etc/oauth/session
+              readOnly: true
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.serviceAccount.name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.oauthProxy.enabled }}
+        - name: tls-certs
+          secret:
+            secretName: {{ include "hub.tlsSecret" . }}
+        - name: oauth-session
+          secret:
+            secretName: {{ include "hub.sessionSecret" . }}
+        {{- end }}
+        {{- if .Values.extractorConfig }}
+        - name: extractor-config
+          configMap:
+            name: {{ .Values.serviceAccount.name }}-extractors
+        {{- end }}

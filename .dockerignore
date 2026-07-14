@@ -1,0 +1,6 @@
+.git
+bin
+*.db
+*.db-*
+web/app/node_modules
+**/.DS_Store

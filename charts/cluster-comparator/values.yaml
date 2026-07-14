@@ -1,0 +1,83 @@
+namespace: cluster-comparator
+
+serviceAccount:
+  name: cluster-comparator
+
+# How the hub discovers joined-cluster credential Secrets in its own namespace.
+secretDiscovery:
+  labelKey: clustercomparator.io/cluster
+  labelValue: "true"
+
+rbac:
+  # Cluster-scoped read used to scrape the HUB's OWN (local) cluster via the pod's
+  # in-cluster credentials. Remote clusters are scraped with their stored tokens,
+  # whose RBAC is granted by the cluster-comparator-join chart.
+  #   clusterReader — bind the hub SA to OpenShift's built-in "cluster-reader".
+  #   explicit      — use the curated ClusterRole below.
+  # Keep this consistent with the join chart's rbac.mode.
+  mode: clusterReader
+
+  # Custom read role (used only when mode == "explicit").
+  # >>> KEEP THE RULES IN SYNC with the join chart's clusterrole.yaml <<<
+  clusterReadRoleName: cluster-comparator-reader-hub
+  additionalRules: []
+
+# oauth-proxy sidecar fronts the UI with OpenShift SSO. When enabled, the hub SA
+# doubles as the OAuth client and needs delegated token/subjectaccess review.
+oauthProxy:
+  enabled: true
+  # Route name the SA OAuth redirect reference points at.
+  routeName: cluster-comparator
+  image: registry.redhat.io/openshift4/ose-oauth-proxy:latest
+  # Public TLS port the proxy serves; it forwards to the app on 127.0.0.1:appPort.
+  port: 8443
+
+image:
+  repository: ghcr.io/croz-ltd/cluster-comparator
+  tag: "" # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+# Port the Go app listens on (localhost only when oauth-proxy is enabled).
+appPort: 8080
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# SQLite lives on a PVC so history survives restarts.
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClassName: "" # "" = cluster default
+  mountPath: /data
+
+route:
+  enabled: true
+  host: "" # "" = let OpenShift assign
+
+# Scrape behaviour (maps to `serve` flags).
+scrape:
+  interval: 10m
+  timeout: 30s
+  concurrency: 4
+  staleAfter: 30m
+  localClusterName: local
+
+# Optional extractor config (internal/config schema). When set, it is rendered
+# into a ConfigMap, mounted, and passed via --config. Leave null to use built-in
+# Portworx/Dell defaults. Provide the same YAML shape as config/extractors.yaml.
+extractorConfig: null
+#  crExtractors:
+#    - key: portworx-csi
+#      display: Portworx (CSI)
+#      kind: csi
+#      group: core.libopenstorage.org
+#      version: v1
+#      resource: storageclusters
+#      versionPath: [status, version]

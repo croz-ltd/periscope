@@ -1,0 +1,13 @@
+# Go
+/cluster-comparator
+/bin/
+*.db
+*.db-*
+
+# Node / Vite (web app, added later)
+web/app/node_modules/
+web/dist/assets/
+
+# Local
+*.local
+.DS_Store

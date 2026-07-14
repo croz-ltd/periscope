@@ -1,0 +1,121 @@
+/* Drift-cell coloring. Defined with explicit light values plus dark overrides
+   under .pf-v6-theme-dark so the matrix stays readable in both themes. */
+
+.cc-table-wrap {
+  overflow-x: auto;
+  margin-top: 0.5rem;
+}
+
+.cc-component-name {
+  font-weight: 600;
+}
+.cc-component-kind {
+  font-size: 0.75rem;
+  opacity: 0.6;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.cc-leader-version {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.cc-col-head-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  align-items: flex-start;
+}
+
+/* Cells */
+.cc-cell {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  font-weight: 500;
+}
+.cc-cell span {
+  cursor: default;
+}
+
+.cc-leader {
+  background: #c3ecd0;
+  color: #0f5223;
+}
+.cc-unknown {
+  background: #ededed;
+  color: #6a6e73;
+  font-style: italic;
+}
+.cc-missing {
+  color: #b8bbbe;
+}
+
+/* Behind: light -> dark red as the gap grows. */
+.cc-behind-1 {
+  background: #fbe3e1;
+  color: #7d1a13;
+}
+.cc-behind-2 {
+  background: #f7c0bb;
+  color: #7d1a13;
+}
+.cc-behind-3 {
+  background: #ec7f76;
+  color: #3d0906;
+}
+.cc-behind-4 {
+  background: #c9190b;
+  color: #ffffff;
+}
+
+/* Dark theme overrides */
+.pf-v6-theme-dark .cc-leader {
+  background: #1d4d29;
+  color: #c3ecd0;
+}
+.pf-v6-theme-dark .cc-unknown {
+  background: #3a3a3a;
+  color: #b0b0b0;
+}
+.pf-v6-theme-dark .cc-missing {
+  color: #6a6e73;
+}
+.pf-v6-theme-dark .cc-behind-1 {
+  background: #47201d;
+  color: #f7c0bb;
+}
+.pf-v6-theme-dark .cc-behind-2 {
+  background: #632b26;
+  color: #f7c0bb;
+}
+.pf-v6-theme-dark .cc-behind-3 {
+  background: #8f3a31;
+  color: #ffe0dc;
+}
+.pf-v6-theme-dark .cc-behind-4 {
+  background: #c9190b;
+  color: #ffffff;
+}
+
+/* Legend */
+.cc-legend {
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+}
+.cc-swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
+  vertical-align: text-bottom;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+.cc-legend-label {
+  opacity: 0.85;
+}
+
+.cc-tip {
+  white-space: pre-line;
+  text-align: left;
+}

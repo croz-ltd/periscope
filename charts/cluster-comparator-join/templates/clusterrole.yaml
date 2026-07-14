@@ -6,9 +6,9 @@ metadata:
   labels:
     {{- include "join.labels" . | nindent 4 }}
 rules:
-  # --- OpenShift release + component operators --------------------------------
+  # --- OpenShift release, component operators, ingress domain -----------------
   - apiGroups: ["config.openshift.io"]
-    resources: ["clusterversions", "clusteroperators"]
+    resources: ["clusterversions", "clusteroperators", "ingresses"]
     verbs: ["get", "list", "watch"]
 
   # --- OLM: installed operators + subscriptions (stable package name) ---------
@@ -19,6 +19,16 @@ rules:
   # --- Nodes: kubelet / OS versions ------------------------------------------
   - apiGroups: [""]
     resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+
+  # --- Default StorageClass ---------------------------------------------------
+  - apiGroups: ["storage.k8s.io"]
+    resources: ["storageclasses"]
+    verbs: ["get", "list", "watch"]
+
+  # --- OpenShift Virtualization: HyperConverged settings ----------------------
+  - apiGroups: ["hco.kubevirt.io"]
+    resources: ["hyperconvergeds"]
     verbs: ["get", "list", "watch"]
 
   # --- Portworx: StorageCluster CR (operator + managed CSI driver version) ----

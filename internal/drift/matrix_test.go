@@ -17,6 +17,56 @@ func TestBuildEmpty(t *testing.T) {
 	}
 }
 
+func TestBuildMatch(t *testing.T) {
+	now := time.Unix(1_000_000, 0)
+	snaps := []model.Snapshot{
+		{Cluster: "a", Time: now, OK: true, Components: []model.Component{
+			{Key: "chan", Name: "Channel", Group: model.GroupOpenShift, Compare: model.CompareMatch, Version: "stable-4.14"},
+		}},
+		{Cluster: "b", Time: now, OK: true, Components: []model.Component{
+			{Key: "chan", Name: "Channel", Group: model.GroupOpenShift, Compare: model.CompareMatch, Version: "stable-4.14"},
+		}},
+		{Cluster: "c", Time: now, OK: true, Components: []model.Component{
+			{Key: "chan", Name: "Channel", Group: model.GroupOpenShift, Compare: model.CompareMatch, Version: "fast-4.15"},
+		}},
+	}
+	m := Build(snaps, now, time.Hour)
+	row := m.Rows[0]
+	if row.Leader != "stable-4.14" { // the common (majority) value
+		t.Errorf("expected common value stable-4.14, got %q", row.Leader)
+	}
+	if row.Cells["a"].State != StateMatch || row.Cells["b"].State != StateMatch {
+		t.Errorf("a/b should match: %s %s", row.Cells["a"].State, row.Cells["b"].State)
+	}
+	if row.Cells["c"].State != StateMismatch {
+		t.Errorf("c should mismatch, got %s", row.Cells["c"].State)
+	}
+}
+
+func TestBuildExpiry(t *testing.T) {
+	now := time.Unix(1_700_000_000, 0)
+	mk := func(cluster string, days int) model.Snapshot {
+		exp := now.Add(time.Duration(days) * 24 * time.Hour).UTC().Format(time.RFC3339)
+		return model.Snapshot{Cluster: cluster, Time: now, OK: true, Components: []model.Component{
+			{Key: "cert-api", Name: "API", Group: model.GroupCert, Compare: model.CompareExpiry, Version: exp},
+		}}
+	}
+	m := Build([]model.Snapshot{mk("crit", 30), mk("warn", 90), mk("ok", 200)}, now, time.Hour)
+	row := m.Rows[0]
+	if row.Cells["crit"].State != StateExpiryCrit {
+		t.Errorf("30d should be crit, got %s", row.Cells["crit"].State)
+	}
+	if row.Cells["warn"].State != StateExpiryWarn {
+		t.Errorf("90d should be warn, got %s", row.Cells["warn"].State)
+	}
+	if row.Cells["ok"].State != StateExpiryOK {
+		t.Errorf("200d should be ok, got %s", row.Cells["ok"].State)
+	}
+	if row.Cells["warn"].Severity != 90 {
+		t.Errorf("expected 90 days remaining, got %d", row.Cells["warn"].Severity)
+	}
+}
+
 func TestBuild(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	snaps := []model.Snapshot{

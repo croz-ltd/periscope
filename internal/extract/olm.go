@@ -66,6 +66,8 @@ func (OLM) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
 		out = append(out, model.Component{
 			Key:       key,
 			Name:      display,
+			Group:     model.GroupOperators,
+			Compare:   model.CompareVersion,
 			Kind:      "operator",
 			Version:   ver,
 			Namespace: item.GetNamespace(),

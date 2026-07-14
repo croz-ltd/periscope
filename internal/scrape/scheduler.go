@@ -89,7 +89,7 @@ func (s *Scheduler) scrapeOne(ctx context.Context, t cluster.Target) model.Snaps
 		snap.OK, snap.Error = false, err.Error()
 		return snap
 	}
-	clients := &extract.Clients{Typed: typed, Dynamic: dyn}
+	clients := &extract.Clients{Typed: typed, Dynamic: dyn, Host: t.Config.Host}
 
 	var errs []string
 	for _, e := range s.Extractors {

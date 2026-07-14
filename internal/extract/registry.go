@@ -16,6 +16,7 @@ import (
 type Clients struct {
 	Typed   kubernetes.Interface
 	Dynamic dynamic.Interface
+	Host    string // API server URL, for TLS cert inspection
 }
 
 // Extractor pulls one class of version information from a cluster. Key is used
@@ -29,6 +30,9 @@ type Extractor interface {
 func Default() []Extractor {
 	return []Extractor{
 		OpenShift{},
+		DefaultStorageClass{},
+		Certificates{},
+		Virtualization{},
 		OLM{},
 		Nodes{},
 		Portworx(),

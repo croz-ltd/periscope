@@ -3,6 +3,7 @@ package extract
 import (
 	"context"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -45,6 +46,9 @@ func (e crFieldExtractor) Key() string { return e.key }
 func (e crFieldExtractor) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
 	list, err := c.Dynamic.Resource(e.gvr).List(ctx, metav1.ListOptions{})
 	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil // this vendor's CRD isn't installed on this cluster
+		}
 		return nil, err
 	}
 	var out []model.Component
@@ -56,6 +60,8 @@ func (e crFieldExtractor) Extract(ctx context.Context, c *Clients) ([]model.Comp
 		out = append(out, model.Component{
 			Key:       e.key,
 			Name:      e.display,
+			Group:     model.GroupOperators,
+			Compare:   model.CompareVersion,
 			Kind:      e.kind,
 			Version:   ver,
 			Namespace: item.GetNamespace(),

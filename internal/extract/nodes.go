@@ -51,6 +51,8 @@ func (Nodes) Extract(ctx context.Context, c *Clients) ([]model.Component, error)
 	return []model.Component{{
 		Key:     "node-kubelet",
 		Name:    "Kubelet",
+		Group:   model.GroupNode,
+		Compare: model.CompareVersion,
 		Kind:    "nodes",
 		Version: top,
 		Extra:   extra,

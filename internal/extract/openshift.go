@@ -26,15 +26,23 @@ func (OpenShift) Extract(ctx context.Context, c *Clients) ([]model.Component, er
 	}
 	ver, _, _ := unstructured.NestedString(obj.Object, "status", "desired", "version")
 	channel, _, _ := unstructured.NestedString(obj.Object, "spec", "channel")
-	extra := map[string]string{}
-	if channel != "" {
-		extra["channel"] = channel
-	}
-	return []model.Component{{
+
+	comps := []model.Component{{
 		Key:     "openshift",
 		Name:    "OpenShift",
+		Group:   model.GroupOpenShift,
+		Compare: model.CompareVersion,
 		Kind:    "openshift",
 		Version: ver,
-		Extra:   extra,
-	}}, nil
+	}}
+	// Update channel: a config value compared for consistency across the fleet.
+	comps = append(comps, model.Component{
+		Key:     "openshift-channel",
+		Name:    "Update channel",
+		Group:   model.GroupOpenShift,
+		Compare: model.CompareMatch,
+		Kind:    "openshift",
+		Version: channel,
+	})
+	return comps, nil
 }

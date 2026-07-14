@@ -37,7 +37,7 @@ func (DefaultStorageClass) Extract(ctx context.Context, c *Clients) ([]model.Com
 	value := strings.Join(defaults, ", ") // "" when none, "a, b" if misconfigured with >1
 	return []model.Component{{
 		Key:     "default-storageclass",
-		Name:    "Default StorageClass",
+		Name:    "StorageClass - Default",
 		Group:   model.GroupOpenShift,
 		Compare: model.CompareMatch,
 		Kind:    "openshift",

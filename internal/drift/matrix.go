@@ -59,7 +59,9 @@ type Matrix struct {
 // Build assembles the matrix from the latest snapshot per cluster. A cluster is
 // marked stale when its snapshot is older than now-staleAfter (0 disables).
 func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration) Matrix {
-	var m Matrix
+	// Initialise as empty (non-nil) slices so the JSON is always [] not null,
+	// which keeps the UI's .map() safe when no clusters are defined.
+	m := Matrix{Clusters: []ClusterInfo{}, Rows: []Row{}}
 	var clusterNames []string
 	for _, s := range snaps {
 		stale := staleAfter > 0 && now.Sub(s.Time) > staleAfter

@@ -7,6 +7,16 @@ import (
 	"github.com/croz-ltd/cluster-comparator/internal/model"
 )
 
+func TestBuildEmpty(t *testing.T) {
+	m := Build(nil, time.Unix(1_000_000, 0), time.Hour)
+	if m.Clusters == nil || m.Rows == nil {
+		t.Fatalf("empty build must return non-nil slices, got clusters=%v rows=%v", m.Clusters, m.Rows)
+	}
+	if len(m.Clusters) != 0 || len(m.Rows) != 0 {
+		t.Fatalf("empty build must be empty, got %d clusters %d rows", len(m.Clusters), len(m.Rows))
+	}
+}
+
 func TestBuild(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	snaps := []model.Snapshot{

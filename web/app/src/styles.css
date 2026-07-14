@@ -145,17 +145,20 @@
 /* backgrounds are explicit colors, so they survive felt/glass; we add    */
 /* crisp borders + bold under high-contrast/glass for extra definition.   */
 /* ------------------------------------------------------------------ */
-.pf-v6-theme-high-contrast .cc-cell,
-.pf-v6-theme-glass .cc-cell {
+/* High contrast wants crisp borders; glass does not (the outline looks wrong
+   over the translucent surface), so only bolden cells under glass. */
+.pf-v6-theme-high-contrast .cc-cell {
   border: 1px solid currentColor;
+  font-weight: 700;
+}
+.pf-v6-theme-glass .cc-cell {
   font-weight: 700;
 }
 .pf-v6-theme-high-contrast .cc-unknown,
 .pf-v6-theme-glass .cc-unknown {
   font-style: normal;
 }
-.pf-v6-theme-high-contrast .cc-swatch,
-.pf-v6-theme-glass .cc-swatch {
+.pf-v6-theme-high-contrast .cc-swatch {
   border: 1px solid currentColor;
 }
 /* Glass surfaces are translucent; give the group header a translucent-safe

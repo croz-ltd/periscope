@@ -65,18 +65,22 @@ Then follow the join chart's NOTES to create the labeled Secret on the hub.
 ## CI/CD (GitLab)
 
 `.gitlab-ci.yml` runs: `build-web` (Vite → `web/dist`, shared as an artifact since
-the Go build embeds it) → `test` (vet + go test) → cross-platform binaries → a
-kaniko **image build/push to Harbor** → Nexus upload + GitLab Release (on tags).
+the Go build embeds it) → `test` (vet + go test) → cross-platform binaries
+(darwin-arm64, linux-amd64, windows-amd64) → a **`docker build` image push to Harbor**
+→ Nexus upload + GitLab Release (on tags).
 
-The image is built from the multi-stage `Dockerfile`, so the pushed container builds
-and serves the embedded web UI. It pushes `:<sha>`/`:edge` on the default branch and
-`:<tag>`/`:latest` on tags.
+The image (linux/amd64 only, no multiarch) is built from the multi-stage `Dockerfile`,
+so the pushed container builds and serves the embedded web UI. It pushes
+`:<sha>`/`:edge` on the default branch and `:<tag>`/`:latest` on tags.
 
 Required before first run:
 - CI variables **`HARBOR_USER`** / **`HARBOR_PASSWORD`** (masked) with push rights.
 - Set **`IMAGE`** in `.gitlab-ci.yml` to your real Harbor project path.
 - Ensure the toolchain image tags exist in Harbor's proxy (`golang:1.26.4`,
-  `node:20-alpine`) and that runners can pull `KANIKO_IMAGE` (mirror it if needed).
+  `node:20-alpine`, `docker:27`, `docker:27-dind`).
+- The `build-image` job uses a `docker:dind` service (needs a privileged/dind-capable
+  runner). If your runner exposes a Docker socket instead, drop the `services` block
+  and `DOCKER_HOST`/TLS vars from that job.
 
 Build the image locally:
 

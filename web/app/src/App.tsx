@@ -27,21 +27,47 @@ import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
 import { AppMasthead } from './AppMasthead'
 
-const LEGEND: { cls: string; label: string }[] = [
-  { cls: 'cc-leader', label: 'Leader (fleet max)' },
-  { cls: 'cc-behind cc-behind-2', label: 'Behind — patch' },
-  { cls: 'cc-behind cc-behind-3', label: 'Behind — minor' },
-  { cls: 'cc-behind cc-behind-4', label: 'Behind — major' },
-  { cls: 'cc-unknown', label: 'Unknown version' },
-  { cls: 'cc-missing', label: 'Not installed' },
+const LEGEND_GROUPS: { title: string; items: { cls: string; label: string }[] }[] = [
+  {
+    title: 'Version',
+    items: [
+      { cls: 'cc-leader', label: 'Leader' },
+      { cls: 'cc-behind cc-behind-3', label: 'Behind (darker = bigger gap)' },
+      { cls: 'cc-unknown', label: 'Unknown' },
+    ],
+  },
+  {
+    title: 'Match',
+    items: [
+      { cls: 'cc-match', label: 'Consistent' },
+      { cls: 'cc-mismatch', label: 'Differs' },
+    ],
+  },
+  {
+    title: 'Expiry',
+    items: [
+      { cls: 'cc-exp-ok', label: 'OK' },
+      { cls: 'cc-exp-warn', label: 'Warning' },
+      { cls: 'cc-exp-crit', label: 'Critical' },
+    ],
+  },
+  {
+    title: 'Other',
+    items: [{ cls: 'cc-missing', label: 'Not installed' }],
+  },
 ]
 
 function Legend() {
   return (
-    <Flex className="cc-legend" spaceItems={{ default: 'spaceItemsMd' }} alignItems={{ default: 'alignItemsCenter' }}>
-      {LEGEND.map((l) => (
-        <FlexItem key={l.label}>
-          <span className={`cc-swatch ${l.cls}`} /> <span className="cc-legend-label">{l.label}</span>
+    <Flex className="cc-legend" spaceItems={{ default: 'spaceItemsLg' }} alignItems={{ default: 'alignItemsCenter' }}>
+      {LEGEND_GROUPS.map((g) => (
+        <FlexItem key={g.title}>
+          <span className="cc-legend-group-title">{g.title}:</span>{' '}
+          {g.items.map((l) => (
+            <span key={l.label} className="cc-legend-item">
+              <span className={`cc-swatch ${l.cls}`} /> <span className="cc-legend-label">{l.label}</span>
+            </span>
+          ))}
         </FlexItem>
       ))}
     </Flex>

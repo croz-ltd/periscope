@@ -1,10 +1,24 @@
-export type CellState = 'leader' | 'behind' | 'unknown' | 'not_installed'
+export type CellState =
+  // version compare
+  | 'leader'
+  | 'behind'
+  | 'unknown'
+  | 'not_installed'
+  // match compare
+  | 'match'
+  | 'mismatch'
+  // expiry compare
+  | 'expiry_ok'
+  | 'expiry_warn'
+  | 'expiry_crit'
+
+export type CompareKind = 'version' | 'match' | 'expiry'
 
 export interface Cell {
   cluster: string
   version?: string
   state: CellState
-  severity: number
+  severity: number // version: gap score; expiry: days remaining (may be negative)
   gapKind?: string
   namespace?: string
   extra?: Record<string, string>
@@ -13,8 +27,10 @@ export interface Cell {
 export interface Row {
   key: string
   name: string
+  group: string
+  compare: CompareKind
   kind: string
-  leader: string
+  leader: string // reference value: fleet-max (version), common value (match), or "" (expiry)
   cells: Record<string, Cell>
 }
 

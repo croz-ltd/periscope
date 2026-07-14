@@ -98,6 +98,50 @@
   color: #ffffff;
 }
 
+/* Match compare: consistent (subtle green) vs mismatch (amber, distinct from red). */
+.cc-match {
+  background: #e8f5ec;
+  color: #1e4620;
+}
+.cc-mismatch {
+  background: #fde6c8;
+  color: #795600;
+}
+.pf-v6-theme-dark .cc-match {
+  background: #1f3d29;
+  color: #b7e0c2;
+}
+.pf-v6-theme-dark .cc-mismatch {
+  background: #4d3a12;
+  color: #f6d488;
+}
+
+/* Expiry compare: ok (green) / warn (amber) / crit (red). */
+.cc-exp-ok {
+  background: #c3ecd0;
+  color: #0f5223;
+}
+.cc-exp-warn {
+  background: #fbecc3;
+  color: #795600;
+}
+.cc-exp-crit {
+  background: #c9190b;
+  color: #ffffff;
+}
+.pf-v6-theme-dark .cc-exp-ok {
+  background: #1d4d29;
+  color: #c3ecd0;
+}
+.pf-v6-theme-dark .cc-exp-warn {
+  background: #4d3f14;
+  color: #f6d488;
+}
+.pf-v6-theme-dark .cc-exp-crit {
+  background: #c9190b;
+  color: #ffffff;
+}
+
 /* Legend */
 .cc-legend {
   margin: 0.75rem 0;
@@ -113,6 +157,14 @@
 }
 .cc-legend-label {
   opacity: 0.85;
+}
+.cc-legend-group-title {
+  font-weight: 600;
+  opacity: 0.7;
+}
+.cc-legend-item {
+  margin-right: 0.6rem;
+  white-space: nowrap;
 }
 
 .cc-tip {

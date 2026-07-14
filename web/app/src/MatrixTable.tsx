@@ -4,28 +4,26 @@ import { ExclamationTriangleIcon } from '@patternfly/react-icons'
 import type { Matrix, Row } from './api'
 import { cellClass, cellText, cellTooltip } from './cells'
 
-// Ordered row groups. "Operators" is the catch-all (operator + csi + anything else).
-const GROUPS: { title: string; match: (r: Row) => boolean }[] = [
-  { title: 'OpenShift', match: (r) => r.kind === 'openshift' },
-  { title: 'Node', match: (r) => r.kind === 'nodes' },
-  { title: 'Operators', match: () => true },
-]
+// Fixed display order of row groups; unexpected groups are appended last.
+const GROUP_ORDER = ['OpenShift', 'Node', 'Certificate', 'OpenShift Virtualization', 'Operators']
 
 function groupRows(rows: Row[]): { title: string; rows: Row[] }[] {
-  const remaining = [...rows]
-  const out: { title: string; rows: Row[] }[] = []
-  for (const g of GROUPS) {
-    const picked: Row[] = []
-    for (let i = remaining.length - 1; i >= 0; i--) {
-      if (g.match(remaining[i])) {
-        picked.push(remaining[i])
-        remaining.splice(i, 1)
-      }
-    }
-    picked.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()))
-    if (picked.length) out.push({ title: g.title, rows: picked })
+  const byGroup = new Map<string, Row[]>()
+  for (const r of rows) {
+    const g = r.group || 'Operators'
+    const list = byGroup.get(g)
+    if (list) list.push(r)
+    else byGroup.set(g, [r])
   }
-  return out
+  const known = GROUP_ORDER.filter((g) => byGroup.has(g))
+  const extra = [...byGroup.keys()].filter((g) => !GROUP_ORDER.includes(g)).sort()
+  return [...known, ...extra].map((title) => ({
+    title,
+    rows: byGroup
+      .get(title)!
+      .slice()
+      .sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase())),
+  }))
 }
 
 export function MatrixTable({ matrix }: { matrix: Matrix }) {
@@ -38,7 +36,7 @@ export function MatrixTable({ matrix }: { matrix: Matrix }) {
       <Thead>
         <Tr>
           <Th>Component</Th>
-          <Th>Leader</Th>
+          <Th>Reference</Th>
           {clusters.map((c) => (
             <Th key={c.name} className="cc-col-head">
               <div className="cc-col-head-inner">
@@ -75,12 +73,12 @@ export function MatrixTable({ matrix }: { matrix: Matrix }) {
                 <div className="cc-component-name">{row.name}</div>
                 <div className="cc-component-kind">{row.kind}</div>
               </Td>
-              <Td dataLabel="Leader" className="cc-leader-version">
-                {row.leader || '—'}
+              <Td dataLabel="Reference" className="cc-leader-version">
+                {row.compare === 'expiry' ? '' : row.leader || '—'}
               </Td>
               {clusters.map((c) => {
                 const cell = row.cells[c.name]
-                const tip = cellTooltip(cell)
+                const tip = cellTooltip(cell, row.leader)
                 const content = <span>{cellText(cell)}</span>
                 return (
                   <Td key={c.name} dataLabel={c.name} className={cellClass(cell)}>

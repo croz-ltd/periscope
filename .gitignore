@@ -11,3 +11,6 @@ web/dist/assets/
 # Local
 *.local
 .DS_Store
+
+# Rendered Helm output (deploy artifact, not source)
+charts/**/apply.yaml

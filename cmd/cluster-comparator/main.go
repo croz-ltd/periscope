@@ -55,7 +55,6 @@ type commonFlags struct {
 	namespace  string
 	labelKey   string
 	labelVal   string
-	localName  string
 	db         string
 	staleAfter time.Duration
 }
@@ -65,7 +64,6 @@ func registerCommon(fs *flag.FlagSet) *commonFlags {
 	fs.StringVar(&c.namespace, "namespace", defaultNamespace(), "hub namespace holding joined-cluster Secrets")
 	fs.StringVar(&c.labelKey, "label-key", "clustercomparator.io/cluster", "label key marking joined-cluster Secrets")
 	fs.StringVar(&c.labelVal, "label-value", "true", "label value marking joined-cluster Secrets")
-	fs.StringVar(&c.localName, "local-name", envOr("LOCAL_CLUSTER_NAME", "local"), "display name for the hub's own cluster")
 	fs.StringVar(&c.db, "db", envOr("DB_PATH", "/data/cluster-comparator.db"), "SQLite database path")
 	fs.DurationVar(&c.staleAfter, "stale-after", 30*time.Minute, "mark a cluster stale if its last scrape is older than this")
 	return c
@@ -88,7 +86,7 @@ func serve(args []string) {
 	if err != nil {
 		log.Fatalf("extractors: %v", err)
 	}
-	reg, err := cluster.NewRegistry(c.namespace, c.labelKey, c.labelVal, c.localName)
+	reg, err := cluster.NewRegistry(c.namespace, c.labelKey, c.labelVal)
 	if err != nil {
 		log.Fatalf("registry: %v", err)
 	}

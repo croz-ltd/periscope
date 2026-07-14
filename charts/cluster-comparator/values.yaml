@@ -3,24 +3,12 @@ namespace: system-cluster-comparator
 serviceAccount:
   name: cluster-comparator
 
-# How the hub discovers joined-cluster credential Secrets in its own namespace.
+# How the hub discovers cluster credential Secrets in its own namespace. Every
+# cluster — including the hub's own — is added this way (see the join chart);
+# the Secret's name becomes the cluster's display name.
 secretDiscovery:
   labelKey: clustercomparator.io/cluster
   labelValue: "true"
-
-rbac:
-  # Cluster-scoped read used to scrape the HUB's OWN (local) cluster via the pod's
-  # in-cluster credentials. Remote clusters are scraped with their stored tokens,
-  # whose RBAC is granted by the cluster-comparator-join chart.
-  #   clusterReader — bind the hub SA to OpenShift's built-in "cluster-reader".
-  #   explicit      — use the curated ClusterRole below.
-  # Keep this consistent with the join chart's rbac.mode.
-  mode: clusterReader
-
-  # Custom read role (used only when mode == "explicit").
-  # >>> KEEP THE RULES IN SYNC with the join chart's clusterrole.yaml <<<
-  clusterReadRoleName: cluster-comparator-reader-hub
-  additionalRules: []
 
 # oauth-proxy sidecar fronts the UI with OpenShift SSO. When enabled, the hub SA
 # doubles as the OAuth client and needs delegated token/subjectaccess review.
@@ -67,7 +55,6 @@ scrape:
   timeout: 30s
   concurrency: 4
   staleAfter: 30m
-  localClusterName: local
 
 # Optional extractor config (internal/config schema). When set, it is rendered
 # into a ConfigMap, mounted, and passed via --config. Leave null to use built-in

@@ -31,7 +31,6 @@ spec:
             - --addr=:{{ .Values.appPort }}
             - --label-key={{ .Values.secretDiscovery.labelKey }}
             - --label-value={{ .Values.secretDiscovery.labelValue }}
-            - --local-name={{ .Values.scrape.localClusterName }}
             - --db={{ .Values.persistence.mountPath }}/cluster-comparator.db
             - --interval={{ .Values.scrape.interval }}
             - --timeout={{ .Values.scrape.timeout }}

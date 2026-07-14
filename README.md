@@ -53,14 +53,17 @@ Key endpoints: `/` (UI), `/api/matrix`, `/api/export.csv`, `/api/export.json`,
 ## Deploy
 
 ```bash
-# On each cluster to join: read-only SA + RBAC + long-lived token
-helm install cc-join charts/cluster-comparator-join
-
 # On the hub: app + oauth-proxy + RBAC + PVC + Route
 helm install cc charts/cluster-comparator
+
+# On EVERY cluster you want compared — INCLUDING the hub's own cluster —
+# create a read-only SA + RBAC + long-lived token:
+helm install cc-join charts/cluster-comparator-join
 ```
 
-Then follow the join chart's NOTES to create the labeled Secret on the hub.
+There is no implicit "local" cluster: the hub's own cluster is added the same way
+as the others. For each cluster, follow the join chart's NOTES to create a labeled
+Secret in the hub namespace — its **name** becomes the cluster's display name.
 
 ## CI/CD (GitLab)
 

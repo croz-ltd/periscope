@@ -18,12 +18,16 @@ DB. Every scrape is retained so we can render drift-over-time timelines (which v
 landed where, when), not just the latest snapshot.
 
 **Cluster registry: labeled Secrets (no ConfigMap).** The hub discovers clusters by
-listing/watching Secrets in its namespace carrying a custom label. Convention:
+listing Secrets in its namespace carrying a custom label. Convention:
 - cluster **name** = Secret name
-- Secret data = `apiURL` + `token` (read-only SA token from the joined cluster)
+- Secret data = `apiURL` + `token` (read-only SA token from the cluster)
 - optional `caBundle` / `insecureTLS`
 
-A `watch` picks up newly joined clusters live, with no config change or restart.
+**Every cluster is a Secret — including the hub's own.** There is no special "local"
+target. The hub's in-cluster credentials are used only to *read the Secrets*; to have
+the hub compare itself it must be joined like any other cluster (apply the join chart
+on the hub, create a labeled Secret pointing at its own API). This keeps naming and
+RBAC uniform across all clusters.
 
 ## Version model (resolved)
 

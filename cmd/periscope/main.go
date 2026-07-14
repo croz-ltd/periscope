@@ -1,8 +1,8 @@
-// Command cluster-comparator serves the multi-cluster version-drift dashboard
+// Command periscope serves the multi-cluster version-drift dashboard
 // (default) or prints a one-off report.
 //
-//	cluster-comparator serve    # scrape on an interval + serve the UI/API
-//	cluster-comparator report   # print the latest matrix from the store
+//	periscope serve    # scrape on an interval + serve the UI/API
+//	periscope report   # print the latest matrix from the store
 package main
 
 import (
@@ -17,18 +17,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/croz-ltd/cluster-comparator/internal/api"
-	"github.com/croz-ltd/cluster-comparator/internal/cluster"
-	"github.com/croz-ltd/cluster-comparator/internal/config"
-	"github.com/croz-ltd/cluster-comparator/internal/report"
-	"github.com/croz-ltd/cluster-comparator/internal/scrape"
-	"github.com/croz-ltd/cluster-comparator/internal/store"
-	"github.com/croz-ltd/cluster-comparator/pkg/version"
+	"github.com/croz-ltd/periscope/internal/api"
+	"github.com/croz-ltd/periscope/internal/cluster"
+	"github.com/croz-ltd/periscope/internal/config"
+	"github.com/croz-ltd/periscope/internal/report"
+	"github.com/croz-ltd/periscope/internal/scrape"
+	"github.com/croz-ltd/periscope/internal/store"
+	"github.com/croz-ltd/periscope/pkg/version"
 )
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
-	log.SetPrefix("cluster-comparator: ")
+	log.SetPrefix("periscope: ")
 
 	args := os.Args[1:]
 	cmd := "serve"
@@ -62,9 +62,9 @@ type commonFlags struct {
 func registerCommon(fs *flag.FlagSet) *commonFlags {
 	c := &commonFlags{}
 	fs.StringVar(&c.namespace, "namespace", defaultNamespace(), "hub namespace holding joined-cluster Secrets")
-	fs.StringVar(&c.labelKey, "label-key", "clustercomparator.io/cluster", "label key marking joined-cluster Secrets")
+	fs.StringVar(&c.labelKey, "label-key", "periscope.io/cluster", "label key marking joined-cluster Secrets")
 	fs.StringVar(&c.labelVal, "label-value", "true", "label value marking joined-cluster Secrets")
-	fs.StringVar(&c.db, "db", envOr("DB_PATH", "/data/cluster-comparator.db"), "SQLite database path")
+	fs.StringVar(&c.db, "db", envOr("DB_PATH", "/data/periscope.db"), "SQLite database path")
 	fs.DurationVar(&c.staleAfter, "stale-after", 30*time.Minute, "mark a cluster stale if its last scrape is older than this")
 	return c
 }
@@ -113,7 +113,7 @@ func serve(args []string) {
 		_ = httpSrv.Shutdown(sctx)
 	}()
 
-	log.Printf("cluster-comparator %s listening on %s (namespace=%s, interval=%s)", version.Raw, *addr, c.namespace, *interval)
+	log.Printf("periscope %s listening on %s (namespace=%s, interval=%s)", version.Raw, *addr, c.namespace, *interval)
 	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("http: %v", err)
 	}
@@ -150,7 +150,7 @@ func envOr(key, def string) string {
 // defaultNamespace resolves the namespace to discover joined-cluster Secrets in.
 // In a pod this is the pod's OWN namespace (POD_NAMESPACE via downward API, or the
 // service-account namespace file) — where the join Secrets and RBAC live. Falls
-// back to "cluster-comparator" off-cluster.
+// back to "periscope" off-cluster.
 func defaultNamespace() string {
 	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
 		return ns
@@ -160,5 +160,5 @@ func defaultNamespace() string {
 			return ns
 		}
 	}
-	return "cluster-comparator"
+	return "periscope"
 }

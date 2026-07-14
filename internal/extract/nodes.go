@@ -7,8 +7,8 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
-	"github.com/croz-ltd/cluster-comparator/internal/version"
+	"github.com/croz-ltd/periscope/internal/model"
+	"github.com/croz-ltd/periscope/internal/version"
 )
 
 // Nodes reports the kubelet version of the fleet. When nodes disagree (mid-

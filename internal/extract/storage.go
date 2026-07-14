@@ -7,7 +7,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
+	"github.com/croz-ltd/periscope/internal/model"
 )
 
 // DefaultStorageClass reports which StorageClass is marked default — a common

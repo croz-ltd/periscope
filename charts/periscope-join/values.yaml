@@ -1,11 +1,11 @@
 # Namespace that holds the read-only ServiceAccount + its token.
 # (The ClusterRole / ClusterRoleBinding are cluster-scoped regardless.)
-namespace: cluster-comparator
+namespace: periscope
 # Create the namespace as part of this release.
 namespaceCreate: true
 
 serviceAccount:
-  name: cluster-comparator-reader
+  name: periscope-reader
 
 rbac:
   # How much read access the reader ServiceAccount gets:
@@ -20,7 +20,7 @@ rbac:
 
   # Name of the custom read role (used only when mode == "explicit").
   # >>> KEEP THE RULES IN SYNC with the hub chart's clusterrole-read.yaml <<<
-  clusterRoleName: cluster-comparator-reader
+  clusterRoleName: periscope-reader
 
   # Extra rules appended to the explicit ClusterRole. Add an entry here when a new
   # deep extractor needs a new CRD — no template edit required. (mode == "explicit")
@@ -32,7 +32,7 @@ rbac:
 # Long-lived (non-expiring) ServiceAccount token Secret to hand to the hub.
 token:
   create: true
-  secretName: cluster-comparator-reader-token
+  secretName: periscope-reader-token
 
 # The label the hub uses to discover joined-cluster Secrets (shown in NOTES only).
-secretLabel: clustercomparator.io/cluster=true
+secretLabel: periscope.io/cluster=true

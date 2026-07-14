@@ -11,10 +11,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/croz-ltd/cluster-comparator/internal/drift"
-	"github.com/croz-ltd/cluster-comparator/internal/scrape"
-	"github.com/croz-ltd/cluster-comparator/internal/store"
-	"github.com/croz-ltd/cluster-comparator/web"
+	"github.com/croz-ltd/periscope/internal/drift"
+	"github.com/croz-ltd/periscope/internal/scrape"
+	"github.com/croz-ltd/periscope/internal/store"
+	"github.com/croz-ltd/periscope/web"
 )
 
 type Server struct {
@@ -59,7 +59,7 @@ func (s *Server) handleExportJSON(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Header().Set("Content-Disposition", `attachment; filename="cluster-comparator.json"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="periscope.json"`)
 	writeJSON(w, m)
 }
 
@@ -70,7 +70,7 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, _ *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", `attachment; filename="cluster-comparator.csv"`)
+	w.Header().Set("Content-Disposition", `attachment; filename="periscope.csv"`)
 
 	cw := csv.NewWriter(w)
 	defer cw.Flush()

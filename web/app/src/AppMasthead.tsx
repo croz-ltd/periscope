@@ -186,7 +186,7 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
           </MastheadToggle>
           <MastheadBrand>
             <MastheadLogo component="a" href="#">
-              Cluster Comparator
+              Periscope
             </MastheadLogo>
           </MastheadBrand>
         </MastheadMain>
@@ -216,7 +216,7 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
         <ModalHeader title="About" labelId="cc-about-title" />
         <ModalBody>
           <Content component="p">
-            <strong>Cluster Comparator</strong>
+            <strong>Periscope</strong>
           </Content>
           <Content component="p">Version {APP_VERSION}</Content>
           <Content component="p">

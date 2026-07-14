@@ -17,7 +17,7 @@ spec:
     spec:
       serviceAccountName: {{ .Values.serviceAccount.name }}
       containers:
-        - name: cluster-comparator
+        - name: periscope
           image: {{ include "hub.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
@@ -31,13 +31,13 @@ spec:
             - --addr=:{{ .Values.appPort }}
             - --label-key={{ .Values.secretDiscovery.labelKey }}
             - --label-value={{ .Values.secretDiscovery.labelValue }}
-            - --db={{ .Values.persistence.mountPath }}/cluster-comparator.db
+            - --db={{ .Values.persistence.mountPath }}/periscope.db
             - --interval={{ .Values.scrape.interval }}
             - --timeout={{ .Values.scrape.timeout }}
             - --concurrency={{ .Values.scrape.concurrency }}
             - --stale-after={{ .Values.scrape.staleAfter }}
             {{- if .Values.extractorConfig }}
-            - --config=/etc/cluster-comparator/extractors.yaml
+            - --config=/etc/periscope/extractors.yaml
             {{- end }}
           ports:
             - name: http
@@ -61,7 +61,7 @@ spec:
               mountPath: {{ .Values.persistence.mountPath }}
             {{- if .Values.extractorConfig }}
             - name: extractor-config
-              mountPath: /etc/cluster-comparator
+              mountPath: /etc/periscope
               readOnly: true
             {{- end }}
         {{- if .Values.oauthProxy.enabled }}

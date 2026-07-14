@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
-	"github.com/croz-ltd/cluster-comparator/internal/version"
+	"github.com/croz-ltd/periscope/internal/model"
+	"github.com/croz-ltd/periscope/internal/version"
 )
 
 // CellState classifies one cluster's standing for one component.

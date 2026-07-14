@@ -1,4 +1,4 @@
-IMAGE ?= ghcr.io/croz-ltd/cluster-comparator
+IMAGE ?= ghcr.io/croz-ltd/periscope
 TAG   ?= dev
 
 .PHONY: all web build test vet image run clean
@@ -11,7 +11,7 @@ web:
 
 # Build the Go binary (expects web/dist to exist; run `make web` first).
 build:
-	go build -o bin/cluster-comparator ./cmd/cluster-comparator
+	go build -o bin/periscope ./cmd/periscope
 
 test:
 	go test ./...
@@ -24,7 +24,7 @@ image:
 
 # Run locally against your current kubeconfig context.
 run: build
-	./bin/cluster-comparator serve --db ./cc.db
+	./bin/periscope serve --db ./cc.db
 
 clean:
 	rm -rf bin cc.db web/dist/assets

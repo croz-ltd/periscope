@@ -1,13 +1,13 @@
-namespace: system-cluster-comparator
+namespace: system-periscope
 
 serviceAccount:
-  name: cluster-comparator
+  name: periscope
 
 # How the hub discovers cluster credential Secrets in its own namespace. Every
 # cluster — including the hub's own — is added this way (see the join chart);
 # the Secret's name becomes the cluster's display name.
 secretDiscovery:
-  labelKey: clustercomparator.io/cluster
+  labelKey: periscope.io/cluster
   labelValue: "true"
 
 # oauth-proxy sidecar fronts the UI with OpenShift SSO. When enabled, the hub SA
@@ -15,14 +15,14 @@ secretDiscovery:
 oauthProxy:
   enabled: true
   # Route name the SA OAuth redirect reference points at.
-  routeName: cluster-comparator
+  routeName: periscope
   image: registry.redhat.io/openshift4/ose-oauth-proxy:latest
   # Public TLS port the proxy serves; it forwards to the app on 127.0.0.1:appPort.
   port: 8443
 
 image:
   repository: docker.io/crozltd/periscope
-  tag: 8ba882dd
+  tag: 43e90f58
   pullPolicy: IfNotPresent
 
 # Port the Go app listens on (localhost only when oauth-proxy is enabled).
@@ -36,7 +36,7 @@ resources:
     memory: 128Mi
   limits:
     cpu: 500m
-    memory: 1Gi
+    memory: 2Gi
 
 # SQLite lives on a PVC so history survives restarts.
 persistence:

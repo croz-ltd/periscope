@@ -1,4 +1,4 @@
-# Cluster Comparator — Design
+# Periscope — Design
 
 Single pane of glass for version drift across 8 OpenShift clusters. A Go CLI that
 serves an embedded PatternFly React UI backed by a small REST API, running as a pod

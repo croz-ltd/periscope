@@ -3,14 +3,12 @@ import { createRoot } from 'react-dom/client'
 import '@patternfly/react-core/dist/styles/base.css'
 import './styles.css'
 import App from './App'
+import { applyInitialSettings, watchSystemTheme } from './settings'
 
-// Follow the OS light/dark preference; PatternFly 6 reads the theme class on <html>.
-const mql = window.matchMedia('(prefers-color-scheme: dark)')
-const applyTheme = (dark: boolean) => {
-  document.documentElement.classList.toggle('pf-v6-theme-dark', dark)
-}
-applyTheme(mql.matches)
-mql.addEventListener('change', (e) => applyTheme(e.matches))
+// Apply persisted theme/contrast/color-scheme before first paint, then keep the
+// 'system' theme in sync with the OS preference.
+applyInitialSettings()
+watchSystemTheme()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

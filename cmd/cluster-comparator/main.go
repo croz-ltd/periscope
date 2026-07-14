@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,7 +62,7 @@ type commonFlags struct {
 
 func registerCommon(fs *flag.FlagSet) *commonFlags {
 	c := &commonFlags{}
-	fs.StringVar(&c.namespace, "namespace", envOr("POD_NAMESPACE", "cluster-comparator"), "hub namespace holding joined-cluster Secrets")
+	fs.StringVar(&c.namespace, "namespace", defaultNamespace(), "hub namespace holding joined-cluster Secrets")
 	fs.StringVar(&c.labelKey, "label-key", "clustercomparator.io/cluster", "label key marking joined-cluster Secrets")
 	fs.StringVar(&c.labelVal, "label-value", "true", "label value marking joined-cluster Secrets")
 	fs.StringVar(&c.localName, "local-name", envOr("LOCAL_CLUSTER_NAME", "local"), "display name for the hub's own cluster")
@@ -146,4 +147,20 @@ func envOr(key, def string) string {
 		return v
 	}
 	return def
+}
+
+// defaultNamespace resolves the namespace to discover joined-cluster Secrets in.
+// In a pod this is the pod's OWN namespace (POD_NAMESPACE via downward API, or the
+// service-account namespace file) — where the join Secrets and RBAC live. Falls
+// back to "cluster-comparator" off-cluster.
+func defaultNamespace() string {
+	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {
+		return ns
+	}
+	if b, err := os.ReadFile("/var/run/secrets/kubernetes.io/serviceaccount/namespace"); err == nil {
+		if ns := strings.TrimSpace(string(b)); ns != "" {
+			return ns
+		}
+	}
+	return "cluster-comparator"
 }

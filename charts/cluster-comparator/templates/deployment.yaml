@@ -20,10 +20,15 @@ spec:
         - name: cluster-comparator
           image: {{ include "hub.image" . }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            # Discovery namespace = the pod's own namespace (where join Secrets live).
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           args:
             - serve
             - --addr=:{{ .Values.appPort }}
-            - --namespace={{ .Release.Namespace }}
             - --label-key={{ .Values.secretDiscovery.labelKey }}
             - --label-value={{ .Values.secretDiscovery.labelValue }}
             - --local-name={{ .Values.scrape.localClusterName }}

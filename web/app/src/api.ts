@@ -43,3 +43,21 @@ export async function triggerRefresh(): Promise<void> {
     throw new Error(`POST /api/refresh failed: ${res.status}`)
   }
 }
+
+export interface User {
+  user: string
+  email: string
+}
+
+// fetchUser returns the signed-in user (empty when running without oauth-proxy,
+// or when the endpoint is unavailable). Never throws — an empty user hides the
+// user area entirely.
+export async function fetchUser(): Promise<User> {
+  try {
+    const res = await fetch('/api/user', { headers: { Accept: 'application/json' } })
+    if (!res.ok) return { user: '', email: '' }
+    return (await res.json()) as User
+  } catch {
+    return { user: '', email: '' }
+  }
+}

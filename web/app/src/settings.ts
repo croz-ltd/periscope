@@ -1,13 +1,13 @@
 // Display settings mapped to PatternFly 6's three native theming axes, persisted
 // to localStorage and applied as classes on <html>:
-//   - color scheme : light | dark | system   -> pf-v6-theme-dark
-//   - theme        : default | felt          -> pf-v6-theme-felt
-//   - contrast     : default | high-contrast | glass
+//   - color scheme : system | light | dark  -> pf-v6-theme-dark
+//   - theme        : default | felt         -> pf-v6-theme-felt
+//   - contrast     : system | default | high-contrast | glass
 //                       -> pf-v6-theme-high-contrast / pf-v6-theme-glass (exclusive)
 
-export type ColorScheme = 'light' | 'dark' | 'system'
+export type ColorScheme = 'system' | 'light' | 'dark'
 export type ThemeStyle = 'default' | 'felt'
-export type Contrast = 'default' | 'high-contrast' | 'glass'
+export type Contrast = 'system' | 'default' | 'high-contrast' | 'glass'
 
 const KEY = {
   colorScheme: 'cc.colorScheme',
@@ -20,11 +20,29 @@ const FELT_CLASS = 'pf-v6-theme-felt'
 const HC_CLASS = 'pf-v6-theme-high-contrast'
 const GLASS_CLASS = 'pf-v6-theme-glass'
 
-const COLOR_SCHEMES: readonly ColorScheme[] = ['light', 'dark', 'system']
+const COLOR_SCHEMES: readonly ColorScheme[] = ['system', 'light', 'dark']
 const THEMES: readonly ThemeStyle[] = ['default', 'felt']
-const CONTRASTS: readonly Contrast[] = ['default', 'high-contrast', 'glass']
+const CONTRASTS: readonly Contrast[] = ['system', 'default', 'high-contrast', 'glass']
 
-const mql = window.matchMedia('(prefers-color-scheme: dark)')
+// Selectable options with human labels, shared by the settings menu and modal.
+export const COLOR_SCHEME_OPTIONS: [ColorScheme, string][] = [
+  ['system', 'System default'],
+  ['light', 'Light'],
+  ['dark', 'Dark'],
+]
+export const THEME_OPTIONS: [ThemeStyle, string][] = [
+  ['default', 'Default'],
+  ['felt', 'Project Felt'],
+]
+export const CONTRAST_OPTIONS: [Contrast, string][] = [
+  ['system', 'System default'],
+  ['default', 'Default'],
+  ['high-contrast', 'High contrast'],
+  ['glass', 'Glass'],
+]
+
+const darkMql = window.matchMedia('(prefers-color-scheme: dark)')
+const contrastMql = window.matchMedia('(prefers-contrast: more)')
 
 function read<T extends string>(key: string, fallback: T, allowed: readonly T[]): T {
   const v = localStorage.getItem(key)
@@ -33,10 +51,10 @@ function read<T extends string>(key: string, fallback: T, allowed: readonly T[])
 
 export const getColorScheme = (): ColorScheme => read(KEY.colorScheme, 'system', COLOR_SCHEMES)
 export const getTheme = (): ThemeStyle => read(KEY.theme, 'default', THEMES)
-export const getContrast = (): Contrast => read(KEY.contrast, 'default', CONTRASTS)
+export const getContrast = (): Contrast => read(KEY.contrast, 'system', CONTRASTS)
 
 const resolveDark = (cs: ColorScheme): boolean =>
-  cs === 'dark' || (cs === 'system' && mql.matches)
+  cs === 'dark' || (cs === 'system' && darkMql.matches)
 
 const root = () => document.documentElement
 
@@ -47,8 +65,9 @@ export function applyTheme(t: ThemeStyle): void {
   root().classList.toggle(FELT_CLASS, t === 'felt')
 }
 export function applyContrast(c: Contrast): void {
-  // Mutually exclusive: at most one of high-contrast / glass.
-  root().classList.toggle(HC_CLASS, c === 'high-contrast')
+  // System follows the OS "prefers-contrast: more" query; only one class at a time.
+  const wantHighContrast = c === 'high-contrast' || (c === 'system' && contrastMql.matches)
+  root().classList.toggle(HC_CLASS, wantHighContrast)
   root().classList.toggle(GLASS_CLASS, c === 'glass')
 }
 
@@ -72,9 +91,12 @@ export function applyInitialSettings(): void {
   applyContrast(getContrast())
 }
 
-/** Keep the 'system' color scheme live as the OS preference changes. */
-export function watchSystemTheme(): void {
-  mql.addEventListener('change', () => {
+/** Keep 'system' color scheme and contrast live as OS preferences change. */
+export function watchSystemPreferences(): void {
+  darkMql.addEventListener('change', () => {
     if (getColorScheme() === 'system') applyColorScheme('system')
+  })
+  contrastMql.addEventListener('change', () => {
+    if (getContrast() === 'system') applyContrast('system')
   })
 }

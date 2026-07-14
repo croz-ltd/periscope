@@ -29,6 +29,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/export.json", s.handleExportJSON)
 	mux.HandleFunc("/api/export.csv", s.handleExportCSV)
 	mux.HandleFunc("/api/refresh", s.handleRefresh)
+	mux.HandleFunc("/api/user", s.handleUser)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.Handle("/", web.Handler())
@@ -93,6 +94,29 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, _ *http.Request) {
 		}
 		_ = cw.Write(rec)
 	}
+}
+
+// handleUser returns the signed-in user, taken from the headers oauth-proxy
+// forwards (--pass-user-headers). Empty when running without the proxy (dev).
+func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
+	name := firstNonEmpty(
+		r.Header.Get("X-Forwarded-Preferred-Username"),
+		r.Header.Get("X-Forwarded-User"),
+		r.Header.Get("X-Forwarded-Email"),
+	)
+	writeJSON(w, map[string]string{
+		"user":  name,
+		"email": r.Header.Get("X-Forwarded-Email"),
+	})
+}
+
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {

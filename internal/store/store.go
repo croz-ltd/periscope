@@ -42,18 +42,28 @@ CREATE TABLE IF NOT EXISTS snapshots (
   error   TEXT
 );
 CREATE TABLE IF NOT EXISTS components (
-  snapshot_id INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
-  comp_key    TEXT    NOT NULL,
-  name        TEXT,
-  kind        TEXT,
-  namespace   TEXT,
-  version     TEXT,
-  extra       TEXT
+  snapshot_id  INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
+  comp_key     TEXT    NOT NULL,
+  name         TEXT,
+  kind         TEXT,
+  namespace    TEXT,
+  version      TEXT,
+  extra        TEXT,
+  comp_group   TEXT,
+  comp_compare TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_snap_cluster_ts ON snapshots(cluster, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_comp_snap ON components(snapshot_id);
 `)
-	return err
+	if err != nil {
+		return err
+	}
+	// Add columns introduced after the table's first release. ALTER ... ADD COLUMN
+	// errors if the column already exists, which is expected and ignored.
+	for _, col := range []string{"comp_group TEXT", "comp_compare TEXT"} {
+		_, _ = s.db.Exec("ALTER TABLE components ADD COLUMN " + col)
+	}
+	return nil
 }
 
 // SaveSnapshot appends a snapshot and its components (history is retained).
@@ -80,8 +90,8 @@ func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 	for _, c := range snap.Components {
 		extra, _ := json.Marshal(c.Extra)
 		if _, err := tx.Exec(
-			`INSERT INTO components(snapshot_id, comp_key, name, kind, namespace, version, extra) VALUES(?,?,?,?,?,?,?)`,
-			id, c.Key, c.Name, c.Kind, c.Namespace, c.Version, string(extra)); err != nil {
+			`INSERT INTO components(snapshot_id, comp_key, name, kind, namespace, version, extra, comp_group, comp_compare) VALUES(?,?,?,?,?,?,?,?,?)`,
+			id, c.Key, c.Name, c.Kind, c.Namespace, c.Version, string(extra), c.Group, c.Compare); err != nil {
 			return err
 		}
 	}
@@ -130,7 +140,9 @@ GROUP BY s.cluster`)
 
 func (s *Store) componentsFor(snapID int64) ([]model.Component, error) {
 	rows, err := s.db.Query(
-		`SELECT comp_key, name, kind, namespace, version, extra FROM components WHERE snapshot_id = ?`, snapID)
+		`SELECT comp_key, name, kind, namespace, version, extra,
+		        COALESCE(comp_group,''), COALESCE(comp_compare,'')
+		 FROM components WHERE snapshot_id = ?`, snapID)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +152,7 @@ func (s *Store) componentsFor(snapID int64) ([]model.Component, error) {
 	for rows.Next() {
 		var c model.Component
 		var extra string
-		if err := rows.Scan(&c.Key, &c.Name, &c.Kind, &c.Namespace, &c.Version, &extra); err != nil {
+		if err := rows.Scan(&c.Key, &c.Name, &c.Kind, &c.Namespace, &c.Version, &extra, &c.Group, &c.Compare); err != nil {
 			return nil, err
 		}
 		if extra != "" && extra != "null" {

@@ -1,27 +1,18 @@
-{{- if .Values.route.enabled }}
 apiVersion: route.openshift.io/v1
 kind: Route
 metadata:
-  name: {{ .Values.oauthProxy.routeName }}
-  namespace: {{ .Values.namespace }}
+  name: periscope
+  namespace: periscope
   labels:
-    {{- include "hub.labels" . | nindent 4 }}
+    app.kubernetes.io/name: periscope
 spec:
-  {{- if .Values.route.host }}
-  host: {{ .Values.route.host }}
-  {{- end }}
   to:
     kind: Service
-    name: {{ .Values.serviceAccount.name }}
+    name: periscope
   port:
-    targetPort: {{ if .Values.oauthProxy.enabled }}public{{ else }}http{{ end }}
+    targetPort: public
   tls:
-    {{- if .Values.oauthProxy.enabled }}
     # oauth-proxy serves TLS with the service-ca cert; reencrypt lets the router
     # (which trusts the service CA on OpenShift) validate the backend leg.
     termination: reencrypt
-    {{- else }}
-    termination: edge
-    {{- end }}
     insecureEdgeTerminationPolicy: Redirect
-{{- end }}

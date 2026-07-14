@@ -116,5 +116,6 @@ API, PatternFly UI (`web/app` → embedded `web/dist`), both Helm charts (hub ru
 join RBAC), config-driven extractor paths, and the container build.
 
 Before production, verify the Portworx/Dell CR field paths (see below) against real
-clusters, and — if you deploy a private image — push it to your registry and set
-`image.repository`/`image.tag` in the hub chart's values.
+clusters. The Helm charts are intentionally static — everything is inlined in the
+templates and the hub chart's `values.yaml` holds only `version` (the image tag);
+set it with `--set version=<tag>`.

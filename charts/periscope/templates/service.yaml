@@ -1,25 +1,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.serviceAccount.name }}
-  namespace: {{ .Values.namespace }}
+  name: periscope
+  namespace: periscope
   labels:
-    {{- include "hub.labels" . | nindent 4 }}
-  {{- if .Values.oauthProxy.enabled }}
+    app.kubernetes.io/name: periscope
   annotations:
     # OpenShift service-ca mints the TLS secret oauth-proxy serves with.
-    service.beta.openshift.io/serving-cert-secret-name: {{ include "hub.tlsSecret" . }}
-  {{- end }}
+    service.beta.openshift.io/serving-cert-secret-name: periscope-tls
 spec:
   selector:
-    {{- include "hub.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/name: periscope
   ports:
-    {{- if .Values.oauthProxy.enabled }}
     - name: public
-      port: {{ .Values.oauthProxy.port }}
-      targetPort: {{ .Values.oauthProxy.port }}
-    {{- else }}
-    - name: http
-      port: {{ .Values.appPort }}
-      targetPort: {{ .Values.appPort }}
-    {{- end }}
+      port: 8443
+      targetPort: 8443

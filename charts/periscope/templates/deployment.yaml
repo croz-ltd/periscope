@@ -1,88 +1,74 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.serviceAccount.name }}
-  namespace: {{ .Values.namespace }}
+  name: periscope
+  namespace: periscope
   labels:
-    {{- include "hub.labels" . | nindent 4 }}
+    app.kubernetes.io/name: periscope
 spec:
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
     matchLabels:
-      {{- include "hub.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/name: periscope
   template:
     metadata:
       labels:
-        {{- include "hub.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/name: periscope
     spec:
-      serviceAccountName: {{ .Values.serviceAccount.name }}
+      serviceAccountName: periscope
       containers:
         - name: periscope
-          image: {{ include "hub.image" . }}
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: docker.io/crozltd/periscope:{{ .Values.version }}
+          imagePullPolicy: IfNotPresent
+          args: ["serve"]
           env:
             # Discovery namespace = the pod's own namespace (where join Secrets live).
             - name: POD_NAMESPACE
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
-          args:
-            - serve
-            - --addr=:{{ .Values.appPort }}
-            - --label-key={{ .Values.secretDiscovery.labelKey }}
-            - --label-value={{ .Values.secretDiscovery.labelValue }}
-            - --db={{ .Values.persistence.mountPath }}/periscope.db
-            - --interval={{ .Values.scrape.interval }}
-            - --timeout={{ .Values.scrape.timeout }}
-            - --concurrency={{ .Values.scrape.concurrency }}
-            - --stale-after={{ .Values.scrape.staleAfter }}
-            {{- if .Values.extractorConfig }}
-            - --config=/etc/periscope/extractors.yaml
-            {{- end }}
           ports:
             - name: http
-              containerPort: {{ .Values.appPort }}
+              containerPort: 8080
           readinessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.appPort }}
+              port: 8080
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /healthz
-              port: {{ .Values.appPort }}
+              port: 8080
             initialDelaySeconds: 15
             periodSeconds: 20
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 2Gi
           volumeMounts:
             - name: data
-              mountPath: {{ .Values.persistence.mountPath }}
-            {{- if .Values.extractorConfig }}
-            - name: extractor-config
-              mountPath: /etc/periscope
-              readOnly: true
-            {{- end }}
-        {{- if .Values.oauthProxy.enabled }}
+              mountPath: /data
         - name: oauth-proxy
-          image: {{ .Values.oauthProxy.image }}
+          image: registry.redhat.io/openshift4/ose-oauth-proxy:latest
           imagePullPolicy: IfNotPresent
           args:
             - --provider=openshift
-            - --https-address=:{{ .Values.oauthProxy.port }}
+            - --https-address=:8443
             - --http-address=
-            - --upstream=http://localhost:{{ .Values.appPort }}
+            - --upstream=http://localhost:8080
             - --tls-cert=/etc/tls/private/tls.crt
             - --tls-key=/etc/tls/private/tls.key
             - --cookie-secret-file=/etc/oauth/session/session_secret
-            - --openshift-service-account={{ .Values.serviceAccount.name }}
+            - --openshift-service-account=periscope
             - --pass-user-headers=true
-            # Gate access on being able to read this namespace; widen/narrow as needed.
-            - '--openshift-sar={"namespace":"{{ .Release.Namespace }}","resource":"services","verb":"get"}'
+            - '--openshift-sar={"namespace":"periscope","resource":"services","verb":"get"}'
           ports:
             - name: public
-              containerPort: {{ .Values.oauthProxy.port }}
+              containerPort: 8443
           resources:
             requests:
               cpu: 10m
@@ -94,25 +80,13 @@ spec:
             - name: oauth-session
               mountPath: /etc/oauth/session
               readOnly: true
-        {{- end }}
       volumes:
         - name: data
-          {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
-            claimName: {{ .Values.serviceAccount.name }}-data
-          {{- else }}
-          emptyDir: {}
-          {{- end }}
-        {{- if .Values.oauthProxy.enabled }}
+            claimName: periscope-data
         - name: tls-certs
           secret:
-            secretName: {{ include "hub.tlsSecret" . }}
+            secretName: periscope-tls
         - name: oauth-session
           secret:
-            secretName: {{ include "hub.sessionSecret" . }}
-        {{- end }}
-        {{- if .Values.extractorConfig }}
-        - name: extractor-config
-          configMap:
-            name: {{ .Values.serviceAccount.name }}-extractors
-        {{- end }}
+            secretName: periscope-oauth-session

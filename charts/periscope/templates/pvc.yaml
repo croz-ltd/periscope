@@ -1,18 +1,14 @@
-{{- if .Values.persistence.enabled }}
+# SQLite history lives here so it survives pod restarts.
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Values.serviceAccount.name }}-data
-  namespace: {{ .Values.namespace }}
+  name: periscope-data
+  namespace: periscope
   labels:
-    {{- include "hub.labels" . | nindent 4 }}
+    app.kubernetes.io/name: periscope
 spec:
   accessModes:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.persistence.size }}
-  {{- if .Values.persistence.storageClassName }}
-  storageClassName: {{ .Values.persistence.storageClassName }}
-  {{- end }}
-{{- end }}
+      storage: 1Gi

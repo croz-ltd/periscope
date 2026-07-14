@@ -14,3 +14,8 @@ web/dist/assets/
 
 # Rendered Helm output (deploy artifact, not source)
 charts/**/apply.yaml
+
+# Archives
+*.zip
+*.zip.gz
+*.tar.gz

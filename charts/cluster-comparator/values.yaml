@@ -1,4 +1,4 @@
-namespace: cluster-comparator
+namespace: system-cluster-comparator
 
 serviceAccount:
   name: cluster-comparator
@@ -33,8 +33,8 @@ oauthProxy:
   port: 8443
 
 image:
-  repository: ghcr.io/croz-ltd/cluster-comparator
-  tag: "" # defaults to .Chart.AppVersion
+  repository: docker.io/crozltd/periscope
+  tag: 8ba882dd
   pullPolicy: IfNotPresent
 
 # Port the Go app listens on (localhost only when oauth-proxy is enabled).
@@ -48,7 +48,7 @@ resources:
     memory: 128Mi
   limits:
     cpu: 500m
-    memory: 512Mi
+    memory: 1Gi
 
 # SQLite lives on a PVC so history survives restarts.
 persistence:

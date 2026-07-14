@@ -1,19 +1,16 @@
+# Read-only across the whole cluster via OpenShift's built-in cluster-reader,
+# so new operator CRDs never cause a "forbidden".
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
-  name: {{ .Values.rbac.clusterRoleName }}
+  name: periscope-reader
   labels:
-    {{- include "join.labels" . | nindent 4 }}
+    app.kubernetes.io/name: periscope-join
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-{{- if eq .Values.rbac.mode "clusterReader" }}
-  # OpenShift built-in read-only-everything ClusterRole.
   name: cluster-reader
-{{- else }}
-  name: {{ .Values.rbac.clusterRoleName }}
-{{- end }}
 subjects:
   - kind: ServiceAccount
-    name: {{ .Values.serviceAccount.name }}
-    namespace: {{ .Values.namespace }}
+    name: periscope-reader
+    namespace: periscope

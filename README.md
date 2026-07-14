@@ -74,7 +74,8 @@ so the pushed container builds and serves the embedded web UI. It pushes
 `:<sha>`/`:edge` on the default branch and `:<tag>`/`:latest` on tags.
 
 Required before first run:
-- CI variables **`HARBOR_USER`** / **`HARBOR_PASSWORD`** (masked) with push rights.
+- Harbor auth resolved at the CI/runner level (e.g. `DOCKER_AUTH_CONFIG` or runner
+  config) with push rights — no login step in the job.
 - Set **`IMAGE`** in `.gitlab-ci.yml` to your real Harbor project path.
 - Ensure the toolchain image tags exist in Harbor's proxy (`golang:1.26.4`,
   `node:20-alpine`, `docker:20.10.16-dind`).

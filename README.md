@@ -77,7 +77,7 @@ Required before first run:
 - CI variables **`HARBOR_USER`** / **`HARBOR_PASSWORD`** (masked) with push rights.
 - Set **`IMAGE`** in `.gitlab-ci.yml` to your real Harbor project path.
 - Ensure the toolchain image tags exist in Harbor's proxy (`golang:1.26.4`,
-  `node:20-alpine`, `docker:27`, `docker:27-dind`).
+  `node:20-alpine`, `docker:20.10.16`, `docker:20.10.16-dind`).
 - The `build-image` job uses a `docker:dind` service (needs a privileged/dind-capable
   runner). If your runner exposes a Docker socket instead, drop the `services` block
   and `DOCKER_HOST`/TLS vars from that job.

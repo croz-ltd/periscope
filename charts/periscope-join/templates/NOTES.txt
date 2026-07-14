@@ -1,4 +1,4 @@
-Cluster Comparator — join credentials created on THIS cluster.
+Periscope — join credentials created on THIS cluster.
 
   ServiceAccount : {{ .Values.namespace }}/{{ .Values.serviceAccount.name }}
   ClusterRole    : {{ .Values.rbac.clusterRoleName }}  (read-only)
@@ -17,14 +17,14 @@ Next: register this cluster on the HUB.
 2) On the HUB cluster, create the labeled Secret. Its NAME is the cluster name
    that will be shown in the matrix (e.g. "prod-emea", "dev-01"):
 
-     oc -n cluster-comparator create secret generic <CLUSTER_NAME> \
+     oc -n periscope create secret generic <CLUSTER_NAME> \
        --from-literal=apiURL="$API_URL" \
        --from-literal=token="$TOKEN"
 
-     oc -n cluster-comparator patch secret <CLUSTER_NAME> --type merge \
+     oc -n periscope patch secret <CLUSTER_NAME> --type merge \
        -p "{\"data\":{\"caBundle\":\"$CA_B64\"}}"
 
-     oc -n cluster-comparator label secret <CLUSTER_NAME> {{ .Values.secretLabel }}
+     oc -n periscope label secret <CLUSTER_NAME> {{ .Values.secretLabel }}
 
 The hub watches for Secrets carrying label "{{ .Values.secretLabel }}" and will
 pick this cluster up automatically — no restart required.

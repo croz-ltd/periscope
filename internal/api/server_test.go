@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/croz-ltd/cluster-comparator/internal/drift"
-	"github.com/croz-ltd/cluster-comparator/internal/model"
-	"github.com/croz-ltd/cluster-comparator/internal/store"
+	"github.com/croz-ltd/periscope/internal/drift"
+	"github.com/croz-ltd/periscope/internal/model"
+	"github.com/croz-ltd/periscope/internal/store"
 )
 
 func TestServerEndpoints(t *testing.T) {
@@ -54,7 +54,7 @@ func TestServerEndpoints(t *testing.T) {
 	}
 
 	// Embedded UI serves at /.
-	if body, ct := get(t, ts.URL+"/"); !strings.Contains(body, "Cluster Comparator") {
+	if body, ct := get(t, ts.URL+"/"); !strings.Contains(body, "Periscope") {
 		t.Errorf("index.html not served (content-type %q): %.80q", ct, body)
 	}
 

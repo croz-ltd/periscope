@@ -12,7 +12,7 @@ import (
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
+	"github.com/croz-ltd/periscope/internal/model"
 )
 
 // Certificates reports the expiry of the API server and default ingress
@@ -35,7 +35,7 @@ func (Certificates) Extract(ctx context.Context, c *Clients) ([]model.Component,
 	// Default ingress wildcard — resolve the apps domain, then dial an arbitrary
 	// host under it (the router serves the default cert for unknown hosts).
 	if domain := ingressDomain(ctx, c); domain != "" {
-		host := "cluster-comparator-certcheck." + domain
+		host := "periscope-certcheck." + domain
 		out = append(out, expiryComponent(ctx, "cert-ingress", "Ingress", host+":443", host))
 	} else {
 		out = append(out, model.Component{

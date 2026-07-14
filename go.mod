@@ -1,4 +1,4 @@
-module github.com/croz-ltd/cluster-comparator
+module github.com/croz-ltd/periscope
 
 go 1.26.4
 

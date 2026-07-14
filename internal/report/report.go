@@ -7,8 +7,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/croz-ltd/cluster-comparator/internal/drift"
-	"github.com/croz-ltd/cluster-comparator/internal/store"
+	"github.com/croz-ltd/periscope/internal/drift"
+	"github.com/croz-ltd/periscope/internal/store"
 )
 
 // Print writes the latest matrix as an aligned table to w.

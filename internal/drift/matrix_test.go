@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
+	"github.com/croz-ltd/periscope/internal/model"
 )
 
 func TestBuildEmpty(t *testing.T) {

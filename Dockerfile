@@ -25,13 +25,13 @@ RUN go mod download
 COPY . .
 COPY --from=web /src/web/dist ./web/dist
 RUN CGO_ENABLED=0 go build -trimpath \
-    -ldflags="-s -w -X github.com/croz-ltd/cluster-comparator/pkg/version.Raw=${VERSION}" \
-    -o /out/cluster-comparator ./cmd/cluster-comparator
+    -ldflags="-s -w -X github.com/croz-ltd/periscope/pkg/version.Raw=${VERSION}" \
+    -o /out/periscope ./cmd/periscope
 
 # 3) Minimal runtime
 FROM ${RUNTIME_IMAGE}
-COPY --from=build /out/cluster-comparator /usr/local/bin/cluster-comparator
+COPY --from=build /out/periscope /usr/local/bin/periscope
 VOLUME /data
 EXPOSE 8080
-ENTRYPOINT ["/usr/local/bin/cluster-comparator"]
+ENTRYPOINT ["/usr/local/bin/periscope"]
 CMD ["serve"]

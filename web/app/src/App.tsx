@@ -146,7 +146,7 @@ export default function App() {
         <PageSection>
           <Title headingLevel="h1">About</Title>
           <Content component="p">
-            Cluster Comparator shows version drift across OpenShift clusters — the OpenShift
+            Periscope shows version drift across OpenShift clusters — the OpenShift
             release, installed operators, and managed CSI driver versions. Each cluster is added
             as a labeled Secret; the drift baseline is the highest semver seen across the fleet.
           </Content>
@@ -155,7 +155,7 @@ export default function App() {
         <PageSection>
           <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
             <FlexItem>
-              <Title headingLevel="h1">Cluster Comparator</Title>
+              <Title headingLevel="h1">Periscope</Title>
               <Content component="small">Version drift across OpenShift clusters</Content>
             </FlexItem>
           </Flex>

@@ -9,7 +9,7 @@ import (
 
 	_ "modernc.org/sqlite" // pure-Go driver, no cgo
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
+	"github.com/croz-ltd/periscope/internal/model"
 )
 
 type Store struct {

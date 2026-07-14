@@ -1,11 +1,11 @@
 {{- define "hub.labels" -}}
-app.kubernetes.io/name: cluster-comparator
+app.kubernetes.io/name: periscope
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "hub.selectorLabels" -}}
-app.kubernetes.io/name: cluster-comparator
+app.kubernetes.io/name: periscope
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 

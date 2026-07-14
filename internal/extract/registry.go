@@ -9,7 +9,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
-	"github.com/croz-ltd/cluster-comparator/internal/model"
+	"github.com/croz-ltd/periscope/internal/model"
 )
 
 // Clients bundles the per-cluster clients an extractor may use.

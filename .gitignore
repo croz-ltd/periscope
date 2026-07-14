@@ -1,5 +1,5 @@
 # Go
-/cluster-comparator
+/periscope
 /bin/
 *.db
 *.db-*

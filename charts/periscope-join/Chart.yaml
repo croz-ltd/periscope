@@ -1,8 +1,8 @@
 apiVersion: v2
-name: cluster-comparator-join
+name: periscope-join
 description: >-
   Creates a read-only ServiceAccount, cluster-scoped RBAC, and a long-lived token
-  on an OpenShift cluster so it can be joined to a Cluster Comparator hub.
+  on an OpenShift cluster so it can be joined to a Periscope hub.
 type: application
 version: 0.1.0
 appVersion: "0.1.0"

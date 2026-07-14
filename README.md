@@ -1,4 +1,4 @@
-# Cluster Comparator
+# Periscope
 
 Single pane of glass for **version drift across OpenShift clusters** — releases,
 operators, and the CSI driver versions buried inside vendor CRs (Portworx, Dell).
@@ -8,7 +8,7 @@ and serves a matrix UI + REST API. See [DESIGN.md](DESIGN.md) for the full desig
 ## Layout
 
 ```
-cmd/cluster-comparator/   CLI entrypoint (serve | report)
+cmd/periscope/   CLI entrypoint (serve | report)
 internal/
   version/                tolerant semver parse + compare      (unit-tested)
   drift/                  build the comparison matrix           (unit-tested)
@@ -25,8 +25,8 @@ internal/
   report/                 text-table report for the CLI
 web/                      go:embed'd UI (dist/); PatternFly app lands in web/app
 charts/
-  cluster-comparator/     hub Helm chart (SA, RBAC, oauth-proxy — runtime TODO)
-  cluster-comparator-join/ per-cluster read-only SA + token + RBAC
+  periscope/     hub Helm chart (SA, RBAC, oauth-proxy — runtime TODO)
+  periscope-join/ per-cluster read-only SA + token + RBAC
 ```
 
 ## Run
@@ -38,13 +38,13 @@ make test         # go test ./...
 make image        # docker build the container
 
 # Serve — uses in-cluster creds in a pod, or your kubeconfig locally
-bin/cluster-comparator serve --namespace cluster-comparator --db ./cc.db
+bin/periscope serve --namespace periscope --db ./cc.db
 
 # One-off report to stdout
-bin/cluster-comparator report --db ./cc.db
+bin/periscope report --db ./cc.db
 
 # Optional: override Portworx/Dell CR field paths without rebuilding
-bin/cluster-comparator serve --config config/extractors.yaml
+bin/periscope serve --config config/extractors.yaml
 ```
 
 Key endpoints: `/` (UI), `/api/matrix`, `/api/export.csv`, `/api/export.json`,
@@ -54,11 +54,11 @@ Key endpoints: `/` (UI), `/api/matrix`, `/api/export.csv`, `/api/export.json`,
 
 ```bash
 # On the hub: app + oauth-proxy + RBAC + PVC + Route
-helm install cc charts/cluster-comparator
+helm install cc charts/periscope
 
 # On each cluster you want to compare (the hub's own cluster is optional and
 # treated no differently): create a read-only SA + RBAC + long-lived token:
-helm install cc-join charts/cluster-comparator-join
+helm install cc-join charts/periscope-join
 ```
 
 There is no implicit "local" cluster. The app starts with **no clusters** and an
@@ -89,8 +89,8 @@ Required before first run:
 Build the image locally:
 
 ```bash
-make image                 # docker build -t ghcr.io/croz-ltd/cluster-comparator:dev .
-docker run -p 8080:8080 ghcr.io/croz-ltd/cluster-comparator:dev
+make image                 # docker build -t ghcr.io/croz-ltd/periscope:dev .
+docker run -p 8080:8080 ghcr.io/croz-ltd/periscope:dev
 ```
 
 ## Test

@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/croz-ltd/cluster-comparator/internal/extract"
+	"github.com/croz-ltd/periscope/internal/extract"
 )
 
 // CRExtractorSpec declares one custom-resource version extractor.

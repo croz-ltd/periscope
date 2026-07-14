@@ -16,14 +16,14 @@ import {
   Content,
 } from '@patternfly/react-core'
 import { BarsIcon, SunIcon, MoonIcon, DesktopIcon } from '@patternfly/react-icons'
-import type { Theme, Contrast, ColorScheme } from './settings'
+import type { ColorScheme, ThemeStyle, Contrast } from './settings'
 import {
+  getColorScheme,
   getTheme,
   getContrast,
-  getColorScheme,
+  setColorScheme,
   setTheme,
   setContrast,
-  setColorScheme,
 } from './settings'
 
 interface Props {
@@ -32,21 +32,21 @@ interface Props {
 }
 
 export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
-  const [theme, setThemeState] = useState<Theme>(getTheme)
+  const [colorScheme, setColorSchemeState] = useState<ColorScheme>(getColorScheme)
+  const [theme, setThemeState] = useState<ThemeStyle>(getTheme)
   const [contrast, setContrastState] = useState<Contrast>(getContrast)
-  const [scheme, setSchemeState] = useState<ColorScheme>(getColorScheme)
 
-  const changeTheme = (t: Theme) => {
+  const changeColorScheme = (cs: ColorScheme) => {
+    setColorScheme(cs)
+    setColorSchemeState(cs)
+  }
+  const changeTheme = (t: ThemeStyle) => {
     setTheme(t)
     setThemeState(t)
   }
   const changeContrast = (c: Contrast) => {
     setContrast(c)
     setContrastState(c)
-  }
-  const changeScheme = (s: ColorScheme) => {
-    setColorScheme(s)
-    setSchemeState(s)
   }
 
   return (
@@ -74,29 +74,49 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
             <ToolbarGroup align={{ default: 'alignEnd' }} columnGap={{ default: 'columnGapLg' }}>
               <ToolbarItem>
                 <Content component="small" className="cc-ctl-label">
+                  Color scheme
+                </Content>
+                <ToggleGroup aria-label="Color scheme">
+                  <ToggleGroupItem
+                    icon={<SunIcon />}
+                    aria-label="Light color scheme"
+                    buttonId="cs-light"
+                    isSelected={colorScheme === 'light'}
+                    onChange={() => changeColorScheme('light')}
+                  />
+                  <ToggleGroupItem
+                    icon={<MoonIcon />}
+                    aria-label="Dark color scheme"
+                    buttonId="cs-dark"
+                    isSelected={colorScheme === 'dark'}
+                    onChange={() => changeColorScheme('dark')}
+                  />
+                  <ToggleGroupItem
+                    icon={<DesktopIcon />}
+                    aria-label="System color scheme"
+                    buttonId="cs-system"
+                    isSelected={colorScheme === 'system'}
+                    onChange={() => changeColorScheme('system')}
+                  />
+                </ToggleGroup>
+              </ToolbarItem>
+
+              <ToolbarItem>
+                <Content component="small" className="cc-ctl-label">
                   Theme
                 </Content>
                 <ToggleGroup aria-label="Theme">
                   <ToggleGroupItem
-                    icon={<SunIcon />}
-                    aria-label="Light theme"
-                    buttonId="theme-light"
-                    isSelected={theme === 'light'}
-                    onChange={() => changeTheme('light')}
+                    text="Default"
+                    buttonId="theme-default"
+                    isSelected={theme === 'default'}
+                    onChange={() => changeTheme('default')}
                   />
                   <ToggleGroupItem
-                    icon={<MoonIcon />}
-                    aria-label="Dark theme"
-                    buttonId="theme-dark"
-                    isSelected={theme === 'dark'}
-                    onChange={() => changeTheme('dark')}
-                  />
-                  <ToggleGroupItem
-                    icon={<DesktopIcon />}
-                    aria-label="System theme"
-                    buttonId="theme-system"
-                    isSelected={theme === 'system'}
-                    onChange={() => changeTheme('system')}
+                    text="Felt"
+                    buttonId="theme-felt"
+                    isSelected={theme === 'felt'}
+                    onChange={() => changeTheme('felt')}
                   />
                 </ToggleGroup>
               </ToolbarItem>
@@ -107,36 +127,22 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
                 </Content>
                 <ToggleGroup aria-label="Contrast">
                   <ToggleGroupItem
-                    text="Standard"
-                    buttonId="contrast-standard"
-                    isSelected={contrast === 'standard'}
-                    onChange={() => changeContrast('standard')}
-                  />
-                  <ToggleGroupItem
-                    text="High"
-                    buttonId="contrast-high"
-                    isSelected={contrast === 'high'}
-                    onChange={() => changeContrast('high')}
-                  />
-                </ToggleGroup>
-              </ToolbarItem>
-
-              <ToolbarItem>
-                <Content component="small" className="cc-ctl-label">
-                  Colors
-                </Content>
-                <ToggleGroup aria-label="Drift color scheme">
-                  <ToggleGroupItem
                     text="Default"
-                    buttonId="scheme-default"
-                    isSelected={scheme === 'default'}
-                    onChange={() => changeScheme('default')}
+                    buttonId="contrast-default"
+                    isSelected={contrast === 'default'}
+                    onChange={() => changeContrast('default')}
                   />
                   <ToggleGroupItem
-                    text="Colorblind-safe"
-                    buttonId="scheme-cb"
-                    isSelected={scheme === 'colorblind'}
-                    onChange={() => changeScheme('colorblind')}
+                    text="High Contrast"
+                    buttonId="contrast-high"
+                    isSelected={contrast === 'high-contrast'}
+                    onChange={() => changeContrast('high-contrast')}
+                  />
+                  <ToggleGroupItem
+                    text="Glass"
+                    buttonId="contrast-glass"
+                    isSelected={contrast === 'glass'}
+                    onChange={() => changeContrast('glass')}
                   />
                 </ToggleGroup>
               </ToolbarItem>

@@ -19,3 +19,4 @@ charts/**/apply.yaml
 *.zip
 *.zip.gz
 *.tar.gz
+apply.yaml

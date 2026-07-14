@@ -126,129 +126,41 @@
   opacity: 0.7;
 }
 
+/* Row-group section headers */
+.cc-group-header {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.8rem;
+  background: #f0f0f0;
+  color: #151515;
+}
+.pf-v6-theme-dark .cc-group-header {
+  background: #292929;
+  color: #e0e0e0;
+}
+
 /* ------------------------------------------------------------------ */
-/* High-contrast mode (html.cc-contrast-high): structural emphasis     */
-/* applies to any palette; stronger backgrounds for the default palette.*/
+/* Keep drift cells legible under PatternFly's native themes. The cell    */
+/* backgrounds are explicit colors, so they survive felt/glass; we add    */
+/* crisp borders + bold under high-contrast/glass for extra definition.   */
 /* ------------------------------------------------------------------ */
-.cc-contrast-high .cc-cell {
+.pf-v6-theme-high-contrast .cc-cell,
+.pf-v6-theme-glass .cc-cell {
   border: 1px solid currentColor;
   font-weight: 700;
 }
-.cc-contrast-high .cc-unknown {
+.pf-v6-theme-high-contrast .cc-unknown,
+.pf-v6-theme-glass .cc-unknown {
   font-style: normal;
 }
-.cc-contrast-high .cc-swatch {
+.pf-v6-theme-high-contrast .cc-swatch,
+.pf-v6-theme-glass .cc-swatch {
   border: 1px solid currentColor;
 }
-.cc-contrast-high .cc-missing {
-  color: #151515;
-}
-.pf-v6-theme-dark.cc-contrast-high .cc-missing {
-  color: #f0f0f0;
-}
-
-/* Default palette, high contrast — solid, saturated backgrounds. */
-html.cc-contrast-high:not(.cc-cb) .cc-leader {
-  background: #0a4c1f;
-  color: #ffffff;
-}
-html.cc-contrast-high:not(.cc-cb) .cc-unknown {
-  background: #3c3f42;
-  color: #ffffff;
-}
-html.cc-contrast-high:not(.cc-cb) .cc-behind-1 {
-  background: #b1150a;
-  color: #ffffff;
-}
-html.cc-contrast-high:not(.cc-cb) .cc-behind-2 {
-  background: #8f0f06;
-  color: #ffffff;
-}
-html.cc-contrast-high:not(.cc-cb) .cc-behind-3 {
-  background: #6b0a04;
-  color: #ffffff;
-}
-html.cc-contrast-high:not(.cc-cb) .cc-behind-4 {
-  background: #470602;
-  color: #ffffff;
-}
-
-/* ------------------------------------------------------------------ */
-/* Colorblind-safe palette (html.cc-cb): blue (leader) -> orange (behind) */
-/* ------------------------------------------------------------------ */
-.cc-cb .cc-leader {
-  background: #c9e3f6;
-  color: #003a6b;
-}
-.cc-cb .cc-behind-1 {
-  background: #fde3c7;
-  color: #7a3b00;
-}
-.cc-cb .cc-behind-2 {
-  background: #fbc78a;
-  color: #7a3b00;
-}
-.cc-cb .cc-behind-3 {
-  background: #ef9235;
-  color: #3d1c00;
-}
-.cc-cb .cc-behind-4 {
-  background: #c46100;
-  color: #ffffff;
-}
-.cc-cb .cc-unknown {
-  background: #ededed;
-  color: #6a6e73;
-}
-
-/* Colorblind palette, dark theme */
-.pf-v6-theme-dark.cc-cb .cc-leader {
-  background: #12395c;
-  color: #c9e3f6;
-}
-.pf-v6-theme-dark.cc-cb .cc-behind-1 {
-  background: #4a2f10;
-  color: #fbc78a;
-}
-.pf-v6-theme-dark.cc-cb .cc-behind-2 {
-  background: #653f13;
-  color: #fbc78a;
-}
-.pf-v6-theme-dark.cc-cb .cc-behind-3 {
-  background: #8a5a1a;
-  color: #ffe9cf;
-}
-.pf-v6-theme-dark.cc-cb .cc-behind-4 {
-  background: #c46100;
-  color: #ffffff;
-}
-.pf-v6-theme-dark.cc-cb .cc-unknown {
-  background: #3a3a3a;
-  color: #b0b0b0;
-}
-
-/* Colorblind palette + high contrast: solid, saturated blue/orange. */
-html.cc-cb.cc-contrast-high .cc-leader {
-  background: #003a6b;
-  color: #ffffff;
-}
-html.cc-cb.cc-contrast-high .cc-behind-1 {
-  background: #b5651d;
-  color: #ffffff;
-}
-html.cc-cb.cc-contrast-high .cc-behind-2 {
-  background: #995417;
-  color: #ffffff;
-}
-html.cc-cb.cc-contrast-high .cc-behind-3 {
-  background: #7d4412;
-  color: #ffffff;
-}
-html.cc-cb.cc-contrast-high .cc-behind-4 {
-  background: #5c3109;
-  color: #ffffff;
-}
-html.cc-cb.cc-contrast-high .cc-unknown {
-  background: #3c3f42;
-  color: #ffffff;
+/* Glass surfaces are translucent; give the group header a translucent-safe
+   backdrop so the section labels stay readable over the page texture. */
+.pf-v6-theme-glass .cc-group-header {
+  background: rgba(127, 127, 127, 0.25);
+  color: inherit;
 }

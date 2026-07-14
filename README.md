@@ -56,14 +56,15 @@ Key endpoints: `/` (UI), `/api/matrix`, `/api/export.csv`, `/api/export.json`,
 # On the hub: app + oauth-proxy + RBAC + PVC + Route
 helm install cc charts/cluster-comparator
 
-# On EVERY cluster you want compared — INCLUDING the hub's own cluster —
-# create a read-only SA + RBAC + long-lived token:
+# On each cluster you want to compare (the hub's own cluster is optional and
+# treated no differently): create a read-only SA + RBAC + long-lived token:
 helm install cc-join charts/cluster-comparator-join
 ```
 
-There is no implicit "local" cluster: the hub's own cluster is added the same way
-as the others. For each cluster, follow the join chart's NOTES to create a labeled
-Secret in the hub namespace — its **name** becomes the cluster's display name.
+There is no implicit "local" cluster. The app starts with **no clusters** and an
+empty matrix; clusters appear only as you add labeled Secrets. For each cluster,
+follow the join chart's NOTES to create a labeled Secret in the hub namespace —
+its **name** becomes the cluster's display name.
 
 ## CI/CD (GitLab)
 

@@ -23,11 +23,12 @@ listing Secrets in its namespace carrying a custom label. Convention:
 - Secret data = `apiURL` + `token` (read-only SA token from the cluster)
 - optional `caBundle` / `insecureTLS`
 
-**Every cluster is a Secret — including the hub's own.** There is no special "local"
-target. The hub's in-cluster credentials are used only to *read the Secrets*; to have
-the hub compare itself it must be joined like any other cluster (apply the join chart
-on the hub, create a labeled Secret pointing at its own API). This keeps naming and
-RBAC uniform across all clusters.
+**Every cluster is a Secret; there is no special "local" target.** The app starts
+with zero clusters and an empty matrix — clusters appear only as labeled Secrets are
+added. The hub's in-cluster credentials are used only to *read the Secrets*. The hub's
+own cluster is optional and, if you want it compared, is joined exactly like any other
+(apply the join chart, create a labeled Secret pointing at its API). Uniform naming
+and RBAC across all clusters.
 
 ## Version model (resolved)
 

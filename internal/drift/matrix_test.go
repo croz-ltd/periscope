@@ -1,6 +1,7 @@
 package drift
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -8,7 +9,7 @@ import (
 )
 
 func TestBuildEmpty(t *testing.T) {
-	m := Build(nil, time.Unix(1_000_000, 0), time.Hour)
+	m := Build(nil, time.Unix(1_000_000, 0), time.Hour, nil)
 	if m.Clusters == nil || m.Rows == nil {
 		t.Fatalf("empty build must return non-nil slices, got clusters=%v rows=%v", m.Clusters, m.Rows)
 	}
@@ -26,13 +27,72 @@ func TestClusterOrder(t *testing.T) {
 		{Cluster: "zebra", Time: now, OK: true, Order: 10, Components: comp},
 		{Cluster: "mid", Time: now, OK: true, Order: 1000000, Components: comp}, // unlabeled -> right
 	}
-	m := Build(snaps, now, time.Hour)
+	m := Build(snaps, now, time.Hour, nil)
 	got := []string{m.Clusters[0].Name, m.Clusters[1].Name, m.Clusters[2].Name}
 	want := []string{"zebra", "alpha", "mid"}
 	for i := range want {
 		if got[i] != want[i] {
 			t.Fatalf("column order = %v, want %v", got, want)
 		}
+	}
+}
+
+func TestCustomGroups(t *testing.T) {
+	now := time.Unix(1000, 0)
+	c := func(key, name, group string) model.Component {
+		return model.Component{Key: key, Name: name, Group: group, Compare: model.CompareVersion, Version: "1.0.0"}
+	}
+	snap := model.Snapshot{Cluster: "a", Time: now, OK: true, Components: []model.Component{
+		c("openshift", "OpenShift", model.GroupOpenShift),
+		c("portworx-csi", "Portworx", model.GroupOperators),
+		c("dell-csi", "Dell", model.GroupOperators),
+		c("cert-api", "API", model.GroupCert),
+	}}
+	cfg := &GroupConfig{Groups: []Group{
+		{Title: "Storage", Keys: []string{"portworx-csi", "dell-csi", "ghost"}}, // ghost skipped
+		{Title: "Mixed", Keys: []string{"portworx-csi", "openshift"}},           // portworx in 2 groups
+		{Title: "Empty", Keys: []string{"nope"}},                                // no match -> dropped
+	}}
+	m := Build([]model.Snapshot{snap}, now, time.Hour, cfg)
+
+	var got []string
+	byTitle := map[string][]string{}
+	for _, g := range m.Groups {
+		got = append(got, g.Title)
+		byTitle[g.Title] = g.Keys
+	}
+	want := []string{"Storage", "Mixed", "Ungrouped"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("group titles = %v, want %v", got, want)
+	}
+	if strings.Join(byTitle["Storage"], ",") != "portworx-csi,dell-csi" {
+		t.Errorf("Storage keys = %v (want portworx-csi,dell-csi; ghost skipped, order preserved)", byTitle["Storage"])
+	}
+	if strings.Join(byTitle["Mixed"], ",") != "portworx-csi,openshift" {
+		t.Errorf("Mixed keys = %v (portworx repeats across groups)", byTitle["Mixed"])
+	}
+	if strings.Join(byTitle["Ungrouped"], ",") != "cert-api" {
+		t.Errorf("Ungrouped keys = %v (want cert-api)", byTitle["Ungrouped"])
+	}
+}
+
+func TestBuiltinGroupsFallback(t *testing.T) {
+	now := time.Unix(1000, 0)
+	c := func(key, name, group string) model.Component {
+		return model.Component{Key: key, Name: name, Group: group, Compare: model.CompareVersion, Version: "1.0.0"}
+	}
+	snap := model.Snapshot{Cluster: "a", Time: now, OK: true, Components: []model.Component{
+		c("op-z", "Zeta operator", model.GroupOperators),
+		c("op-a", "Alpha operator", model.GroupOperators),
+		c("openshift", "OpenShift", model.GroupOpenShift),
+	}}
+	m := Build([]model.Snapshot{snap}, now, time.Hour, nil) // no cfg -> built-in order
+	if len(m.Groups) != 2 || m.Groups[0].Title != model.GroupOpenShift || m.Groups[1].Title != model.GroupOperators {
+		t.Fatalf("built-in group order wrong: %+v", m.Groups)
+	}
+	// alpha within group by display name
+	if strings.Join(m.Groups[1].Keys, ",") != "op-a,op-z" {
+		t.Errorf("Operators keys should sort by name: %v", m.Groups[1].Keys)
 	}
 }
 
@@ -49,7 +109,7 @@ func TestBuildMatch(t *testing.T) {
 			{Key: "chan", Name: "Channel", Group: model.GroupOpenShift, Compare: model.CompareMatch, Version: "fast-4.15"},
 		}},
 	}
-	m := Build(snaps, now, time.Hour)
+	m := Build(snaps, now, time.Hour, nil)
 	row := m.Rows[0]
 	if row.Leader != "stable-4.14" { // the common (majority) value
 		t.Errorf("expected common value stable-4.14, got %q", row.Leader)
@@ -70,7 +130,7 @@ func TestBuildExpiry(t *testing.T) {
 			{Key: "cert-api", Name: "API", Group: model.GroupCert, Compare: model.CompareExpiry, Version: exp},
 		}}
 	}
-	m := Build([]model.Snapshot{mk("crit", 30), mk("warn", 90), mk("ok", 200)}, now, time.Hour)
+	m := Build([]model.Snapshot{mk("crit", 30), mk("warn", 90), mk("ok", 200)}, now, time.Hour, nil)
 	row := m.Rows[0]
 	if row.Cells["crit"].State != StateExpiryCrit {
 		t.Errorf("30d should be crit, got %s", row.Cells["crit"].State)
@@ -99,7 +159,7 @@ func TestBuild(t *testing.T) {
 		}},
 	}
 
-	m := Build(snaps, now, time.Hour)
+	m := Build(snaps, now, time.Hour, nil)
 
 	if len(m.Clusters) != 2 || m.Clusters[0].Name != "a" || m.Clusters[1].Name != "b" {
 		t.Fatalf("clusters not sorted/complete: %+v", m.Clusters)

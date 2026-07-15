@@ -1,0 +1,29 @@
+# One-off build run. Copy/edit image-tag/revision as needed:
+#   oc create -f tekton/pipelinerun.yaml -n periscope-ci
+# (uses `oc create`, not apply, because of generateName)
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: periscope-build-
+spec:
+  pipelineRef:
+    name: periscope-build
+  params:
+    - name: revision
+      value: master
+    - name: image-tag
+      value: latest
+  taskRunTemplate:
+    # Operator-provided SA bound to the pipelines-scc (buildah needs SETFCAP).
+    serviceAccountName: pipeline
+  workspaces:
+    - name: shared
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 3Gi
+    - name: dockerconfig
+      secret:
+        secretName: periscope-harbor-push

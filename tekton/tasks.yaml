@@ -1,0 +1,99 @@
+# Self-contained Tasks so the pipeline doesn't depend on which catalog tasks are
+# installed on the cluster. Apply with: oc apply -f tekton/tasks.yaml -n periscope-ci
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: periscope-git-clone
+spec:
+  params:
+    - name: url
+    - name: revision
+      default: master
+  workspaces:
+    - name: output
+  steps:
+    - name: clone
+      image: registry.redhat.io/openshift-pipelines/pipelines-git-init-rhel8:latest
+      workingDir: $(workspaces.output.path)
+      script: |
+        #!/usr/bin/env sh
+        set -eu
+        # clean the workspace, then clone + checkout the requested revision
+        find "$(workspaces.output.path)" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null || true
+        git clone "$(params.url)" .
+        git checkout "$(params.revision)"
+        git log -1 --oneline
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: periscope-buildah
+spec:
+  params:
+    - name: IMAGE
+      description: Fully-qualified image ref to build and push.
+    - name: DOCKERFILE
+      default: ./Dockerfile
+    - name: CONTEXT
+      default: .
+    - name: BUILDER_IMAGE
+      default: registry.redhat.io/rhel8/buildah:latest
+    - name: BUILD_ARGS
+      type: array
+      default: []
+  workspaces:
+    - name: source
+    - name: dockerconfig
+      description: A docker config.json / .dockerconfigjson used to push.
+      optional: true
+  results:
+    - name: IMAGE_DIGEST
+      description: The digest of the built image.
+  steps:
+    - name: build-and-push
+      image: $(params.BUILDER_IMAGE)
+      workingDir: $(workspaces.source.path)
+      securityContext:
+        capabilities:
+          add: ["SETFCAP"]
+      # BUILD_ARGS array is passed as script args, one "KEY=VALUE" per arg.
+      args:
+        - "$(params.BUILD_ARGS[*])"
+      script: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+
+        # Use the push credentials if a dockerconfig workspace was provided.
+        if [ -f "$(workspaces.dockerconfig.path)/config.json" ]; then
+          export DOCKER_CONFIG="$(workspaces.dockerconfig.path)"
+        elif [ -f "$(workspaces.dockerconfig.path)/.dockerconfigjson" ]; then
+          mkdir -p /tmp/dc
+          cp "$(workspaces.dockerconfig.path)/.dockerconfigjson" /tmp/dc/config.json
+          export DOCKER_CONFIG=/tmp/dc
+        fi
+
+        # Turn each "KEY=VALUE" arg into a --build-arg flag.
+        BUILD_ARG_FLAGS=()
+        for a in "$@"; do
+          [ -n "$a" ] && BUILD_ARG_FLAGS+=(--build-arg "$a")
+        done
+
+        buildah --storage-driver=vfs bud \
+          "${BUILD_ARG_FLAGS[@]}" \
+          -f "$(params.DOCKERFILE)" \
+          -t "$(params.IMAGE)" \
+          "$(params.CONTEXT)"
+
+        buildah --storage-driver=vfs push \
+          --digestfile /tmp/image-digest \
+          "$(params.IMAGE)" \
+          "docker://$(params.IMAGE)"
+
+        cat /tmp/image-digest | tee "$(results.IMAGE_DIGEST.path)"
+      volumeMounts:
+        - name: varlibcontainers
+          mountPath: /var/lib/containers
+  volumes:
+    - name: varlibcontainers
+      emptyDir: {}

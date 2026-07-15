@@ -1,0 +1,52 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: periscope-build
+spec:
+  description: >-
+    Clone Periscope and build+push the container image (multi-stage Dockerfile
+    builds the PatternFly UI + Go binary) to Harbor. linux/amd64 only.
+  params:
+    - name: git-url
+      default: https://github.com/croz-ltd/periscope.git
+    - name: revision
+      default: master
+    - name: image-tag
+      description: Tag for docker.io/crozltd/periscope (also stamped into the binary).
+      default: latest
+  workspaces:
+    - name: shared        # source checkout, shared between tasks
+    - name: dockerconfig  # Harbor push credentials
+  tasks:
+    - name: clone
+      taskRef:
+        name: periscope-git-clone
+      params:
+        - name: url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.revision)
+      workspaces:
+        - name: output
+          workspace: shared
+    - name: build
+      runAfter: [clone]
+      taskRef:
+        name: periscope-buildah
+      params:
+        - name: IMAGE
+          value: docker.io/crozltd/periscope:$(params.image-tag)
+        - name: BUILD_ARGS
+          value:
+            - NODE_IMAGE=docker.io/library/node:20-alpine
+            - GO_IMAGE=docker.io/library/golang:1.26.4
+            - RUNTIME_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:latest
+            - VERSION=$(params.image-tag)
+      workspaces:
+        - name: source
+          workspace: shared
+        - name: dockerconfig
+          workspace: dockerconfig
+  results:
+    - name: image-digest
+      value: $(tasks.build.results.IMAGE_DIGEST)

@@ -1,0 +1,138 @@
+# OPTIONAL: auto-build on GitLab push via Tekton Triggers (needs the OpenShift
+# Pipelines Triggers component). Requires two secrets in the namespace:
+#   - periscope-harbor-push      (docker-registry, Harbor push creds)
+#   - periscope-gitlab-webhook   (key: secretToken — the GitLab webhook token)
+# Point a GitLab "Push events" webhook at the Route created below.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: periscope-triggers
+---
+# Permissions the EventListener SA needs to create build PipelineRuns.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: periscope-triggers
+rules:
+  - apiGroups: ["triggers.tekton.dev"]
+    resources: ["eventlisteners", "triggerbindings", "triggertemplates", "triggers", "interceptors"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["tekton.dev"]
+    resources: ["pipelineruns"]
+    verbs: ["create", "get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: periscope-triggers
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: periscope-triggers
+subjects:
+  - kind: ServiceAccount
+    name: periscope-triggers
+---
+# ClusterInterceptors (the "gitlab" interceptor) are cluster-scoped; this role is
+# shipped by the OpenShift Pipelines operator.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: periscope-triggers-clusterinterceptors
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: tekton-triggers-eventlistener-clusterroles
+subjects:
+  - kind: ServiceAccount
+    name: periscope-triggers
+    namespace: periscope-ci
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerBinding
+metadata:
+  name: periscope-gitlab-push
+spec:
+  params:
+    - name: revision
+      value: $(body.checkout_sha)
+    - name: image-tag
+      value: edge
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: TriggerTemplate
+metadata:
+  name: periscope-build
+spec:
+  params:
+    - name: revision
+    - name: image-tag
+      default: edge
+  resourcetemplates:
+    - apiVersion: tekton.dev/v1
+      kind: PipelineRun
+      metadata:
+        generateName: periscope-build-
+      spec:
+        pipelineRef:
+          name: periscope-build
+        params:
+          - name: revision
+            value: $(tt.params.revision)
+          - name: image-tag
+            value: $(tt.params.image-tag)
+        taskRunTemplate:
+          serviceAccountName: pipeline
+        workspaces:
+          - name: shared
+            volumeClaimTemplate:
+              spec:
+                accessModes: [ReadWriteOnce]
+                resources:
+                  requests:
+                    storage: 3Gi
+          - name: dockerconfig
+            secret:
+              secretName: periscope-harbor-push
+---
+apiVersion: triggers.tekton.dev/v1beta1
+kind: EventListener
+metadata:
+  name: periscope
+spec:
+  serviceAccountName: periscope-triggers
+  triggers:
+    - name: gitlab-push
+      interceptors:
+        - ref:
+            name: gitlab
+          params:
+            - name: secretRef
+              value:
+                secretName: periscope-gitlab-webhook
+                secretKey: secretToken
+            - name: eventTypes
+              value: ["Push Hook"]
+      bindings:
+        - ref: periscope-gitlab-push
+      template:
+        ref: periscope-build
+---
+# Expose the EventListener so GitLab can reach it (edge TLS).
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: periscope-el
+spec:
+  to:
+    kind: Service
+    name: el-periscope
+  port:
+    targetPort: http-listener
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

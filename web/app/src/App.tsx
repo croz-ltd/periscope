@@ -26,6 +26,7 @@ import type { Matrix } from './api'
 import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
 import { AppMasthead } from './AppMasthead'
+import { Docs } from './Docs'
 
 const LEGEND_GROUPS: { title: string; items: { cls: string; label: string }[] }[] = [
   {
@@ -74,7 +75,7 @@ function Legend() {
   )
 }
 
-type NavKey = 'matrix' | 'about'
+type NavKey = 'matrix' | 'docs' | 'about'
 
 export default function App() {
   const [matrix, setMatrix] = useState<Matrix | null>(null)
@@ -131,6 +132,9 @@ export default function App() {
             <NavItem itemId="matrix" isActive={activeNav === 'matrix'}>
               Matrix
             </NavItem>
+            <NavItem itemId="docs" isActive={activeNav === 'docs'}>
+              Docs
+            </NavItem>
             <NavItem itemId="about" isActive={activeNav === 'about'}>
               About
             </NavItem>
@@ -150,6 +154,11 @@ export default function App() {
             release, installed operators, and managed CSI driver versions. Each cluster is added
             as a labeled Secret; the drift baseline is the highest semver seen across the fleet.
           </Content>
+        </PageSection>
+      ) : activeNav === 'docs' ? (
+        <PageSection>
+          <Title headingLevel="h1">Component reference</Title>
+          <Docs rows={matrix?.rows ?? []} />
         </PageSection>
       ) : (
         <PageSection>
@@ -189,6 +198,12 @@ export default function App() {
           {error && (
             <Alert variant="danger" title="Failed to load matrix" isInline style={{ marginBottom: '1rem' }}>
               {error}
+            </Alert>
+          )}
+
+          {matrix?.warning && (
+            <Alert variant="warning" title="Custom grouping" isInline style={{ marginBottom: '1rem' }}>
+              {matrix.warning}
             </Alert>
           )}
 

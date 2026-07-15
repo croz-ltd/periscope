@@ -45,5 +45,6 @@ type Snapshot struct {
 	Time       time.Time   `json:"time"`
 	OK         bool        `json:"ok"`
 	Error      string      `json:"error,omitempty"`
+	Order      int         `json:"order"` // column order (lower = left); from the Secret's order label
 	Components []Component `json:"components"`
 }

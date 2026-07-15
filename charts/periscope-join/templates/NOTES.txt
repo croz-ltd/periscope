@@ -21,6 +21,11 @@ Next: register this cluster on the HUB.
 
      oc -n periscope label secret <CLUSTER_NAME> periscope.io/cluster=true
 
+   Optionally set the column order (lower = further left in the matrix;
+   unlabeled clusters sort to the right, then alphabetically):
+
+     oc -n periscope label secret <CLUSTER_NAME> periscope.io/order=10
+
 The hub watches for Secrets labeled "periscope.io/cluster=true" and picks this
 cluster up automatically. Use the external API URL (not the in-cluster service)
 so certificate reporting reflects the endpoint clients actually use.

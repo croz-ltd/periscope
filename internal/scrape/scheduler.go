@@ -70,7 +70,7 @@ func (s *Scheduler) ScrapeAll(ctx context.Context) {
 }
 
 func (s *Scheduler) scrapeOne(ctx context.Context, t cluster.Target) model.Snapshot {
-	snap := model.Snapshot{Cluster: t.Name, Time: time.Now(), OK: true}
+	snap := model.Snapshot{Cluster: t.Name, Time: time.Now(), OK: true, Order: t.Order}
 
 	cctx := ctx
 	if s.Timeout > 0 {

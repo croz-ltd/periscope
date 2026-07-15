@@ -42,9 +42,16 @@ export interface ClusterInfo {
   stale: boolean
 }
 
+export interface MatrixGroup {
+  title: string
+  keys: string[] // component keys in render order; a key may appear in several groups
+}
+
 export interface Matrix {
   clusters: ClusterInfo[]
   rows: Row[]
+  groups: MatrixGroup[]
+  warning?: string // set when custom grouping was ignored (e.g. bad ConfigMap)
 }
 
 export async function fetchMatrix(): Promise<Matrix> {

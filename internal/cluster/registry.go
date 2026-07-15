@@ -8,6 +8,7 @@ package cluster
 import (
 	"context"
 	"fmt"
+	"strconv"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
@@ -15,10 +16,19 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
+// OrderLabel, when set on a cluster Secret to an integer, controls column order
+// in the matrix (lower = further left). Unlabeled clusters sort after labeled
+// ones, then alphabetically.
+const OrderLabel = "periscope.io/order"
+
+// DefaultOrder is used for clusters whose Secret has no (valid) order label.
+const DefaultOrder = 1_000_000
+
 // Target is a cluster to scrape.
 type Target struct {
 	Name   string
 	Config *rest.Config
+	Order  int
 }
 
 // Registry finds targets from labeled Secrets in the hub namespace.
@@ -76,7 +86,11 @@ func (r *Registry) Discover(ctx context.Context) ([]Target, error) {
 		} else {
 			cfg.TLSClientConfig = rest.TLSClientConfig{Insecure: true}
 		}
-		targets = append(targets, Target{Name: s.Name, Config: cfg})
+		order := DefaultOrder
+		if v, err := strconv.Atoi(s.Labels[OrderLabel]); err == nil {
+			order = v
+		}
+		targets = append(targets, Target{Name: s.Name, Config: cfg, Order: order})
 	}
 	return targets, nil
 }

@@ -35,11 +35,12 @@ func (s *Store) Close() error { return s.db.Close() }
 func (s *Store) migrate() error {
 	_, err := s.db.Exec(`
 CREATE TABLE IF NOT EXISTS snapshots (
-  id      INTEGER PRIMARY KEY AUTOINCREMENT,
-  cluster TEXT    NOT NULL,
-  ts      INTEGER NOT NULL,
-  ok      INTEGER NOT NULL,
-  error   TEXT
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cluster    TEXT    NOT NULL,
+  ts         INTEGER NOT NULL,
+  ok         INTEGER NOT NULL,
+  error      TEXT,
+  sort_order INTEGER
 );
 CREATE TABLE IF NOT EXISTS components (
   snapshot_id  INTEGER NOT NULL REFERENCES snapshots(id) ON DELETE CASCADE,
@@ -63,6 +64,7 @@ CREATE INDEX IF NOT EXISTS idx_comp_snap ON components(snapshot_id);
 	for _, col := range []string{"comp_group TEXT", "comp_compare TEXT"} {
 		_, _ = s.db.Exec("ALTER TABLE components ADD COLUMN " + col)
 	}
+	_, _ = s.db.Exec("ALTER TABLE snapshots ADD COLUMN sort_order INTEGER")
 	return nil
 }
 
@@ -78,8 +80,8 @@ func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 	if snap.OK {
 		okInt = 1
 	}
-	res, err := tx.Exec(`INSERT INTO snapshots(cluster, ts, ok, error) VALUES(?,?,?,?)`,
-		snap.Cluster, snap.Time.Unix(), okInt, snap.Error)
+	res, err := tx.Exec(`INSERT INTO snapshots(cluster, ts, ok, error, sort_order) VALUES(?,?,?,?,?)`,
+		snap.Cluster, snap.Time.Unix(), okInt, snap.Error, snap.Order)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 // LatestSnapshots returns the most recent snapshot per cluster.
 func (s *Store) LatestSnapshots() ([]model.Snapshot, error) {
 	rows, err := s.db.Query(`
-SELECT s.id, s.cluster, s.ts, s.ok, COALESCE(s.error,'')
+SELECT s.id, s.cluster, s.ts, s.ok, COALESCE(s.error,''), COALESCE(s.sort_order, 1000000)
 FROM snapshots s
 JOIN (SELECT cluster, MAX(ts) AS mts FROM snapshots GROUP BY cluster) m
   ON s.cluster = m.cluster AND s.ts = m.mts
@@ -117,11 +119,11 @@ GROUP BY s.cluster`)
 	for rows.Next() {
 		var id, ts int64
 		var cluster, errStr string
-		var ok int
-		if err := rows.Scan(&id, &cluster, &ts, &ok, &errStr); err != nil {
+		var ok, order int
+		if err := rows.Scan(&id, &cluster, &ts, &ok, &errStr, &order); err != nil {
 			return nil, err
 		}
-		snaps = append(snaps, model.Snapshot{Cluster: cluster, Time: time.Unix(ts, 0), OK: ok == 1, Error: errStr})
+		snaps = append(snaps, model.Snapshot{Cluster: cluster, Time: time.Unix(ts, 0), OK: ok == 1, Error: errStr, Order: order})
 		idx[id] = len(snaps) - 1
 		ids = append(ids, id)
 	}

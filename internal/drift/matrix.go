@@ -66,6 +66,7 @@ type ClusterInfo struct {
 	OK    bool      `json:"ok"`
 	Error string    `json:"error,omitempty"`
 	Stale bool      `json:"stale"`
+	Order int       `json:"order"`
 }
 
 // Matrix is the full comparison view.
@@ -87,10 +88,16 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration) Matr
 	var clusterNames []string
 	for _, s := range snaps {
 		stale := staleAfter > 0 && now.Sub(s.Time) > staleAfter
-		m.Clusters = append(m.Clusters, ClusterInfo{Name: s.Cluster, Time: s.Time, OK: s.OK, Error: s.Error, Stale: stale})
+		m.Clusters = append(m.Clusters, ClusterInfo{Name: s.Cluster, Time: s.Time, OK: s.OK, Error: s.Error, Stale: stale, Order: s.Order})
 		clusterNames = append(clusterNames, s.Cluster)
 	}
-	sort.Slice(m.Clusters, func(i, j int) bool { return m.Clusters[i].Name < m.Clusters[j].Name })
+	// Column order: by the Secret's order label (lower = left), then by name.
+	sort.Slice(m.Clusters, func(i, j int) bool {
+		if m.Clusters[i].Order != m.Clusters[j].Order {
+			return m.Clusters[i].Order < m.Clusters[j].Order
+		}
+		return m.Clusters[i].Name < m.Clusters[j].Name
+	})
 
 	byKey := map[string][]instance{}
 	meta := map[string]model.Component{}

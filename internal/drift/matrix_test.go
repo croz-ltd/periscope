@@ -17,6 +17,25 @@ func TestBuildEmpty(t *testing.T) {
 	}
 }
 
+func TestClusterOrder(t *testing.T) {
+	now := time.Unix(1000, 0)
+	comp := []model.Component{{Key: "openshift", Name: "OpenShift", Compare: model.CompareVersion, Version: "4.14.0"}}
+	// "zebra" has the lowest order so it must come first despite the name.
+	snaps := []model.Snapshot{
+		{Cluster: "alpha", Time: now, OK: true, Order: 20, Components: comp},
+		{Cluster: "zebra", Time: now, OK: true, Order: 10, Components: comp},
+		{Cluster: "mid", Time: now, OK: true, Order: 1000000, Components: comp}, // unlabeled -> right
+	}
+	m := Build(snaps, now, time.Hour)
+	got := []string{m.Clusters[0].Name, m.Clusters[1].Name, m.Clusters[2].Name}
+	want := []string{"zebra", "alpha", "mid"}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("column order = %v, want %v", got, want)
+		}
+	}
+}
+
 func TestBuildMatch(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	snaps := []model.Snapshot{

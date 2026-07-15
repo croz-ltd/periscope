@@ -1,0 +1,29 @@
+# Example custom grouping. Edit `groups.yaml` to define your matrix sections
+# (see the app's "Docs" page for the component keys), then re-apply and hit
+# Refresh in the UI. Groups render top-to-bottom in the order listed; a key may
+# appear in multiple groups; unmatched keys are skipped and anything left over
+# falls into an "Ungrouped" section. Delete this ConfigMap to use the built-in
+# grouping instead.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: periscope-groups
+  namespace: periscope
+  labels:
+    app.kubernetes.io/name: periscope
+data:
+  groups.yaml: |
+    groups:
+      - title: Platform
+        keys:
+          - openshift
+          - node-kubelet
+      - title: Certificates
+        keys:
+          - cert-api
+          - cert-ingress
+      - title: Storage
+        keys:
+          - default-storageclass
+          - portworx-csi
+          - dell-csi

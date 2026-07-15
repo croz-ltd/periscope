@@ -6,6 +6,7 @@ package drift
 
 import (
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/croz-ltd/periscope/internal/model"
@@ -69,10 +70,29 @@ type ClusterInfo struct {
 	Order int       `json:"order"`
 }
 
+// Group is an ordered matrix section: a title and the row keys under it. The
+// same key may appear in multiple groups.
+type Group struct {
+	Title string   `json:"title"`
+	Keys  []string `json:"keys"`
+}
+
+// GroupConfig is the custom grouping loaded from the periscope-groups ConfigMap.
+type GroupConfig struct {
+	Groups []Group `json:"groups"`
+}
+
 // Matrix is the full comparison view.
 type Matrix struct {
 	Clusters []ClusterInfo `json:"clusters"`
 	Rows     []Row         `json:"rows"`
+	Groups   []Group       `json:"groups"`            // ordered sections referencing Rows by key
+	Warning  string        `json:"warning,omitempty"` // e.g. custom grouping ignored due to a parse error
+}
+
+// builtinGroupOrder is the fixed section order used when no custom grouping is set.
+var builtinGroupOrder = []string{
+	model.GroupOpenShift, model.GroupNode, model.GroupCert, model.GroupVirt, model.GroupOperators,
 }
 
 type instance struct {
@@ -82,9 +102,10 @@ type instance struct {
 
 // Build assembles the matrix from the latest snapshot per cluster. A cluster is
 // marked stale when its snapshot is older than now-staleAfter (0 disables).
-func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration) Matrix {
+// cfg is the custom grouping (nil = built-in section order).
+func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg *GroupConfig) Matrix {
 	// Non-nil slices so the JSON is always [] not null (keeps the UI .map safe).
-	m := Matrix{Clusters: []ClusterInfo{}, Rows: []Row{}}
+	m := Matrix{Clusters: []ClusterInfo{}, Rows: []Row{}, Groups: []Group{}}
 	var clusterNames []string
 	for _, s := range snaps {
 		stale := staleAfter > 0 && now.Sub(s.Time) > staleAfter
@@ -130,7 +151,87 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration) Matr
 		m.Rows = append(m.Rows, row)
 	}
 	sort.Slice(m.Rows, func(i, j int) bool { return m.Rows[i].Key < m.Rows[j].Key })
+	assignGroups(&m, cfg)
 	return m
+}
+
+// assignGroups populates m.Groups. With cfg it uses the custom grouping (skipping
+// keys that match no row, dropping empty groups, and collecting leftovers into an
+// "Ungrouped" section). Without cfg it falls back to the built-in section order.
+func assignGroups(m *Matrix, cfg *GroupConfig) {
+	nameByKey := map[string]string{}
+	groupByKey := map[string]string{}
+	var allKeys []string
+	for _, r := range m.Rows {
+		nameByKey[r.Key] = r.Name
+		groupByKey[r.Key] = r.Group
+		allKeys = append(allKeys, r.Key)
+	}
+	exists := func(k string) bool { _, ok := nameByKey[k]; return ok }
+	sortByName := func(keys []string) {
+		sort.Slice(keys, func(i, j int) bool {
+			return strings.ToLower(nameByKey[keys[i]]) < strings.ToLower(nameByKey[keys[j]])
+		})
+	}
+
+	if cfg != nil && len(cfg.Groups) > 0 {
+		used := map[string]bool{}
+		for _, g := range cfg.Groups {
+			var keys []string
+			seen := map[string]bool{}
+			for _, k := range g.Keys { // preserve the config's within-group order
+				if exists(k) && !seen[k] {
+					keys = append(keys, k)
+					seen[k] = true
+					used[k] = true
+				}
+			}
+			if len(keys) > 0 {
+				m.Groups = append(m.Groups, Group{Title: g.Title, Keys: keys})
+			}
+		}
+		var ungrouped []string
+		for _, k := range allKeys {
+			if !used[k] {
+				ungrouped = append(ungrouped, k)
+			}
+		}
+		if len(ungrouped) > 0 {
+			sortByName(ungrouped)
+			m.Groups = append(m.Groups, Group{Title: "Ungrouped", Keys: ungrouped})
+		}
+		return
+	}
+
+	// Built-in grouping: fixed order, then any unexpected group titles, alpha within.
+	byGroup := map[string][]string{}
+	for _, k := range allKeys {
+		byGroup[groupByKey[k]] = append(byGroup[groupByKey[k]], k)
+	}
+	emit := func(title string) {
+		if keys := byGroup[title]; len(keys) > 0 {
+			sortByName(keys)
+			m.Groups = append(m.Groups, Group{Title: title, Keys: keys})
+			delete(byGroup, title)
+		}
+	}
+	for _, title := range builtinGroupOrder {
+		emit(title)
+	}
+	var rest []string
+	for title := range byGroup {
+		rest = append(rest, title)
+	}
+	sort.Strings(rest)
+	for _, title := range rest {
+		display := title
+		if display == "" {
+			display = "Ungrouped"
+		}
+		keys := byGroup[title]
+		sortByName(keys)
+		m.Groups = append(m.Groups, Group{Title: display, Keys: keys})
+	}
 }
 
 func newCell(in instance) Cell {

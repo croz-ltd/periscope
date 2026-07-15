@@ -9,12 +9,21 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strings"
 	"time"
+
+	"sigs.k8s.io/yaml"
 
 	"github.com/croz-ltd/periscope/internal/drift"
 	"github.com/croz-ltd/periscope/internal/scrape"
 	"github.com/croz-ltd/periscope/internal/store"
 	"github.com/croz-ltd/periscope/web"
+)
+
+// Custom grouping is read from this ConfigMap / key in the hub namespace.
+const (
+	groupConfigMapName = "periscope-groups"
+	groupConfigMapKey  = "groups.yaml"
 )
 
 type Server struct {
@@ -36,16 +45,40 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-func (s *Server) matrix() (drift.Matrix, error) {
+func (s *Server) matrix(ctx context.Context) (drift.Matrix, error) {
 	snaps, err := s.Store.LatestSnapshots()
 	if err != nil {
 		return drift.Matrix{}, err
 	}
-	return drift.Build(snaps, time.Now(), s.StaleAfter), nil
+	cfg, warn := s.groupConfig(ctx)
+	m := drift.Build(snaps, time.Now(), s.StaleAfter, cfg)
+	m.Warning = warn
+	return m, nil
 }
 
-func (s *Server) handleMatrix(w http.ResponseWriter, _ *http.Request) {
-	m, err := s.matrix()
+// groupConfig loads custom grouping from the periscope-groups ConfigMap. Returns
+// (nil, "") when absent (built-in grouping), or (nil, warning) on read/parse error.
+func (s *Server) groupConfig(ctx context.Context) (*drift.GroupConfig, string) {
+	if s.Scheduler == nil || s.Scheduler.Registry == nil {
+		return nil, ""
+	}
+	data, err := s.Scheduler.Registry.ConfigMapData(ctx, groupConfigMapName)
+	if err != nil {
+		return nil, "custom grouping unavailable: " + err.Error()
+	}
+	raw := strings.TrimSpace(data[groupConfigMapKey])
+	if raw == "" {
+		return nil, ""
+	}
+	var cfg drift.GroupConfig
+	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		return nil, "custom grouping ignored (invalid " + groupConfigMapKey + "): " + err.Error()
+	}
+	return &cfg, ""
+}
+
+func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
+	m, err := s.matrix(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -53,8 +86,8 @@ func (s *Server) handleMatrix(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, m)
 }
 
-func (s *Server) handleExportJSON(w http.ResponseWriter, _ *http.Request) {
-	m, err := s.matrix()
+func (s *Server) handleExportJSON(w http.ResponseWriter, r *http.Request) {
+	m, err := s.matrix(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -63,8 +96,8 @@ func (s *Server) handleExportJSON(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, m)
 }
 
-func (s *Server) handleExportCSV(w http.ResponseWriter, _ *http.Request) {
-	m, err := s.matrix()
+func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
+	m, err := s.matrix(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -131,8 +164,8 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 
 // handleMetrics emits a minimal Prometheus text exposition (no client dep):
 // per-cell drift severity and staleness, so alerts can fire on intra-fleet drift.
-func (s *Server) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	m, err := s.matrix()
+func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
+	m, err := s.matrix(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

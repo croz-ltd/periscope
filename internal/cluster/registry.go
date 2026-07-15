@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -53,6 +54,19 @@ func NewRegistry(namespace, labelKey, labelVal string) (*Registry, error) {
 		return nil, err
 	}
 	return &Registry{Namespace: namespace, LabelKey: labelKey, LabelVal: labelVal, hub: cs}, nil
+}
+
+// ConfigMapData returns a ConfigMap's data from the hub namespace. Returns
+// (nil, nil) when the ConfigMap does not exist.
+func (r *Registry) ConfigMapData(ctx context.Context, name string) (map[string]string, error) {
+	cm, err := r.hub.CoreV1().ConfigMaps(r.Namespace).Get(ctx, name, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return cm.Data, nil
 }
 
 func hubConfig() (*rest.Config, error) {

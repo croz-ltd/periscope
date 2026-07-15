@@ -17,7 +17,7 @@ func Print(w io.Writer, st *store.Store, staleAfter time.Duration) error {
 	if err != nil {
 		return err
 	}
-	m := drift.Build(snaps, time.Now(), staleAfter)
+	m := drift.Build(snaps, time.Now(), staleAfter, nil)
 
 	if len(m.Clusters) == 0 {
 		fmt.Fprintln(w, "no clusters scraped yet")

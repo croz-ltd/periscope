@@ -1,0 +1,36 @@
+# Custom matrix grouping. Apply into the Periscope namespace:
+#   oc apply -f examples/periscope-groups.configmap.yaml -n periscope
+# Changes are picked up on the next matrix load (use the Refresh button).
+#
+# - Groups render top-to-bottom in the order listed here; entries render in the
+#   order listed within each group.
+# - The same key may appear in multiple groups.
+# - Keys that match no component are skipped; a group with no matches is hidden.
+# - Any component not listed in ANY group falls into an "Ungrouped" section.
+# - Find the keys to use on the app's "Docs" page (sidebar).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: periscope-groups
+  namespace: periscope
+data:
+  groups.yaml: |
+    groups:
+      - title: Platform
+        keys:
+          - openshift
+          - node-kubelet
+      - title: Storage
+        keys:
+          - default-storageclass
+          - portworx-csi
+          - dell-csi
+      - title: Certificates
+        keys:
+          - cert-api
+          - cert-ingress
+      - title: Security
+        keys:
+          - rhacs-operator
+          - compliance-operator
+          - file-integrity-operator

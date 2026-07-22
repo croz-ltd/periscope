@@ -8,6 +8,7 @@ const (
 	GroupOpenShift = "OpenShift"
 	GroupNode      = "Node"
 	GroupMCP       = "MachineConfigPools"
+	GroupStorage   = "Storage"
 	GroupOperators = "Operators"
 	GroupCert      = "Certificate"
 	GroupVirt      = "OpenShift Virtualization"

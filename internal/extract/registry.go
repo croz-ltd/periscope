@@ -31,6 +31,7 @@ func Default() []Extractor {
 	return []Extractor{
 		OpenShift{},
 		DefaultStorageClass{},
+		StorageVolumes{},
 		Certificates{},
 		Virtualization{},
 		VirtualMachines{},

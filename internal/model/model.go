@@ -7,6 +7,7 @@ import "time"
 const (
 	GroupOpenShift = "OpenShift"
 	GroupNode      = "Node"
+	GroupMCP       = "MachineConfigPools"
 	GroupOperators = "Operators"
 	GroupCert      = "Certificate"
 	GroupVirt      = "OpenShift Virtualization"
@@ -22,6 +23,9 @@ const (
 	// CompareExpiry: absolute date thresholds, NOT cross-cluster (Version holds
 	// an RFC3339 timestamp): >120d green, <=120d yellow, <=60d red.
 	CompareExpiry = "expiry"
+	// CompareInfo: purely informational — display the value, no drift judgement
+	// (e.g. node counts, which legitimately differ per cluster).
+	CompareInfo = "info"
 )
 
 // Component is one comparable fact found on a cluster: a version, a config

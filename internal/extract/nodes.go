@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
+	"strings"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -23,11 +25,37 @@ func (Nodes) Extract(ctx context.Context, c *Clients) ([]model.Component, error)
 		return nil, err
 	}
 	counts := map[string]int{}
+	roles := map[string]int{}
 	for _, n := range nodes.Items {
 		counts[n.Status.NodeInfo.KubeletVersion]++
+		for label := range n.Labels {
+			if r, ok := strings.CutPrefix(label, "node-role.kubernetes.io/"); ok && r != "" {
+				roles[r]++
+			}
+		}
 	}
-	if len(counts) == 0 {
+	if len(nodes.Items) == 0 {
 		return nil, nil
+	}
+
+	// Total node count — informational (clusters legitimately differ in size).
+	total := model.Component{
+		Key: "node-count", Name: "Total nodes", Group: model.GroupNode,
+		Compare: model.CompareInfo, Kind: "nodes",
+		Version: strconv.Itoa(len(nodes.Items)),
+		Extra:   map[string]string{},
+	}
+	roleNames := make([]string, 0, len(roles))
+	for r := range roles {
+		roleNames = append(roleNames, r)
+	}
+	sort.Strings(roleNames)
+	for _, r := range roleNames {
+		total.Extra[r] = strconv.Itoa(roles[r])
+	}
+
+	if len(counts) == 0 {
+		return []model.Component{total}, nil
 	}
 
 	versions := make([]string, 0, len(counts))
@@ -48,7 +76,7 @@ func (Nodes) Extract(ctx context.Context, c *Clients) ([]model.Component, error)
 		}
 		extra["distribution"] = string(b)
 	}
-	return []model.Component{{
+	kubelet := model.Component{
 		Key:     "node-kubelet",
 		Name:    "Kubelet",
 		Group:   model.GroupNode,
@@ -56,5 +84,6 @@ func (Nodes) Extract(ctx context.Context, c *Clients) ([]model.Component, error)
 		Kind:    "nodes",
 		Version: top,
 		Extra:   extra,
-	}}, nil
+	}
+	return []model.Component{total, kubelet}, nil
 }

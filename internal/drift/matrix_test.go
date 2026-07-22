@@ -96,6 +96,24 @@ func TestBuiltinGroupsFallback(t *testing.T) {
 	}
 }
 
+func TestBuildInfo(t *testing.T) {
+	now := time.Unix(1000, 0)
+	mk := func(cluster, n string) model.Snapshot {
+		return model.Snapshot{Cluster: cluster, Time: now, OK: true, Components: []model.Component{
+			{Key: "node-count", Name: "Total nodes", Group: model.GroupNode, Compare: model.CompareInfo, Version: n},
+		}}
+	}
+	m := Build([]model.Snapshot{mk("a", "6"), mk("b", "12")}, now, time.Hour, nil)
+	row := m.Rows[0]
+	// info never judges drift, even though the values differ.
+	if row.Cells["a"].State != StateInfo || row.Cells["b"].State != StateInfo {
+		t.Errorf("info cells should be StateInfo, got %s / %s", row.Cells["a"].State, row.Cells["b"].State)
+	}
+	if row.Cells["a"].Version != "6" || row.Cells["b"].Version != "12" {
+		t.Errorf("info cells should keep their values, got %q / %q", row.Cells["a"].Version, row.Cells["b"].Version)
+	}
+}
+
 func TestBuildMatch(t *testing.T) {
 	now := time.Unix(1_000_000, 0)
 	snaps := []model.Snapshot{

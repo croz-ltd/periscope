@@ -33,8 +33,9 @@ func Default() []Extractor {
 		DefaultStorageClass{},
 		Certificates{},
 		Virtualization{},
-		OLM{},
 		Nodes{},
+		MachineConfigPools{},
+		OLM{},
 		Portworx(),
 		DellCSM(),
 	}

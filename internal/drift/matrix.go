@@ -27,6 +27,8 @@ const (
 	StateExpiryOK   CellState = "expiry_ok"   // > 120 days
 	StateExpiryWarn CellState = "expiry_warn" // <= 120 days
 	StateExpiryCrit CellState = "expiry_crit" // <= 60 days
+	// info comparison
+	StateInfo CellState = "info" // informational value, no drift judgement
 	// shared
 	StateUnknown      CellState = "unknown"       // present but value unparseable
 	StateNotInstalled CellState = "not_installed" // component absent on this cluster
@@ -92,7 +94,7 @@ type Matrix struct {
 
 // builtinGroupOrder is the fixed section order used when no custom grouping is set.
 var builtinGroupOrder = []string{
-	model.GroupOpenShift, model.GroupNode, model.GroupCert, model.GroupVirt, model.GroupOperators,
+	model.GroupOpenShift, model.GroupNode, model.GroupMCP, model.GroupCert, model.GroupVirt, model.GroupOperators,
 }
 
 type instance struct {
@@ -138,6 +140,8 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg 
 			buildMatchRow(&row, insts)
 		case model.CompareExpiry:
 			buildExpiryRow(&row, insts, now)
+		case model.CompareInfo:
+			buildInfoRow(&row, insts)
 		default: // CompareVersion / ""
 			buildVersionRow(&row, insts)
 		}
@@ -282,6 +286,15 @@ func buildMatchRow(row *Row, insts []instance) {
 		} else {
 			cell.State = StateMismatch
 		}
+		row.Cells[in.cluster] = cell
+	}
+}
+
+// buildInfoRow: display each cell's value with no drift judgement.
+func buildInfoRow(row *Row, insts []instance) {
+	for _, in := range insts {
+		cell := newCell(in)
+		cell.State = StateInfo
 		row.Cells[in.cluster] = cell
 	}
 }

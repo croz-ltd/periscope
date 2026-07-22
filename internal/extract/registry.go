@@ -33,6 +33,7 @@ func Default() []Extractor {
 		DefaultStorageClass{},
 		Certificates{},
 		Virtualization{},
+		VirtualMachines{},
 		Nodes{},
 		MachineConfigPools{},
 		OLM{},

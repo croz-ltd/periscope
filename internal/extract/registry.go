@@ -35,6 +35,8 @@ func Default() []Extractor {
 		Certificates{},
 		Virtualization{},
 		VirtualMachines{},
+		VMSnapshots{},
+		VMTemplates{},
 		Nodes{},
 		MachineConfigPools{},
 		OLM{},

@@ -63,10 +63,14 @@ func (VirtualMachines) Extract(ctx context.Context, c *Clients) ([]model.Compone
 			Version: strconv.Itoa(count), Extra: ex,
 		}
 	}
+	// Everything that isn't Running or Stopped (Starting, Paused, Migrating,
+	// Provisioning, Terminating, Unknown, ...).
+	other := len(list.Items) - byStatus["Running"] - byStatus["Stopped"]
 	return []model.Component{
 		info("vm-total", "Virtual machines", len(list.Items), extra),
 		info("vm-running", "VMs running", byStatus["Running"], nil),
 		info("vm-stopped", "VMs stopped", byStatus["Stopped"], nil),
+		info("vm-other", "VMs other", other, nil),
 	}, nil
 }
 

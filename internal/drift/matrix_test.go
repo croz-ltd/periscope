@@ -37,6 +37,22 @@ func TestClusterOrder(t *testing.T) {
 	}
 }
 
+// pageGroups returns the named page's groups as a title->keys map plus the
+// ordered titles.
+func pageGroups(m Matrix, id string) (titles []string, byTitle map[string][]string) {
+	byTitle = map[string][]string{}
+	for _, p := range m.Pages {
+		if p.ID != id {
+			continue
+		}
+		for _, g := range p.Groups {
+			titles = append(titles, g.Title)
+			byTitle[g.Title] = g.Keys
+		}
+	}
+	return
+}
+
 func TestCustomGroups(t *testing.T) {
 	now := time.Unix(1000, 0)
 	c := func(key, name, group string) model.Component {
@@ -48,25 +64,19 @@ func TestCustomGroups(t *testing.T) {
 		c("dell-csi", "Dell", model.GroupOperators),
 		c("cert-api", "API", model.GroupCert),
 	}}
-	cfg := &GroupConfig{Groups: []Group{
+	cfg := &GroupConfig{Compare: []Group{
 		{Title: "Storage", Keys: []string{"portworx-csi", "dell-csi", "ghost"}}, // ghost skipped
 		{Title: "Mixed", Keys: []string{"portworx-csi", "openshift"}},           // portworx in 2 groups
 		{Title: "Empty", Keys: []string{"nope"}},                                // no match -> dropped
 	}}
 	m := Build([]model.Snapshot{snap}, now, time.Hour, cfg)
 
-	var got []string
-	byTitle := map[string][]string{}
-	for _, g := range m.Groups {
-		got = append(got, g.Title)
-		byTitle[g.Title] = g.Keys
-	}
-	want := []string{"Storage", "Mixed", "Ungrouped"}
-	if strings.Join(got, ",") != strings.Join(want, ",") {
-		t.Fatalf("group titles = %v, want %v", got, want)
+	titles, byTitle := pageGroups(m, PageCompare)
+	if strings.Join(titles, ",") != "Storage,Mixed,Ungrouped" {
+		t.Fatalf("compare group titles = %v", titles)
 	}
 	if strings.Join(byTitle["Storage"], ",") != "portworx-csi,dell-csi" {
-		t.Errorf("Storage keys = %v (want portworx-csi,dell-csi; ghost skipped, order preserved)", byTitle["Storage"])
+		t.Errorf("Storage keys = %v (ghost skipped, order preserved)", byTitle["Storage"])
 	}
 	if strings.Join(byTitle["Mixed"], ",") != "portworx-csi,openshift" {
 		t.Errorf("Mixed keys = %v (portworx repeats across groups)", byTitle["Mixed"])
@@ -87,12 +97,42 @@ func TestBuiltinGroupsFallback(t *testing.T) {
 		c("openshift", "OpenShift", model.GroupOpenShift),
 	}}
 	m := Build([]model.Snapshot{snap}, now, time.Hour, nil) // no cfg -> built-in order
-	if len(m.Groups) != 2 || m.Groups[0].Title != model.GroupOpenShift || m.Groups[1].Title != model.GroupOperators {
-		t.Fatalf("built-in group order wrong: %+v", m.Groups)
+	titles, byTitle := pageGroups(m, PageCompare)
+	if strings.Join(titles, ",") != model.GroupOpenShift+","+model.GroupOperators {
+		t.Fatalf("built-in group order wrong: %v", titles)
 	}
-	// alpha within group by display name
-	if strings.Join(m.Groups[1].Keys, ",") != "op-a,op-z" {
-		t.Errorf("Operators keys should sort by name: %v", m.Groups[1].Keys)
+	if strings.Join(byTitle[model.GroupOperators], ",") != "op-a,op-z" {
+		t.Errorf("Operators keys should sort by name: %v", byTitle[model.GroupOperators])
+	}
+}
+
+func TestPagesSplitAndHidden(t *testing.T) {
+	now := time.Unix(1000, 0)
+	snap := model.Snapshot{Cluster: "a", Time: now, OK: true, Components: []model.Component{
+		{Key: "openshift", Name: "OpenShift", Group: model.GroupOpenShift, Compare: model.CompareVersion, Version: "4.14.0"},
+		{Key: "node-count", Name: "Total nodes", Group: model.GroupNode, Compare: model.CompareInfo, Version: "6"},
+		{Key: "vm-total", Name: "Virtual machines", Group: model.GroupVirt, Compare: model.CompareInfo, Version: "3"},
+	}}
+	// No cfg: info rows -> Statistics, others -> Compare.
+	m := Build([]model.Snapshot{snap}, now, time.Hour, nil)
+	_, cmp := pageGroups(m, PageCompare)
+	_, stat := pageGroups(m, PageStatistics)
+	if _, ok := cmp[model.GroupOpenShift]; !ok {
+		t.Errorf("openshift should be on Compare page: %+v", cmp)
+	}
+	if len(stat) == 0 {
+		t.Errorf("info rows should populate the Statistics page")
+	}
+	// Hidden removes a key from every page.
+	m2 := Build([]model.Snapshot{snap}, now, time.Hour, &GroupConfig{Hidden: []string{"vm-total"}})
+	for _, p := range m2.Pages {
+		for _, g := range p.Groups {
+			for _, k := range g.Keys {
+				if k == "vm-total" {
+					t.Errorf("hidden key vm-total still present on page %s", p.ID)
+				}
+			}
+		}
 	}
 }
 

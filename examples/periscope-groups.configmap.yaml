@@ -1,13 +1,18 @@
-# Custom matrix grouping. Apply into the Periscope namespace:
+# Custom grouping for the Compare and Statistics pages. Apply into the namespace:
 #   oc apply -f examples/periscope-groups.configmap.yaml -n periscope
 # Changes are picked up on the next matrix load (use the Refresh button).
 #
-# - Groups render top-to-bottom in the order listed here; entries render in the
-#   order listed within each group.
+# Schema (all optional):
+#   compare:    ordered groups for the Compare page (version/config drift)
+#   statistics: ordered groups for the Statistics page (counts)
+#   hidden:     keys removed from BOTH pages
+#
+# - Groups render top-to-bottom; entries render in the order listed within each.
 # - The same key may appear in multiple groups.
-# - Keys that match no component are skipped; a group with no matches is hidden.
-# - Any component not listed in ANY group falls into an "Ungrouped" section.
-# - Find the keys to use on the app's "Docs" page (sidebar).
+# - Keys matching no component are skipped; empty groups are hidden.
+# - A page section makes that page authoritative; leftovers for that page land in
+#   an "Ungrouped" section. Omit a section to use built-in grouping for that page.
+# - Find component keys on the app's "Docs" page (sidebar).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,22 +20,34 @@ metadata:
   namespace: periscope
 data:
   groups.yaml: |
-    groups:
+    compare:
       - title: Platform
         keys:
           - openshift
           - node-kubelet
-      - title: Storage
-        keys:
-          - default-storageclass
-          - portworx-csi
-          - dell-csi
       - title: Certificates
         keys:
           - cert-api
           - cert-ingress
-      - title: Security
+      - title: Storage drivers
         keys:
-          - rhacs-operator
-          - compliance-operator
-          - file-integrity-operator
+          - default-storageclass
+          - portworx-csi
+          - dell-csi
+      - title: MachineConfigPools
+        keys:
+          - mcp-master
+          - mcp-worker
+    statistics:
+      - title: Capacity
+        keys:
+          - node-count
+          - storage-total
+      - title: Storage by class
+        keys: []   # add storage-<class> keys from the Docs page
+      - title: Virtual machines
+        keys:
+          - vm-total
+          - vm-running
+          - vm-stopped
+    hidden: []

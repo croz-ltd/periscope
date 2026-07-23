@@ -79,17 +79,36 @@ type Group struct {
 	Keys  []string `json:"keys"`
 }
 
-// GroupConfig is the custom grouping loaded from the periscope-groups ConfigMap.
-type GroupConfig struct {
+// Page identifiers. A row's default page is Statistics for info comparisons
+// (counts), Compare for everything else (version/match/expiry).
+const (
+	PageCompare    = "compare"
+	PageStatistics = "statistics"
+)
+
+// PageView is one navigable page (Compare / Statistics) and its ordered groups.
+type PageView struct {
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
 	Groups []Group `json:"groups"`
+}
+
+// GroupConfig is the custom grouping loaded from the periscope-groups ConfigMap.
+// Compare/Statistics target a specific page; Hidden removes keys from both;
+// Groups is a legacy alias applied to the Compare page.
+type GroupConfig struct {
+	Compare    []Group  `json:"compare"`
+	Statistics []Group  `json:"statistics"`
+	Hidden     []string `json:"hidden"`
+	Groups     []Group  `json:"groups"`
 }
 
 // Matrix is the full comparison view.
 type Matrix struct {
 	Clusters []ClusterInfo `json:"clusters"`
-	Rows     []Row         `json:"rows"`
-	Groups   []Group       `json:"groups"`            // ordered sections referencing Rows by key
-	Warning  string        `json:"warning,omitempty"` // e.g. custom grouping ignored due to a parse error
+	Rows     []Row         `json:"rows"`      // all rows, keyed; referenced by page groups
+	Pages    []PageView    `json:"pages"`     // Compare + Statistics, each with ordered groups
+	Warning  string        `json:"warning,omitempty"`
 }
 
 // builtinGroupOrder is the fixed section order used when no custom grouping is set.
@@ -108,7 +127,7 @@ type instance struct {
 // cfg is the custom grouping (nil = built-in section order).
 func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg *GroupConfig) Matrix {
 	// Non-nil slices so the JSON is always [] not null (keeps the UI .map safe).
-	m := Matrix{Clusters: []ClusterInfo{}, Rows: []Row{}, Groups: []Group{}}
+	m := Matrix{Clusters: []ClusterInfo{}, Rows: []Row{}, Pages: []PageView{}}
 	var clusterNames []string
 	for _, s := range snaps {
 		stale := staleAfter > 0 && now.Sub(s.Time) > staleAfter
@@ -156,20 +175,33 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg 
 		m.Rows = append(m.Rows, row)
 	}
 	sort.Slice(m.Rows, func(i, j int) bool { return m.Rows[i].Key < m.Rows[j].Key })
-	assignGroups(&m, cfg)
+	assignPages(&m, cfg)
 	return m
 }
 
-// assignGroups populates m.Groups. With cfg it uses the custom grouping (skipping
-// keys that match no row, dropping empty groups, and collecting leftovers into an
-// "Ungrouped" section). Without cfg it falls back to the built-in section order.
-func assignGroups(m *Matrix, cfg *GroupConfig) {
+// defaultPage places info comparisons (counts) on Statistics, everything else
+// on Compare.
+func defaultPage(compare string) string {
+	if compare == model.CompareInfo {
+		return PageStatistics
+	}
+	return PageCompare
+}
+
+// assignPages splits the rows into the Compare and Statistics pages. Each page's
+// groups come from its ConfigMap section when present (authoritative: unmatched/
+// hidden keys skipped, empty groups dropped, leftovers for that page collected
+// into "Ungrouped"), otherwise from the built-in section order filtered to that
+// page's rows. Hidden keys are removed from both pages.
+func assignPages(m *Matrix, cfg *GroupConfig) {
 	nameByKey := map[string]string{}
 	groupByKey := map[string]string{}
+	pageByKey := map[string]string{}
 	var allKeys []string
 	for _, r := range m.Rows {
 		nameByKey[r.Key] = r.Name
 		groupByKey[r.Key] = r.Group
+		pageByKey[r.Key] = defaultPage(r.Compare)
 		allKeys = append(allKeys, r.Key)
 	}
 	exists := func(k string) bool { _, ok := nameByKey[k]; return ok }
@@ -179,63 +211,119 @@ func assignGroups(m *Matrix, cfg *GroupConfig) {
 		})
 	}
 
-	if cfg != nil && len(cfg.Groups) > 0 {
-		used := map[string]bool{}
-		for _, g := range cfg.Groups {
+	hidden := map[string]bool{}
+	var compareSection, statSection []Group
+	if cfg != nil {
+		for _, k := range cfg.Hidden {
+			hidden[k] = true
+		}
+		compareSection = cfg.Compare
+		if len(compareSection) == 0 {
+			compareSection = cfg.Groups // legacy alias -> Compare page
+		}
+		statSection = cfg.Statistics
+	}
+
+	used := map[string]bool{}
+	buildSection := func(section []Group) []Group {
+		var out []Group
+		for _, g := range section {
 			var keys []string
 			seen := map[string]bool{}
-			for _, k := range g.Keys { // preserve the config's within-group order
-				if exists(k) && !seen[k] {
+			for _, k := range g.Keys { // preserve config order
+				if exists(k) && !hidden[k] && !seen[k] {
 					keys = append(keys, k)
 					seen[k] = true
 					used[k] = true
 				}
 			}
 			if len(keys) > 0 {
-				m.Groups = append(m.Groups, Group{Title: g.Title, Keys: keys})
+				out = append(out, Group{Title: g.Title, Keys: keys})
 			}
 		}
-		var ungrouped []string
+		return out
+	}
+	buildBuiltin := func(page string) []Group {
+		byGroup := map[string][]string{}
 		for _, k := range allKeys {
-			if !used[k] {
-				ungrouped = append(ungrouped, k)
+			if hidden[k] || pageByKey[k] != page {
+				continue
+			}
+			byGroup[groupByKey[k]] = append(byGroup[groupByKey[k]], k)
+			used[k] = true
+		}
+		var out []Group
+		emit := func(title string) {
+			if keys := byGroup[title]; len(keys) > 0 {
+				sortByName(keys)
+				out = append(out, Group{Title: title, Keys: keys})
+				delete(byGroup, title)
 			}
 		}
-		if len(ungrouped) > 0 {
-			sortByName(ungrouped)
-			m.Groups = append(m.Groups, Group{Title: "Ungrouped", Keys: ungrouped})
+		for _, title := range builtinGroupOrder {
+			emit(title)
 		}
-		return
+		var rest []string
+		for title := range byGroup {
+			rest = append(rest, title)
+		}
+		sort.Strings(rest)
+		for _, title := range rest {
+			display := title
+			if display == "" {
+				display = "Ungrouped"
+			}
+			keys := byGroup[title]
+			sortByName(keys)
+			out = append(out, Group{Title: display, Keys: keys})
+		}
+		return out
 	}
 
-	// Built-in grouping: fixed order, then any unexpected group titles, alpha within.
-	byGroup := map[string][]string{}
-	for _, k := range allKeys {
-		byGroup[groupByKey[k]] = append(byGroup[groupByKey[k]], k)
+	compareAuthoritative := len(compareSection) > 0
+	statAuthoritative := len(statSection) > 0
+	var compareGroups, statGroups []Group
+	if compareAuthoritative {
+		compareGroups = buildSection(compareSection)
+	} else {
+		compareGroups = buildBuiltin(PageCompare)
 	}
-	emit := func(title string) {
-		if keys := byGroup[title]; len(keys) > 0 {
-			sortByName(keys)
-			m.Groups = append(m.Groups, Group{Title: title, Keys: keys})
-			delete(byGroup, title)
+	if statAuthoritative {
+		statGroups = buildSection(statSection)
+	} else {
+		statGroups = buildBuiltin(PageStatistics)
+	}
+	// Leftovers land in their default page's "Ungrouped" (authoritative pages only;
+	// built-in pages already include all their rows).
+	ungroupedFor := func(page string) []string {
+		var ung []string
+		for _, k := range allKeys {
+			if !hidden[k] && !used[k] && pageByKey[k] == page {
+				ung = append(ung, k)
+			}
+		}
+		sortByName(ung)
+		return ung
+	}
+	if compareAuthoritative {
+		if ung := ungroupedFor(PageCompare); len(ung) > 0 {
+			compareGroups = append(compareGroups, Group{Title: "Ungrouped", Keys: ung})
 		}
 	}
-	for _, title := range builtinGroupOrder {
-		emit(title)
-	}
-	var rest []string
-	for title := range byGroup {
-		rest = append(rest, title)
-	}
-	sort.Strings(rest)
-	for _, title := range rest {
-		display := title
-		if display == "" {
-			display = "Ungrouped"
+	if statAuthoritative {
+		if ung := ungroupedFor(PageStatistics); len(ung) > 0 {
+			statGroups = append(statGroups, Group{Title: "Ungrouped", Keys: ung})
 		}
-		keys := byGroup[title]
-		sortByName(keys)
-		m.Groups = append(m.Groups, Group{Title: display, Keys: keys})
+	}
+	if compareGroups == nil {
+		compareGroups = []Group{}
+	}
+	if statGroups == nil {
+		statGroups = []Group{}
+	}
+	m.Pages = []PageView{
+		{ID: PageCompare, Title: "Compare", Groups: compareGroups},
+		{ID: PageStatistics, Title: "Statistics", Groups: statGroups},
 	}
 }
 

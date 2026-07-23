@@ -1,9 +1,11 @@
-# Example custom grouping. Edit `groups.yaml` to define your matrix sections
-# (see the app's "Docs" page for the component keys), then re-apply and hit
-# Refresh in the UI. Groups render top-to-bottom in the order listed; a key may
-# appear in multiple groups; unmatched keys are skipped and anything left over
-# falls into an "Ungrouped" section. Delete this ConfigMap to use the built-in
-# grouping instead.
+# Example custom grouping. Edit `groups.yaml`, re-apply, and hit Refresh.
+#   compare:    groups for the Compare page (version/config drift)
+#   statistics: groups for the Statistics page (counts)
+#   hidden:     keys removed from both pages
+# (Component keys are listed on the app's "Docs" page.) Groups render in the
+# order listed; a key may appear in multiple groups; unmatched keys are skipped
+# and leftovers fall into an "Ungrouped" section on their default page. Delete
+# this ConfigMap to use the built-in grouping.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -13,7 +15,7 @@ metadata:
     app.kubernetes.io/name: periscope
 data:
   groups.yaml: |
-    groups:
+    compare:
       - title: Platform
         keys:
           - openshift
@@ -22,8 +24,19 @@ data:
         keys:
           - cert-api
           - cert-ingress
-      - title: Storage
+      - title: Storage drivers
         keys:
           - default-storageclass
           - portworx-csi
           - dell-csi
+    statistics:
+      - title: Capacity
+        keys:
+          - node-count
+          - storage-total
+      - title: Virtual machines
+        keys:
+          - vm-total
+          - vm-running
+          - vm-stopped
+    hidden: []

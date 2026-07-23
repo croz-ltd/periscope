@@ -90,18 +90,22 @@ func (VMSnapshots) Extract(ctx context.Context, c *Clients) ([]model.Component, 
 		}
 		return nil, err
 	}
+	// "VM snapshots" is the count of VirtualMachineSnapshot objects.
 	out := []model.Component{virtInfo("vmsnapshot-total", "VM snapshots", len(snaps.Items))}
 
-	// Per-storage-class: each snapshot content lists volume backups whose PVC
-	// template carries the storage class. Count a snapshot once per class it uses.
+	// A VM snapshot can span several disks on different storage classes, so a
+	// per-class breakdown of VM snapshots would overlap (a multi-disk snapshot
+	// belongs to several classes) and not sum to the total. Instead we count the
+	// individual volume snapshots (one per backed disk) per class: these
+	// partition cleanly and sum to the "Snapshot volumes" total.
 	if contents, err := c.Dynamic.Resource(vmSnapshotContentGVR).List(ctx, metav1.ListOptions{}); err == nil {
 		byClass := map[string]int{}
+		totalVolumes := 0
 		for _, item := range contents.Items {
 			vbs, ok, _ := unstructured.NestedSlice(item.Object, "spec", "volumeBackups")
 			if !ok {
 				continue
 			}
-			seen := map[string]bool{}
 			for _, v := range vbs {
 				vb, ok := v.(map[string]interface{})
 				if !ok {
@@ -111,19 +115,18 @@ func (VMSnapshots) Extract(ctx context.Context, c *Clients) ([]model.Component, 
 				if sc == "" {
 					sc = "(none)"
 				}
-				if !seen[sc] {
-					seen[sc] = true
-					byClass[sc]++
-				}
+				byClass[sc]++
+				totalVolumes++
 			}
 		}
+		out = append(out, virtInfo("vmsnapshot-volumes", "Snapshot volumes", totalVolumes))
 		classes := make([]string, 0, len(byClass))
 		for sc := range byClass {
 			classes = append(classes, sc)
 		}
 		sort.Strings(classes)
 		for _, sc := range classes {
-			out = append(out, virtInfo("vmsnapshot-"+sc, "VM snapshots: "+sc, byClass[sc]))
+			out = append(out, virtInfo("vmsnapshot-vol-"+sc, "Snapshot volumes: "+sc, byClass[sc]))
 		}
 	}
 	return out, nil

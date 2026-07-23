@@ -1,11 +1,11 @@
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table'
 import { Tooltip, Label, Icon } from '@patternfly/react-core'
 import { ExclamationTriangleIcon } from '@patternfly/react-icons'
-import type { Matrix, Row } from './api'
+import type { Matrix, MatrixGroup, Row } from './api'
 import { cellClass, cellText, cellTooltip } from './cells'
 
-export function MatrixTable({ matrix }: { matrix: Matrix }) {
-  const { clusters, rows, groups } = matrix
+export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: MatrixGroup[] }) {
+  const { clusters, rows } = matrix
   const totalCols = 2 + clusters.length
 
   // The backend now defines sections via matrix.groups; a key may appear in

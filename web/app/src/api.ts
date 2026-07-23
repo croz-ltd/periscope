@@ -47,10 +47,16 @@ export interface MatrixGroup {
   keys: string[] // component keys in render order; a key may appear in several groups
 }
 
+export interface Page {
+  id: string // e.g. "compare" | "statistics"
+  title: string
+  groups: MatrixGroup[]
+}
+
 export interface Matrix {
   clusters: ClusterInfo[]
   rows: Row[]
-  groups: MatrixGroup[]
+  pages: Page[]
   warning?: string // set when custom grouping was ignored (e.g. bad ConfigMap)
 }
 

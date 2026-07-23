@@ -75,7 +75,7 @@ function Legend() {
   )
 }
 
-type NavKey = 'matrix' | 'docs' | 'about'
+type NavKey = 'compare' | 'statistics' | 'docs' | 'about'
 
 export default function App() {
   const [matrix, setMatrix] = useState<Matrix | null>(null)
@@ -83,7 +83,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [isSidebarOpen, setSidebarOpen] = useState(true)
-  const [activeNav, setActiveNav] = useState<NavKey>('matrix')
+  const [activeNav, setActiveNav] = useState<NavKey>('compare')
 
   const load = useCallback(async () => {
     try {
@@ -115,7 +115,10 @@ export default function App() {
     }
   }, [load])
 
-  const hasData = !!matrix && matrix.clusters.length > 0
+  const hasClusters = !!matrix && matrix.clusters.length > 0
+  const pageId = activeNav === 'statistics' ? 'statistics' : 'compare'
+  const page = matrix?.pages.find((p) => p.id === pageId)
+  const pageTitle = page?.title ?? (pageId === 'statistics' ? 'Statistics' : 'Compare')
 
   const masthead = (
     <AppMasthead isSidebarOpen={isSidebarOpen} onSidebarToggle={() => setSidebarOpen((o) => !o)} />
@@ -129,8 +132,11 @@ export default function App() {
           onSelect={(_e, item) => setActiveNav(item.itemId as NavKey)}
         >
           <NavList>
-            <NavItem itemId="matrix" isActive={activeNav === 'matrix'}>
-              Matrix
+            <NavItem itemId="compare" isActive={activeNav === 'compare'}>
+              Compare
+            </NavItem>
+            <NavItem itemId="statistics" isActive={activeNav === 'statistics'}>
+              Statistics
             </NavItem>
             <NavItem itemId="docs" isActive={activeNav === 'docs'}>
               Docs
@@ -164,7 +170,7 @@ export default function App() {
         <PageSection>
           <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
             <FlexItem>
-              <Title headingLevel="h1">Periscope</Title>
+              <Title headingLevel="h1">{pageTitle}</Title>
               <Content component="small">Version drift across OpenShift clusters</Content>
             </FlexItem>
           </Flex>
@@ -211,17 +217,23 @@ export default function App() {
             <Bullseye style={{ minHeight: '40vh' }}>
               <Spinner aria-label="Loading matrix" />
             </Bullseye>
-          ) : hasData ? (
-            <>
-              <Legend />
-              <div className="cc-table-wrap">
-                <MatrixTable matrix={matrix!} />
-              </div>
-            </>
-          ) : (
+          ) : !hasClusters ? (
             <EmptyState titleText="No clusters scraped yet" headingLevel="h2" icon={CubesIcon}>
               <EmptyStateBody>
                 Join clusters with a labeled Secret, or wait for the first scrape to complete, then refresh.
+              </EmptyStateBody>
+            </EmptyState>
+          ) : page && page.groups.length > 0 ? (
+            <>
+              <Legend />
+              <div className="cc-table-wrap">
+                <MatrixTable matrix={matrix!} groups={page.groups} />
+              </div>
+            </>
+          ) : (
+            <EmptyState titleText="Nothing to show on this page" headingLevel="h2" icon={CubesIcon}>
+              <EmptyStateBody>
+                The “{pageTitle}” page has no groups configured.
               </EmptyStateBody>
             </EmptyState>
           )}

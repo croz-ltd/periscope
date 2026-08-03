@@ -166,8 +166,15 @@ file that overrides vendor CR field paths without rebuilding. See
 | `GET /api/matrix` | the full comparison matrix as JSON (what the UI renders) |
 | `GET /api/export.csv`, `GET /api/export.json` | current matrix export |
 | `POST /api/refresh` | trigger a scrape now |
-| `GET /metrics` | Prometheus: per-component drift severity and per-cluster staleness gauges |
+| `GET /metrics` | Prometheus text exposition, see below |
 | `GET /healthz` | liveness |
+
+Two gauges are exported, both suitable for alerting:
+
+```
+periscope_component_drift_severity{cluster,component,state}  # 0 on the fleet leader
+periscope_cluster_stale{cluster}                             # 1 when the snapshot is stale
+```
 
 ## Extending
 

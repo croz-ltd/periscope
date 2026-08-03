@@ -59,7 +59,7 @@ func TestServerEndpoints(t *testing.T) {
 	}
 
 	// Metrics and CSV export respond.
-	if body, _ := get(t, ts.URL+"/metrics"); !strings.Contains(body, "cluster_comparator_component_drift_severity") {
+	if body, _ := get(t, ts.URL+"/metrics"); !strings.Contains(body, "periscope_component_drift_severity") {
 		t.Errorf("metrics missing drift gauge: %.120q", body)
 	}
 	if body, _ := get(t, ts.URL+"/api/export.csv"); !strings.Contains(body, "component,kind,leader") {

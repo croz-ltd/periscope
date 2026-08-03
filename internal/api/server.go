@@ -172,8 +172,8 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
-	fmt.Fprintln(w, "# HELP cluster_comparator_component_drift_severity How far a component is behind the fleet leader (0 = leader).")
-	fmt.Fprintln(w, "# TYPE cluster_comparator_component_drift_severity gauge")
+	fmt.Fprintln(w, "# HELP periscope_component_drift_severity How far a component is behind the fleet leader (0 = leader).")
+	fmt.Fprintln(w, "# TYPE periscope_component_drift_severity gauge")
 	for _, row := range m.Rows {
 		clusters := make([]string, 0, len(row.Cells))
 		for c := range row.Cells {
@@ -185,19 +185,19 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 			if cell.State == drift.StateNotInstalled {
 				continue
 			}
-			fmt.Fprintf(w, "cluster_comparator_component_drift_severity{cluster=%q,component=%q,state=%q} %d\n",
+			fmt.Fprintf(w, "periscope_component_drift_severity{cluster=%q,component=%q,state=%q} %d\n",
 				c, row.Key, cell.State, cell.Severity)
 		}
 	}
 
-	fmt.Fprintln(w, "# HELP cluster_comparator_cluster_stale 1 if the cluster snapshot is stale.")
-	fmt.Fprintln(w, "# TYPE cluster_comparator_cluster_stale gauge")
+	fmt.Fprintln(w, "# HELP periscope_cluster_stale 1 if the cluster snapshot is stale.")
+	fmt.Fprintln(w, "# TYPE periscope_cluster_stale gauge")
 	for _, c := range m.Clusters {
 		stale := 0
 		if c.Stale {
 			stale = 1
 		}
-		fmt.Fprintf(w, "cluster_comparator_cluster_stale{cluster=%q} %d\n", c.Name, stale)
+		fmt.Fprintf(w, "periscope_cluster_stale{cluster=%q} %d\n", c.Name, stale)
 	}
 }
 

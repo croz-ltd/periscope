@@ -18,7 +18,7 @@ export interface DisplaySettings {
   changeContrast: (v: Contrast) => void
 }
 
-// Single source of truth for the display settings — instantiate ONCE (in the
+// Single source of truth for the display settings. Instantiate ONCE (in the
 // masthead) and share with the settings menu and the preferences modal so they
 // stay in sync. Each change persists (via settings.ts) and applies to <html>.
 export function useDisplaySettings(): DisplaySettings {

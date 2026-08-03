@@ -1,7 +1,7 @@
 # OPTIONAL: auto-build on git push via Tekton Triggers (needs the OpenShift
 # Pipelines Triggers component). Requires two secrets in the namespace:
 #   - periscope-registry-push    (docker-registry, push creds for your registry)
-#   - periscope-webhook          (key: secretToken — the webhook shared secret)
+#   - periscope-webhook          (key: secretToken, the webhook shared secret)
 # Point a GitHub "push" webhook at the Route created below. For GitLab, swap the
 # interceptor ref to "gitlab", eventTypes to ["Push Hook"], and the revision
 # binding to $(body.checkout_sha).

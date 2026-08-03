@@ -30,7 +30,7 @@ type Config struct {
 
 // BuildExtractors returns the extractor set. With no path it returns the
 // built-in defaults. With a config file, the always-on extractors (OpenShift,
-// OLM, nodes) are kept and the CR extractors come entirely from the file —
+// OLM, nodes) are kept and the CR extractors come entirely from the file,
 // letting operators redefine Portworx/Dell paths or add new vendors.
 func BuildExtractors(path string) ([]extract.Extractor, error) {
 	if path == "" {

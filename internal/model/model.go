@@ -14,17 +14,17 @@ const (
 	GroupVirt      = "OpenShift Virtualization"
 )
 
-// Comparison kinds — how a row's cells are judged.
+// Comparison kinds: how a row's cells are judged.
 const (
 	// CompareVersion: semver drift vs the fleet-max (green ahead / red behind).
 	CompareVersion = "version"
-	// CompareMatch: config consistency — cells that differ from the fleet's
+	// CompareMatch: config consistency, cells that differ from the fleet's
 	// common value are flagged; no "leader".
 	CompareMatch = "match"
 	// CompareExpiry: absolute date thresholds, NOT cross-cluster (Version holds
 	// an RFC3339 timestamp): >120d green, <=120d yellow, <=60d red.
 	CompareExpiry = "expiry"
-	// CompareInfo: purely informational — display the value, no drift judgement
+	// CompareInfo: purely informational, display the value, no drift judgement
 	// (e.g. node counts, which legitimately differ per cluster).
 	CompareInfo = "info"
 )

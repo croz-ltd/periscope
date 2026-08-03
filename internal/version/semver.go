@@ -1,6 +1,6 @@
 // Package version provides tolerant semver parsing and comparison. Cluster
 // components emit versions in many shapes ("4.14.9", "v2.13.1", "1.2.3-rc1+build"),
-// so parsing records failure in OK rather than erroring — callers render
+// so parsing records failure in OK rather than erroring, and callers render
 // unparseable versions as neutral "unknown" cells instead of guessing drift.
 package version
 

@@ -3,7 +3,7 @@ import { ClipboardCopy, Content, EmptyState, EmptyStateBody } from '@patternfly/
 import { CubesIcon } from '@patternfly/react-icons'
 import type { Row } from './api'
 
-// Distinct components (unique by key), sorted by display name — the reference of
+// Distinct components (unique by key), sorted by display name, the reference of
 // keys to use when writing custom groups.
 function distinctByKey(rows: Row[]): Row[] {
   const byKey = new Map<string, Row>()

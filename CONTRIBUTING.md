@@ -4,7 +4,7 @@ Thanks for your interest. Issues and pull requests are welcome.
 
 ## Development setup
 
-You need **Go 1.26+**, **Node 20+**, and (optionally) Docker or Podman.
+You need Go 1.26+, Node 20+, and optionally Docker or Podman.
 
 ```bash
 git clone https://github.com/croz-ltd/periscope.git
@@ -16,9 +16,8 @@ make test     # go test ./...
 make vet      # go vet ./...
 ```
 
-`make web` must run at least once before `make build` — `web/embed.go` embeds
-`web/dist` with `go:embed`, so a stale or missing `web/dist` means a stale or
-failing build.
+Run `make web` at least once before `make build`. `web/embed.go` embeds `web/dist`
+with `go:embed`, so a stale or missing `web/dist` means a stale or failing build.
 
 Run locally against your current kubeconfig context:
 
@@ -26,24 +25,23 @@ Run locally against your current kubeconfig context:
 bin/periscope serve --namespace periscope --db ./periscope.db
 ```
 
-Periscope reads joined clusters from labeled Secrets in `--namespace`; with none
-present it starts with an empty matrix. See the README for the join flow.
+Periscope reads joined clusters from labeled Secrets in `--namespace`. With none
+present it starts with an empty matrix. The README describes the join flow.
 
-For UI-only work, `cd web/app && npm run dev` gives you Vite with hot reload;
-point it at a running backend (the dev server proxies `/api`, see
-`web/app/vite.config.ts`).
+For UI-only work, `cd web/app && npm run dev` gives you Vite with hot reload against a
+running backend. The dev server proxies `/api`, see `web/app/vite.config.ts`.
 
 ## Project layout
 
-See the layout section in [README.md](README.md) and the architecture rationale in
-[DESIGN.md](DESIGN.md). In short:
+The README has the full layout and [DESIGN.md](DESIGN.md) has the architectural
+reasoning. In short:
 
-- `internal/extract/` — one file per extractor; register it in `registry.go`
-- `internal/drift/` — matrix construction and drift classification
-- `internal/store/` — SQLite persistence (full snapshot history)
-- `internal/api/` — REST, CSV/JSON export, Prometheus metrics
-- `web/app/` — PatternFly React UI (built into `web/dist`)
-- `charts/` — hub chart and per-cluster join chart
+- `internal/extract/` one file per extractor, registered in `registry.go`
+- `internal/drift/` matrix construction and drift classification
+- `internal/store/` SQLite persistence with full snapshot history
+- `internal/api/` REST, CSV/JSON export, Prometheus metrics
+- `web/app/` PatternFly React UI, built into `web/dist`
+- `charts/` hub chart and per-cluster join chart
 
 ## Adding an extractor
 
@@ -56,40 +54,42 @@ type Extractor interface {
 }
 ```
 
-Guidelines:
+A few rules that are easy to break and hard to notice:
 
-1. **Use a stable component key.** The key is the matrix row identity and must not
-   change between versions of the extracted component.
-2. **Absent is not behind.** Return no component when the thing is not installed —
-   never a zero version. Absent components are excluded from the drift baseline.
-3. **Never guess a version.** If the value does not parse as a version, return it as
-   the raw string; `internal/version` marks unparseable values neutral rather than
-   comparing them lexically.
-4. **Use the dynamic client for vendor CRs** so no generated types are needed.
-5. **Prefer a config-driven CR field extractor** when the version is just a nested
-   field: `extract.NewCRFieldExtractor(...)` covers that case, and users can
-   override the field path via `config/extractors.yaml` without rebuilding.
-6. **Add unit tests.** `internal/version` and `internal/drift` have tests to follow;
+1. Use a stable component key. The key is the matrix row identity, so it must not
+   change between versions of the component being extracted.
+2. Return no component when the thing is not installed, never a zero version. Absent
+   components are excluded from the drift baseline, and a zero version would make an
+   uninstalled component look like the most outdated one in the fleet.
+3. Don't guess a version. If the value does not parse, return it as the raw string.
+   `internal/version` marks unparseable values neutral instead of comparing them
+   lexically.
+4. Use the dynamic client for vendor CRs so no generated types are needed.
+5. If the version is just a nested field in a CR, prefer the config-driven extractor.
+   `extract.NewCRFieldExtractor(...)` covers that case and lets users override the
+   field path through `config/extractors.yaml` without rebuilding.
+6. Add unit tests. `internal/version` and `internal/drift` have tests to follow, and
    extractors can be tested against fake dynamic clients.
 
-Register the extractor in `extract.Default()` and document its key — the UI's Docs
-page lists component keys from the API, so a new key shows up automatically.
+Register the extractor in `extract.Default()`. The UI's Docs page lists component keys
+from the API, so a new key appears there automatically.
 
 ## Pull requests
 
-- Keep commits focused; use [Conventional Commits](https://www.conventionalcommits.org/)
-  subjects (`feat(extract): ...`, `fix(ui): ...`, `docs: ...`, `chore(chart): ...`).
-- Explain *why* in the commit body when the diff does not make it obvious.
-- `go vet ./...` and `go test ./...` must pass; CI runs both plus a UI typecheck,
-  cross-platform builds, and a container build.
-- Note in the PR description whether the change was verified against a real cluster
-  and which OpenShift version.
+- Keep commits focused and use [Conventional Commits](https://www.conventionalcommits.org/)
+  subjects, for example `feat(extract): ...`, `fix(ui): ...`, `docs: ...`,
+  `chore(chart): ...`.
+- Explain why in the commit body when the diff does not make it obvious.
+- `go vet ./...` and `go test ./...` must pass. CI runs both plus a UI typecheck,
+  cross-platform builds and a container build.
+- Say in the PR description whether you verified the change against a real cluster and
+  on which OpenShift version.
 
 ## Reporting security issues
 
-Do not open a public issue. See [SECURITY.md](SECURITY.md).
+Please don't open a public issue for those. See [SECURITY.md](SECURITY.md).
 
 ## License
 
-By contributing, you agree that your contributions are licensed under the
+By contributing you agree that your contributions are licensed under the
 [Apache License 2.0](LICENSE), the license of this project.

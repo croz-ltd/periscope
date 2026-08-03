@@ -156,7 +156,7 @@ export default function App() {
         <PageSection>
           <Title headingLevel="h1">About</Title>
           <Content component="p">
-            Periscope shows version drift across OpenShift clusters — the OpenShift
+            Periscope shows version drift across OpenShift clusters: the OpenShift
             release, installed operators, and managed CSI driver versions. Each cluster is added
             as a labeled Secret; the drift baseline is the highest semver seen across the fleet.
           </Content>

@@ -29,10 +29,10 @@ var ingressConfigGVR = schema.GroupVersionResource{
 func (Certificates) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
 	var out []model.Component
 
-	// API server serving cert — dial the API host directly.
+	// API server serving cert: dial the API host directly.
 	out = append(out, expiryComponent(ctx, "cert-api", "API", apiHostPort(c.Host), hostOnly(c.Host)))
 
-	// Default ingress wildcard — resolve the apps domain, then dial an arbitrary
+	// Default ingress wildcard: resolve the apps domain, then dial an arbitrary
 	// host under it (the router serves the default cert for unknown hosts).
 	if domain := ingressDomain(ctx, c); domain != "" {
 		host := "periscope-certcheck." + domain

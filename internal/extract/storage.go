@@ -10,7 +10,7 @@ import (
 	"github.com/croz-ltd/periscope/internal/model"
 )
 
-// DefaultStorageClass reports which StorageClass is marked default — a common
+// DefaultStorageClass reports which StorageClass is marked default, a common
 // source of cross-cluster config drift.
 type DefaultStorageClass struct{}
 

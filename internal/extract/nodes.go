@@ -38,7 +38,7 @@ func (Nodes) Extract(ctx context.Context, c *Clients) ([]model.Component, error)
 		return nil, nil
 	}
 
-	// Total node count — informational (clusters legitimately differ in size).
+	// Total node count, informational (clusters legitimately differ in size).
 	total := model.Component{
 		Key: "node-count", Name: "Total nodes", Group: model.GroupNode,
 		Compare: model.CompareInfo, Kind: "nodes",

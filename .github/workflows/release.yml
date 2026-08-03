@@ -44,7 +44,7 @@ jobs:
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "present=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN are not set — skipping the image push."
+            echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN are not set, skipping the image push."
           fi
 
       - name: Resolve image name and version
@@ -73,7 +73,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # linux/amd64 only — matches the OpenShift clusters this runs on.
+      # linux/amd64 only, matching the OpenShift clusters this runs on.
       - uses: docker/build-push-action@v6
         if: steps.creds.outputs.present == 'true'
         with:

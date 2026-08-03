@@ -1,15 +1,15 @@
-# Periscope — on-cluster build with OpenShift Pipelines (Tekton)
+# Periscope: on-cluster build with OpenShift Pipelines (Tekton)
 
 An **example** pipeline for teams who build container images on the cluster rather
 than in a hosted CI runner. It clones this repository, builds the multi-stage
 [`Dockerfile`](../Dockerfile) (PatternFly UI + Go binary) with **buildah**, and pushes
-the result to a registry you control — typically an internal registry your clusters
+the result to a registry you control, typically an internal registry your clusters
 already pull from. linux/amd64 only.
 
 The hosted alternative is the GitHub Actions workflow in
 [`.github/workflows/release.yml`](../.github/workflows/release.yml), which publishes
 `crozltd/periscope` to Docker Hub. Both build the same image from the same
-`Dockerfile` — use whichever fits your environment.
+`Dockerfile`, so use whichever fits your environment.
 
 Everything is parameterized, so nothing here is specific to any one environment:
 
@@ -24,7 +24,7 @@ Everything is parameterized, so nothing here is specific to any one environment:
 ## Prerequisites
 
 - The **OpenShift Pipelines** operator installed (provides the `pipeline` SA +
-  `pipelines-scc`, and — for triggers — the `github` ClusterInterceptor).
+  `pipelines-scc`, and for triggers the `github` ClusterInterceptor).
 - A CI namespace, e.g. `periscope-ci`.
 
 ## One-time setup
@@ -78,7 +78,7 @@ oc get route periscope-el -n periscope-ci -o jsonpath='{.spec.host}{"\n"}'
 
 Pushes build and push `:edge`. For GitLab instead of GitHub, swap the interceptor
 `ref` to `gitlab`, `eventTypes` to `["Push Hook"]`, and bind `revision` to
-`$(body.checkout_sha)` — noted inline in `triggers.yaml`.
+`$(body.checkout_sha)`. This is noted inline in `triggers.yaml`.
 
 ## Notes
 

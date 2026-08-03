@@ -37,7 +37,7 @@ or by contacting a maintainer directly. All complaints will be reviewed and
 investigated promptly and fairly. Maintainers are obligated to respect the privacy
 and security of the reporter of any incident, and will take appropriate and fair
 corrective action in response to any behavior deemed in violation of this Code of
-Conduct — including warnings, temporary bans, or permanent bans from participation.
+Conduct, including warnings, temporary bans, or permanent bans from participation.
 
 ## Attribution
 

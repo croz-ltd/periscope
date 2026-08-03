@@ -1,7 +1,7 @@
 // Package drift turns per-cluster snapshots into a comparison matrix. Rows are
 // judged by their comparison kind: semver drift vs the fleet-max (version),
 // config consistency vs the fleet's common value (match), or absolute date
-// thresholds (expiry) — see model.Compare* and DESIGN.md.
+// thresholds (expiry). See model.Compare* and DESIGN.md.
 package drift
 
 import (

@@ -149,7 +149,7 @@ func envOr(key, def string) string {
 
 // defaultNamespace resolves the namespace to discover joined-cluster Secrets in.
 // In a pod this is the pod's OWN namespace (POD_NAMESPACE via downward API, or the
-// service-account namespace file) — where the join Secrets and RBAC live. Falls
+// service-account namespace file), where the join Secrets and RBAC live. Falls
 // back to "periscope" off-cluster.
 func defaultNamespace() string {
 	if ns := os.Getenv("POD_NAMESPACE"); ns != "" {

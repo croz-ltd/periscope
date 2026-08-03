@@ -24,7 +24,7 @@ export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: Matrix
               <div className="cc-col-head-inner">
                 <span>{c.name}</span>
                 {c.stale && (
-                  <Tooltip content={`Stale — last scraped ${new Date(c.time).toLocaleString()}`}>
+                  <Tooltip content={`Stale, last scraped ${new Date(c.time).toLocaleString()}`}>
                     <Label color="orange" isCompact>
                       stale
                     </Label>

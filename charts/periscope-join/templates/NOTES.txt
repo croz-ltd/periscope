@@ -1,4 +1,4 @@
-Periscope — join credentials created on THIS cluster.
+Periscope: join credentials created on THIS cluster.
 
   ServiceAccount : periscope/periscope-reader
   ClusterRole    : cluster-reader (read-only)

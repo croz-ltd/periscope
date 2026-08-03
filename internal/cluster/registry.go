@@ -1,5 +1,5 @@
-// Package cluster discovers the clusters to scrape. Every cluster — including
-// the hub's own — is represented by a labeled credential Secret in the hub
+// Package cluster discovers the clusters to scrape. Every cluster, including
+// the hub's own, is represented by a labeled credential Secret in the hub
 // namespace; the Secret's name is the cluster's display name. The hub's own
 // in-cluster credentials are used only to read those Secrets, never as an
 // implicit scrape target.

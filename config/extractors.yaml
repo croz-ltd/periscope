@@ -1,6 +1,6 @@
 # Optional extractor configuration. Pass with `--config config/extractors.yaml`.
 # When set, the built-in OpenShift / OLM / node extractors stay on and the CR
-# extractors below fully replace the compiled-in Portworx/Dell defaults — so you
+# extractors below fully replace the compiled-in Portworx/Dell defaults, so you
 # can fix a field path or add a new vendor CR without rebuilding the binary.
 #
 # versionPath is the nested path into the CR object. Verify against your installs:

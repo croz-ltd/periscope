@@ -1,27 +1,27 @@
-# Periscope — Design
+# Periscope: Design
 
 Single pane of glass for version drift across a fleet of OpenShift clusters. A Go CLI
 that serves an embedded PatternFly React UI backed by a small REST API, running as a
 pod in a "hub" cluster, pulling inventory from every joined cluster.
 
-The design target is a fleet on the order of ten clusters reachable from one hub —
-small enough that a central pull needs no agents, large enough that per-cluster
-inspection has stopped being practical.
+The design target is a fleet on the order of ten clusters reachable from one hub. That
+is small enough for a central pull to work without agents, and large enough that
+inspecting clusters one at a time has stopped being practical.
 
-> This is the design record — the decisions and their rationale, written before and
-> during v1. It is not the user guide; see [README.md](README.md) for what ships today,
-> which now covers more ground than the v1 extractor list below (certificates,
-> virtualization, storage volumes, MachineConfigPools).
+> This is the design record: the decisions and the reasoning behind them, written
+> before and during v1. For what ships today see [README.md](README.md), which covers
+> more ground than the v1 extractor list below (certificates, virtualization, storage
+> volumes, MachineConfigPools).
 
 ## Architecture (resolved)
 
 **Topology: central pull.** The hub pod reaches every remote API server directly, so
 there are no per-cluster agents to deploy or upgrade. This assumes network reachability
-from the hub to each cluster's API endpoint — verify that before adopting this model.
+from the hub to each cluster's API endpoint, so verify that before adopting this model.
 
 **Data flow: periodic scrape → cache → read.** A background scheduler polls every
 cluster on an interval (parallel, per-cluster timeout). Results land in an embedded
-store. Page loads and API calls read the cache — never fan out live.
+store. Page loads and API calls read the cache and never fan out live.
 
 **Store: SQLite on a PVC, full snapshot history.** Survives pod restarts, no external
 DB. Every scrape is retained so we can render drift-over-time timelines (which version
@@ -34,8 +34,8 @@ listing Secrets in its namespace carrying a custom label. Convention:
 - optional `caBundle` / `insecureTLS`
 
 **Every cluster is a Secret; there is no special "local" target.** The app starts
-with zero clusters and an empty matrix — clusters appear only as labeled Secrets are
-added. The hub's in-cluster credentials are used only to *read the Secrets*. The hub's
+with zero clusters and an empty matrix, and clusters appear only as labeled Secrets
+are added. The hub's in-cluster credentials are used only to *read the Secrets*. The hub's
 own cluster is optional and, if you want it compared, is joined exactly like any other
 (apply the join chart, create a labeled Secret pointing at its API). Uniform naming
 and RBAC across all clusters.
@@ -46,10 +46,10 @@ and RBAC across all clusters.
 coverage, PLUS a registry of hand-written deep extractors for special components.
 
 **Deep extractors (v1):**
-- `openshift` — `ClusterVersion` (clusterversion/version): release + channel/status
-- `portworx-csi` — parse `StorageCluster` CR: operator version AND managed CSI driver version
-- `dell-csi` — parse `ContainerStorageModule` / CSM CRs: operator + managed CSI driver version
-- `nodes` — per-node kubelet/OS versions (straggler nodes mid-upgrade)
+- `openshift`: `ClusterVersion` (clusterversion/version), release + channel/status
+- `portworx-csi`: parse `StorageCluster` CR, operator version AND managed CSI driver version
+- `dell-csi`: parse `ContainerStorageModule` / CSM CRs, operator + managed CSI driver version
+- `nodes`: per-node kubelet/OS versions (straggler nodes mid-upgrade)
 
 **Component key (matrix row identity):** stable OLM package name (Subscription
 `spec.name` / `olm.package` label), falling back to CSV `metadata.name` with the
@@ -58,17 +58,17 @@ version suffix stripped. Deep-extractor components use explicit stable keys
 
 **Drift baseline:** per-component **max semver seen across the fleet** = the leader
 (green). Others shade red, darker with larger gap. This is deliberately *intra-fleet*
-drift only — we care whether the clusters agree with each other, NOT whether they lag
+drift only. We care whether the clusters agree with each other, NOT whether they lag
 the latest upstream release. A uniformly-outdated fleet showing all-green is the
 correct, intended behavior. No declared-target or catalog-latest baseline in scope.
 
-**Version parsing:** tolerant — strip leading `v`, ignore build metadata, coerce
+**Version parsing:** tolerant. Strip leading `v`, ignore build metadata, coerce
 common forms. Unparseable → neutral grey cell, raw string shown, **no** drift shading.
 Never guess drift on garbage; never lexical-compare.
 
 **Missing cells:** a component absent on a cluster renders as a distinct "not installed"
-style (dash/hatch) and is **excluded from the baseline** — absence never counts as
-"behind". Partial-rollout drift stays visible.
+style (dash/hatch) and is **excluded from the baseline**, since absence never counts
+as "behind". Partial-rollout drift stays visible.
 
 ## Access & security (resolved)
 
@@ -77,14 +77,14 @@ style (dash/hatch) and is **excluded from the baseline** — absence never count
 - **Remote creds:** per-cluster read-only ServiceAccount tokens, stored as labeled
   Secrets on the hub. Least-privilege, revocable per cluster.
 - **Reader RBAC mode (default `clusterReader`):** the read SA on each cluster binds to
-  OpenShift's built-in `cluster-reader` ClusterRole — read-only cluster-wide, so new
-  operator CRDs never 403 and adding an extractor needs no RBAC change. Trade-off: broad
-  read on every joined cluster. The hardened alternative — a curated least-privilege
-  ClusterRole (ClusterVersion/ClusterOperators, CSVs/Subscriptions, nodes, Portworx
-  `storageclusters`, Dell `containerstoragemodules`) — is a deliberate non-default: the
-  shipped join chart binds `cluster-reader`, and narrowing it means editing
-  `charts/periscope-join/templates/clusterrolebinding.yaml`, accepting that each new
-  extractor may then need an RBAC change.
+  OpenShift's built-in `cluster-reader` ClusterRole, which is read-only cluster-wide,
+  so new operator CRDs never 403 and adding an extractor needs no RBAC change. The
+  trade-off is broad read on every joined cluster. The hardened alternative is a curated
+  least-privilege ClusterRole (ClusterVersion/ClusterOperators, CSVs/Subscriptions,
+  nodes, Portworx `storageclusters`, Dell `containerstoragemodules`), and it is a
+  deliberate non-default. The shipped join chart binds `cluster-reader`; narrowing it
+  means editing `charts/periscope-join/templates/clusterrolebinding.yaml` and accepting
+  that each new extractor may then need an RBAC change.
 - **Hub RBAC:** namespaced Role to list/watch labeled Secrets; the same reader mode for
   self-scraping the local cluster; `system:auth-delegator` binding for oauth-proxy.
 - **Vendor CRDs covered:** Portworx `core.libopenstorage.org/v1 storageclusters`;

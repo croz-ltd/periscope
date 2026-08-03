@@ -15,7 +15,7 @@ import (
 // custom resource. The CSI driver versions Portworx and Dell manage live inside
 // the CRs their operators reconcile, so we parse them out here.
 //
-// The field paths below are best-effort defaults — verify them against your
+// The field paths below are best-effort defaults, so verify them against your
 // installs (`oc get <cr> -o yaml`) and adjust. Making these config-driven
 // (paths in a values file) is a planned follow-up so a field rename doesn't
 // require a rebuild.

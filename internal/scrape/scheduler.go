@@ -96,7 +96,7 @@ func (s *Scheduler) scrapeOne(ctx context.Context, t cluster.Target) model.Snaps
 		comps, err := e.Extract(cctx, clients)
 		if err != nil {
 			// Per-extractor failure (missing CRD, forbidden, etc.) is recorded but
-			// does not fail the whole cluster — other components still get through.
+			// does not fail the whole cluster, other components still get through.
 			errs = append(errs, e.Key()+": "+err.Error())
 			continue
 		}

@@ -28,7 +28,7 @@ jobs:
         working-directory: web/app
       - run: npm run build
         working-directory: web/app
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: web-dist
           path: web/dist/

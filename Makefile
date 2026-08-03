@@ -1,4 +1,4 @@
-IMAGE ?= ghcr.io/croz-ltd/periscope
+IMAGE ?= crozltd/periscope
 TAG   ?= dev
 
 .PHONY: all web build test vet image run clean

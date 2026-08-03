@@ -5,18 +5,32 @@ metadata:
 spec:
   description: >-
     Clone Periscope and build+push the container image (multi-stage Dockerfile
-    builds the PatternFly UI + Go binary) to Harbor. linux/amd64 only.
+    builds the PatternFly UI + Go binary) to a registry. linux/amd64 only.
   params:
     - name: git-url
       default: https://github.com/croz-ltd/periscope.git
     - name: revision
       default: master
+    - name: image
+      description: >-
+        Image repository to build and push, without a tag — set this to your own
+        registry, e.g. registry.example.com/platform/periscope.
+      default: docker.io/crozltd/periscope
     - name: image-tag
-      description: Tag for docker.io/crozltd/periscope (also stamped into the binary).
+      description: Image tag (also stamped into the binary as the version).
       default: latest
+    - name: node-image
+      description: Node base image used by the Dockerfile's UI build stage.
+      default: node:20-alpine
+    - name: go-image
+      description: Go base image used by the Dockerfile's build stage.
+      default: golang:1.26.4
+    - name: runtime-image
+      description: Runtime base image for the final stage.
+      default: registry.access.redhat.com/ubi9/ubi-micro:latest
   workspaces:
     - name: shared        # source checkout, shared between tasks
-    - name: dockerconfig  # Harbor push credentials
+    - name: dockerconfig  # registry push credentials
   tasks:
     - name: clone
       taskRef:
@@ -35,12 +49,12 @@ spec:
         name: periscope-buildah
       params:
         - name: IMAGE
-          value: docker.io/crozltd/periscope:$(params.image-tag)
+          value: $(params.image):$(params.image-tag)
         - name: BUILD_ARGS
           value:
-            - NODE_IMAGE=docker.io/library/node:20-alpine
-            - GO_IMAGE=docker.io/library/golang:1.26.4
-            - RUNTIME_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:latest
+            - NODE_IMAGE=$(params.node-image)
+            - GO_IMAGE=$(params.go-image)
+            - RUNTIME_IMAGE=$(params.runtime-image)
             - VERSION=$(params.image-tag)
       workspaces:
         - name: source

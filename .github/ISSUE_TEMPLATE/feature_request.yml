@@ -1,0 +1,26 @@
+name: Feature request
+description: Suggest a new extractor, view, or capability
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: The operational question you cannot answer today.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: >-
+        For a new extractor, include the CRD group/version/resource and the field
+        path holding the version (e.g. `oc get <resource> -o yaml` output, redacted).
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

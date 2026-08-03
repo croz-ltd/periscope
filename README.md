@@ -116,8 +116,14 @@ docker run --rm -p 8080:8080 \
   crozltd/periscope:latest serve --namespace periscope
 ```
 
+The UI is then on http://localhost:8080. Without joined clusters the matrix is
+empty, which is the expected starting state.
+
 Images live at [`crozltd/periscope`](https://hub.docker.com/r/crozltd/periscope):
-`:latest` and `:<tag>` for releases, `:edge` for the tip of `master`. linux/amd64.
+`:latest` and `:<tag>` for releases, `:edge` for the tip of `master`. They are built
+for linux/amd64 only, matching the clusters they run on, so on an arm64 machine
+(Apple silicon) add `--platform linux/amd64` to the command above and expect
+emulation. Building locally with `make image` gives you a native image instead.
 
 ### Build from source
 

@@ -1,12 +1,12 @@
 name: Feature request
-description: Suggest a new extractor, view, or capability
+description: Suggest a new extractor, view or capability
 labels: [enhancement]
 body:
   - type: textarea
     id: problem
     attributes:
       label: What problem would this solve?
-      description: The operational question you cannot answer today.
+      description: What you are trying to find out that Periscope cannot tell you today.
     validations:
       required: true
 
@@ -15,8 +15,9 @@ body:
     attributes:
       label: Proposed solution
       description: >-
-        For a new extractor, include the CRD group/version/resource and the field
-        path holding the version (e.g. `oc get <resource> -o yaml` output, redacted).
+        For a new extractor, include the CRD group, version and resource, plus the
+        field path that holds the version. Redacted `oc get <resource> -o yaml`
+        output is the most useful thing you can attach.
     validations:
       required: true
 

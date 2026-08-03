@@ -13,5 +13,6 @@
 
 ## Notes for reviewers
 
-<!-- New extractor? List the CRD group/version/resource and the version field path.
-     Chart change? Note whether it affects RBAC or the join convention. -->
+<!-- For a new extractor, list the CRD group, version and resource, and the field
+     path that holds the version. For a chart change, say whether it affects RBAC
+     or the join convention. -->

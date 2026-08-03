@@ -8,6 +8,9 @@
 web/app/node_modules/
 web/dist/assets/
 
+# Local agent/editor config
+.claude/
+
 # Local
 *.local
 .DS_Store

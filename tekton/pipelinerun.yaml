@@ -11,6 +11,8 @@ spec:
   params:
     - name: revision
       value: master
+    - name: image
+      value: docker.io/crozltd/periscope   # change to your own registry
     - name: image-tag
       value: latest
   taskRunTemplate:
@@ -26,4 +28,4 @@ spec:
               storage: 3Gi
     - name: dockerconfig
       secret:
-        secretName: periscope-harbor-push
+        secretName: periscope-registry-push

@@ -1,13 +1,23 @@
 # Periscope — Design
 
-Single pane of glass for version drift across 8 OpenShift clusters. A Go CLI that
-serves an embedded PatternFly React UI backed by a small REST API, running as a pod
-in a "hub" cluster, pulling inventory from itself and joined clusters.
+Single pane of glass for version drift across a fleet of OpenShift clusters. A Go CLI
+that serves an embedded PatternFly React UI backed by a small REST API, running as a
+pod in a "hub" cluster, pulling inventory from every joined cluster.
+
+The design target is a fleet on the order of ten clusters reachable from one hub —
+small enough that a central pull needs no agents, large enough that per-cluster
+inspection has stopped being practical.
+
+> This is the design record — the decisions and their rationale, written before and
+> during v1. It is not the user guide; see [README.md](README.md) for what ships today,
+> which now covers more ground than the v1 extractor list below (certificates,
+> virtualization, storage volumes, MachineConfigPools).
 
 ## Architecture (resolved)
 
-**Topology: central pull.** The hub pod reaches all 7 remote API servers directly
-(confirmed reachable). No per-cluster agents.
+**Topology: central pull.** The hub pod reaches every remote API server directly, so
+there are no per-cluster agents to deploy or upgrade. This assumes network reachability
+from the hub to each cluster's API endpoint — verify that before adopting this model.
 
 **Data flow: periodic scrape → cache → read.** A background scheduler polls every
 cluster on an interval (parallel, per-cluster timeout). Results land in an embedded
@@ -48,8 +58,8 @@ version suffix stripped. Deep-extractor components use explicit stable keys
 
 **Drift baseline:** per-component **max semver seen across the fleet** = the leader
 (green). Others shade red, darker with larger gap. This is deliberately *intra-fleet*
-drift only — we care whether the 8 clusters agree with each other, NOT whether they
-lag the latest upstream release. A uniformly-outdated fleet showing all-green is the
+drift only — we care whether the clusters agree with each other, NOT whether they lag
+the latest upstream release. A uniformly-outdated fleet showing all-green is the
 correct, intended behavior. No declared-target or catalog-latest baseline in scope.
 
 **Version parsing:** tolerant — strip leading `v`, ignore build metadata, coerce
@@ -69,13 +79,17 @@ style (dash/hatch) and is **excluded from the baseline** — absence never count
 - **Reader RBAC mode (default `clusterReader`):** the read SA on each cluster binds to
   OpenShift's built-in `cluster-reader` ClusterRole — read-only cluster-wide, so new
   operator CRDs never 403 and adding an extractor needs no RBAC change. Trade-off: broad
-  read on every joined cluster. `explicit` mode is the hardened alternative: a curated
-  least-privilege ClusterRole (ClusterVersion/ClusterOperators, CSVs/Subscriptions,
-  nodes, Portworx `storageclusters`, Dell `containerstoragemodules`, + `additionalRules`).
+  read on every joined cluster. The hardened alternative — a curated least-privilege
+  ClusterRole (ClusterVersion/ClusterOperators, CSVs/Subscriptions, nodes, Portworx
+  `storageclusters`, Dell `containerstoragemodules`) — is a deliberate non-default: the
+  shipped join chart binds `cluster-reader`, and narrowing it means editing
+  `charts/periscope-join/templates/clusterrolebinding.yaml`, accepting that each new
+  extractor may then need an RBAC change.
 - **Hub RBAC:** namespaced Role to list/watch labeled Secrets; the same reader mode for
   self-scraping the local cluster; `system:auth-delegator` binding for oauth-proxy.
-- **Confirmed CRDs:** Portworx `core.libopenstorage.org/v1 storageclusters`;
-  Dell CSM `storage.dell.com/v1 containerstoragemodules`.
+- **Vendor CRDs covered:** Portworx `core.libopenstorage.org/v1 storageclusters`;
+  Dell CSM `storage.dell.com/v1 containerstoragemodules`. Field paths are overridable
+  via config (see `config/extractors.yaml`) since they vary by vendor version.
 
 ## Failure behavior (resolved)
 

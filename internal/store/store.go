@@ -5,6 +5,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go driver, no cgo
@@ -12,13 +13,38 @@ import (
 	"github.com/croz-ltd/periscope/internal/model"
 )
 
+// dsnParams are applied to every pooled connection.
+//
+//   - busy_timeout makes a connection wait for a lock instead of failing the
+//     statement outright with SQLITE_BUSY. It covers contention this process
+//     cannot serialise itself, e.g. `periscope report` reading the same file
+//     while `periscope serve` writes.
+//   - journal_mode=WAL lets readers (the dashboard, the API) run while a
+//     scrape writes; the default rollback journal makes them lock each other
+//     out. Filesystems without shared-memory support silently keep the old
+//     mode, which is a slowdown, not a failure.
+//   - synchronous=NORMAL is the usual companion to WAL: durable across a
+//     process crash, and only at risk on host power loss, which for a cache of
+//     scraped cluster state costs one interval of history.
+//   - txlock=immediate takes the write lock when the transaction begins rather
+//     than mid-way through, so a busy database is waited out by busy_timeout
+//     instead of erroring on the first INSERT.
+const dsnParams = "_pragma=busy_timeout(10000)" +
+	"&_pragma=journal_mode(WAL)" +
+	"&_pragma=synchronous(NORMAL)" +
+	"&_txlock=immediate"
+
 type Store struct {
 	db *sql.DB
+	// SQLite permits a single writer at a time. Snapshots are saved from one
+	// goroutine per cluster, so writes are serialised here rather than left to
+	// collide on the database lock.
+	writeMu sync.Mutex
 }
 
 // Open opens (creating if needed) the SQLite database at path.
 func Open(path string) (*Store, error) {
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", path+"?"+dsnParams)
 	if err != nil {
 		return nil, err
 	}
@@ -70,6 +96,9 @@ CREATE INDEX IF NOT EXISTS idx_comp_snap ON components(snapshot_id);
 
 // SaveSnapshot appends a snapshot and its components (history is retained).
 func (s *Store) SaveSnapshot(snap model.Snapshot) error {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err

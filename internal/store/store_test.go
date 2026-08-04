@@ -1,7 +1,9 @@
 package store
 
 import (
+	"fmt"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -42,5 +44,53 @@ func TestRoundTripPreservesGroupCompare(t *testing.T) {
 	}
 	if c := got["chan"]; c.Group != model.GroupOpenShift || c.Compare != model.CompareMatch || c.Extra["x"] != "y" {
 		t.Errorf("chan lost fields: %+v", c)
+	}
+}
+
+// TestConcurrentSaveAndRead guards against SQLITE_BUSY: the scheduler saves one
+// snapshot per cluster in parallel while the API reads, and every save must
+// land instead of losing a scrape to the database lock.
+func TestConcurrentSaveAndRead(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	const clusters = 8
+	var wg sync.WaitGroup
+	errs := make(chan error, clusters*2)
+	for i := range clusters {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			snap := model.Snapshot{Cluster: fmt.Sprintf("c%d", i), Time: time.Unix(1000, 0), OK: true}
+			for j := range 50 {
+				snap.Components = append(snap.Components, model.Component{Key: fmt.Sprintf("k%d", j), Version: "1"})
+			}
+			if err := st.SaveSnapshot(snap); err != nil {
+				errs <- fmt.Errorf("save: %w", err)
+			}
+		}()
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			if _, err := st.LatestSnapshots(); err != nil {
+				errs <- fmt.Errorf("read: %w", err)
+			}
+		}()
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		t.Error(err)
+	}
+
+	snaps, err := st.LatestSnapshots()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(snaps) != clusters {
+		t.Fatalf("got %d snapshots, want %d", len(snaps), clusters)
 	}
 }

@@ -1,3 +1,117 @@
+/* ------------------------------------------------------------------ */
+/* Page chrome, tuned to read like the OpenShift web console: a white     */
+/* masthead carrying a brand lockup, a flush sidebar whose nav is grouped */
+/* under a perspective label, and a page header that closes with a rule.  */
+/* The glass contrast setting keeps PatternFly's translucent surfaces, so */
+/* the background overrides skip it.                                      */
+/* ------------------------------------------------------------------ */
+
+.pf-v6-c-masthead {
+  --pf-v6-c-masthead--PaddingBlock: var(--pf-t--global--spacer--sm);
+  min-height: 4rem;
+}
+html:not(.pf-v6-theme-glass) .pf-v6-c-masthead {
+  --pf-v6-c-masthead--BackgroundColor: var(--pf-t--global--background--color--primary--default);
+  border-block-end: var(--pf-t--global--border--width--divider--default) solid
+    var(--pf-t--global--border--color--default);
+}
+
+/* Brand lockup: mark plus a two-line wordmark. PatternFly sizes the logo box
+   for a wide product image, so the width and height caps are dropped. */
+.cc-brand.pf-v6-c-masthead__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  width: auto;
+  max-height: none;
+  color: var(--pf-t--global--text--color--regular);
+  text-decoration: none;
+}
+.cc-brand-mark {
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+}
+.cc-brand-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.cc-brand-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pf-t--global--text--color--subtle);
+}
+.cc-brand-name {
+  font-size: 1.375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Sidebar: flush against the content, divided by a rule. */
+html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
+  --pf-v6-c-page__sidebar--BackgroundColor: var(--pf-t--global--background--color--primary--default);
+  --pf-v6-c-page__sidebar--MarginInlineEnd: 0;
+  --pf-v6-c-page__sidebar--BorderInlineEndWidth: var(
+    --pf-t--global--border--width--divider--default
+  );
+  --pf-v6-c-page__sidebar--BorderInlineEndColor: var(--pf-t--global--border--color--default);
+}
+
+/* Perspective label above the nav, the console's "Core platform" slot. */
+.cc-perspective {
+  display: flex;
+  gap: var(--pf-t--global--spacer--sm);
+  align-items: center;
+  padding-block: var(--pf-t--global--spacer--md);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  border-block-end: var(--pf-t--global--border--width--divider--default) solid
+    var(--pf-t--global--border--color--default);
+}
+.cc-perspective-icon {
+  color: var(--pf-t--global--icon--color--subtle);
+}
+
+/* Nav: tighter rows than the PatternFly default, current item in bold. The
+   left accent bar on the current item comes from PatternFly itself. */
+.pf-v6-c-nav {
+  --pf-v6-c-nav--RowGap: var(--pf-t--global--spacer--sm);
+}
+.pf-v6-c-nav__link.pf-m-current {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+
+/* Page header: breadcrumb, title and description, actions on the right. */
+.cc-page-header {
+  padding-block-end: var(--pf-t--global--spacer--md);
+  margin-block-end: var(--pf-t--global--spacer--lg);
+  border-block-end: var(--pf-t--global--border--width--divider--default) solid
+    var(--pf-t--global--border--color--default);
+}
+.cc-breadcrumb {
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+/* Body text stops at a readable measure even when the panel is wide. */
+.cc-prose {
+  max-width: 62rem;
+}
+
+/* About page: links and the version block sit under the prose. */
+.cc-about-links {
+  margin-block: var(--pf-t--global--spacer--md);
+}
+.cc-about-meta {
+  max-width: 22rem;
+}
+
+.cc-page-desc {
+  margin-block-start: var(--pf-t--global--spacer--xs);
+  font-size: var(--pf-t--global--font--size--body--sm);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
 /* Drift-cell coloring. Defined with explicit light values plus dark overrides
    under .pf-v6-theme-dark so the matrix stays readable in both themes. */
 
@@ -144,8 +258,16 @@
 
 /* Legend */
 .cc-legend {
-  margin: 0.75rem 0;
+  margin-block-end: var(--pf-t--global--spacer--md);
+  padding: var(--pf-t--global--spacer--sm) var(--pf-t--global--spacer--md);
   font-size: 0.85rem;
+  border: var(--pf-t--global--border--width--divider--default) solid
+    var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small);
+  background: var(--pf-t--global--background--color--secondary--default);
+}
+.pf-v6-theme-glass .cc-legend {
+  background: transparent;
 }
 .cc-swatch {
   display: inline-block;

@@ -6,19 +6,23 @@ import { cellClass, cellText, cellTooltip } from './cells'
 
 export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: MatrixGroup[] }) {
   const { clusters, rows } = matrix
-  const totalCols = 2 + clusters.length
 
   // The backend now defines sections via matrix.groups; a key may appear in
   // several groups (rendered under each). Look rows up by key, in group order.
   const byKey = new Map<string, Row>()
   for (const r of rows) byKey.set(r.key, r)
 
+  // Expiry and info rows have no reference value, so a page made only of those
+  // (Statistics) drops the column rather than filling it with dashes.
+  const showReference = groups.some((g) => g.keys.some((k) => byKey.get(k)?.leader))
+  const totalCols = (showReference ? 2 : 1) + clusters.length
+
   return (
     <Table aria-label="Cluster version drift matrix" variant="compact" borders gridBreakPoint="">
       <Thead>
         <Tr>
           <Th>Component</Th>
-          <Th>Reference</Th>
+          {showReference && <Th>Reference</Th>}
           {clusters.map((c) => (
             <Th key={c.name} className="cc-col-head">
               <div className="cc-col-head-inner">
@@ -58,9 +62,11 @@ export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: Matrix
                   <div className="cc-component-name">{row.name}</div>
                   <div className="cc-component-kind">{row.kind}</div>
                 </Td>
-                <Td dataLabel="Reference" className="cc-leader-version">
-                  {row.compare === 'expiry' ? '' : row.leader || '—'}
-                </Td>
+                {showReference && (
+                  <Td dataLabel="Reference" className="cc-leader-version">
+                    {row.leader || ''}
+                  </Td>
+                )}
                 {clusters.map((c) => {
                   const cell = row.cells[c.name]
                   const tip = cellTooltip(cell, row.leader)

@@ -11,8 +11,10 @@ export type CellState =
   | 'expiry_ok'
   | 'expiry_warn'
   | 'expiry_crit'
+  // info compare: the value is shown as-is, with no drift judgement
+  | 'info'
 
-export type CompareKind = 'version' | 'match' | 'expiry'
+export type CompareKind = 'version' | 'match' | 'expiry' | 'info'
 
 export interface Cell {
   cluster: string

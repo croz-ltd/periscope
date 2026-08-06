@@ -1,14 +1,21 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   Alert,
+  Breadcrumb,
+  BreadcrumbItem,
   Bullseye,
-  Button,
   Content,
+  Divider,
+  Dropdown,
+  DropdownItem,
+  DropdownList,
   EmptyState,
   EmptyStateBody,
   Flex,
   FlexItem,
+  MenuToggle,
   Nav,
+  NavExpandable,
   NavItem,
   NavList,
   Page,
@@ -17,15 +24,13 @@ import {
   PageSection,
   Spinner,
   Title,
-  Toolbar,
-  ToolbarContent,
-  ToolbarItem,
 } from '@patternfly/react-core'
-import { CubesIcon, SyncAltIcon, DownloadIcon } from '@patternfly/react-icons'
+import { ClusterIcon, CubesIcon, SyncAltIcon, DownloadIcon } from '@patternfly/react-icons'
 import type { Matrix } from './api'
 import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
 import { AppMasthead } from './AppMasthead'
+import { About } from './About'
 import { Docs } from './Docs'
 
 const LEGEND_GROUPS: { title: string; items: { cls: string; label: string }[] }[] = [
@@ -75,6 +80,50 @@ function Legend() {
   )
 }
 
+// Page header in the OpenShift console shape: breadcrumb, then title and
+// description on the left with the page actions pinned to the right, closed off
+// by a rule that separates the header from the page body.
+function PageHeader({
+  breadcrumb,
+  title,
+  description,
+  actions,
+}: {
+  breadcrumb?: React.ReactNode
+  title: string
+  description?: React.ReactNode
+  actions?: React.ReactNode
+}) {
+  return (
+    <div className="cc-page-header">
+      {breadcrumb}
+      <Flex
+        justifyContent={{ default: 'justifyContentSpaceBetween' }}
+        alignItems={{ default: 'alignItemsFlexStart' }}
+        flexWrap={{ default: 'wrap' }}
+      >
+        <FlexItem>
+          <Title headingLevel="h1" className="cc-page-title">
+            {title}
+          </Title>
+          {description && (
+            <Content component="p" className="cc-page-desc">
+              {description}
+            </Content>
+          )}
+        </FlexItem>
+        {actions && <FlexItem>{actions}</FlexItem>}
+      </Flex>
+    </div>
+  )
+}
+
+// The two matrix pages compare different things, so each states its own scope.
+const PAGE_DESCRIPTIONS: Record<string, string> = {
+  compare: 'Version and configuration drift across OpenShift clusters',
+  statistics: 'Counts and inventory reported by each cluster',
+}
+
 type NavKey = 'compare' | 'statistics' | 'docs' | 'about'
 
 export default function App() {
@@ -84,6 +133,8 @@ export default function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [isSidebarOpen, setSidebarOpen] = useState(true)
   const [activeNav, setActiveNav] = useState<NavKey>('compare')
+  const [isClustersExpanded, setClustersExpanded] = useState(true)
+  const [actionsOpen, setActionsOpen] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -124,20 +175,68 @@ export default function App() {
     <AppMasthead isSidebarOpen={isSidebarOpen} onSidebarToggle={() => setSidebarOpen((o) => !o)} />
   )
 
+  // One Actions menu per matrix page, the way the console groups page actions.
+  // The toggle shows a spinner while a refresh is in flight.
+  const actions = (
+    <Dropdown
+      isOpen={actionsOpen}
+      onOpenChange={setActionsOpen}
+      onSelect={() => setActionsOpen(false)}
+      popperProps={{ position: 'right' }}
+      toggle={(toggleRef) => (
+        <MenuToggle
+          ref={toggleRef}
+          variant="secondary"
+          isExpanded={actionsOpen}
+          isDisabled={refreshing}
+          icon={refreshing ? <Spinner size="sm" aria-label="Refreshing" /> : undefined}
+          onClick={() => setActionsOpen((v) => !v)}
+        >
+          Actions
+        </MenuToggle>
+      )}
+    >
+      <DropdownList>
+        <DropdownItem key="refresh" icon={<SyncAltIcon />} onClick={onRefresh}>
+          Refresh
+        </DropdownItem>
+        <Divider component="li" />
+        <DropdownItem key="csv" icon={<DownloadIcon />} component="a" href="/api/export.csv">
+          Export CSV
+        </DropdownItem>
+        <DropdownItem key="json" icon={<DownloadIcon />} component="a" href="/api/export.json">
+          Export JSON
+        </DropdownItem>
+      </DropdownList>
+    </Dropdown>
+  )
+
   const sidebar = (
     <PageSidebar isSidebarOpen={isSidebarOpen}>
       <PageSidebarBody>
+        <div className="cc-perspective">
+          <ClusterIcon className="cc-perspective-icon" />
+          <span className="cc-perspective-label">Cluster fleet</span>
+        </div>
         <Nav
           aria-label="Main navigation"
           onSelect={(_e, item) => setActiveNav(item.itemId as NavKey)}
         >
           <NavList>
-            <NavItem itemId="compare" isActive={activeNav === 'compare'}>
-              Compare
-            </NavItem>
-            <NavItem itemId="statistics" isActive={activeNav === 'statistics'}>
-              Statistics
-            </NavItem>
+            <NavExpandable
+              title="Clusters"
+              groupId="clusters"
+              isExpanded={isClustersExpanded}
+              onExpand={(_e, expanded) => setClustersExpanded(expanded)}
+              isActive={activeNav === 'compare' || activeNav === 'statistics'}
+            >
+              <NavItem itemId="compare" isActive={activeNav === 'compare'}>
+                Compare
+              </NavItem>
+              <NavItem itemId="statistics" isActive={activeNav === 'statistics'}>
+                Statistics
+              </NavItem>
+            </NavExpandable>
             <NavItem itemId="docs" isActive={activeNav === 'docs'}>
               Docs
             </NavItem>
@@ -154,52 +253,30 @@ export default function App() {
     <Page masthead={masthead} sidebar={sidebar}>
       {activeNav === 'about' ? (
         <PageSection>
-          <Title headingLevel="h1">About</Title>
-          <Content component="p">
-            Periscope shows version drift across OpenShift clusters: the OpenShift
-            release, installed operators, and managed CSI driver versions. Each cluster is added
-            as a labeled Secret; the drift baseline is the highest semver seen across the fleet.
-          </Content>
+          <PageHeader title="About" description="What Periscope is and how it collects its data" />
+          <About />
         </PageSection>
       ) : activeNav === 'docs' ? (
         <PageSection>
-          <Title headingLevel="h1">Component reference</Title>
+          <PageHeader
+            title="Component reference"
+            description="Component keys discovered across your clusters"
+          />
           <Docs rows={matrix?.rows ?? []} />
         </PageSection>
       ) : (
         <PageSection>
-          <Flex justifyContent={{ default: 'justifyContentSpaceBetween' }} alignItems={{ default: 'alignItemsCenter' }}>
-            <FlexItem>
-              <Title headingLevel="h1">{pageTitle}</Title>
-              <Content component="small">Version drift across OpenShift clusters</Content>
-            </FlexItem>
-          </Flex>
-
-          <Toolbar>
-            <ToolbarContent>
-              <ToolbarItem>
-                <Button
-                  variant="primary"
-                  icon={<SyncAltIcon />}
-                  onClick={onRefresh}
-                  isLoading={refreshing}
-                  isDisabled={refreshing}
-                >
-                  Refresh
-                </Button>
-              </ToolbarItem>
-              <ToolbarItem>
-                <Button variant="secondary" icon={<DownloadIcon />} component="a" href="/api/export.csv">
-                  Export CSV
-                </Button>
-              </ToolbarItem>
-              <ToolbarItem>
-                <Button variant="secondary" icon={<DownloadIcon />} component="a" href="/api/export.json">
-                  Export JSON
-                </Button>
-              </ToolbarItem>
-            </ToolbarContent>
-          </Toolbar>
+          <PageHeader
+            breadcrumb={
+              <Breadcrumb className="cc-breadcrumb">
+                <BreadcrumbItem>Clusters</BreadcrumbItem>
+                <BreadcrumbItem isActive>{pageTitle}</BreadcrumbItem>
+              </Breadcrumb>
+            }
+            title={pageTitle}
+            description={PAGE_DESCRIPTIONS[pageId]}
+            actions={actions}
+          />
 
           {error && (
             <Alert variant="danger" title="Failed to load matrix" isInline style={{ marginBottom: '1rem' }}>
@@ -225,7 +302,8 @@ export default function App() {
             </EmptyState>
           ) : page && page.groups.length > 0 ? (
             <>
-              <Legend />
+              {/* Statistics cells are plain values, so the drift key would explain nothing. */}
+              {pageId === 'compare' && <Legend />}
               <div className="cc-table-wrap">
                 <MatrixTable matrix={matrix!} groups={page.groups} />
               </div>

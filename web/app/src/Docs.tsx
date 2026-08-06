@@ -18,7 +18,7 @@ export function Docs({ rows }: { rows: Row[] }) {
 
   return (
     <>
-      <Content component="p">
+      <Content component="p" className="cc-prose">
         These are the component <strong>keys</strong> discovered across your clusters. List them in
         the <code>periscope-groups</code> ConfigMap (<code>groups.yaml</code>) to build custom
         matrix groups. Changes are picked up on the next Refresh.

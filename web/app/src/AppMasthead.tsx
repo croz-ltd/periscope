@@ -32,10 +32,9 @@ import {
 import { COLOR_SCHEME_OPTIONS, THEME_OPTIONS, CONTRAST_OPTIONS } from './settings'
 import { useDisplaySettings } from './useDisplaySettings'
 import { DisplayPreferences } from './DisplayPreferences'
+import { PeriscopeLogo } from './PeriscopeLogo'
+import { APP_VERSION, REPO_URL } from './project'
 import { fetchUser } from './api'
-
-const APP_VERSION = '0.1.0' // web UI version, shown in the About dialog
-const REPO_URL = 'https://github.com/croz-ltd/periscope'
 
 interface Props {
   isSidebarOpen: boolean
@@ -154,6 +153,7 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
         <MenuToggle
           ref={toggleRef}
           aria-label="User menu"
+          variant="plainText"
           icon={<UserIcon />}
           isExpanded={userOpen}
           onClick={() => setUserOpen((v) => !v)}
@@ -185,8 +185,12 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
             />
           </MastheadToggle>
           <MastheadBrand>
-            <MastheadLogo component="a" href="#">
-              Periscope
+            <MastheadLogo component="a" href="#" className="cc-brand">
+              <PeriscopeLogo className="cc-brand-mark" />
+              <span className="cc-brand-text">
+                <span className="cc-brand-eyebrow">OpenShift fleet</span>
+                <span className="cc-brand-name">Periscope</span>
+              </span>
             </MastheadLogo>
           </MastheadBrand>
         </MastheadMain>
@@ -198,8 +202,8 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
                 align={{ default: 'alignEnd' }}
                 gap={{ default: 'gapNone' }}
               >
-                <ToolbarItem>{help}</ToolbarItem>
                 <ToolbarItem>{settingsMenu}</ToolbarItem>
+                <ToolbarItem>{help}</ToolbarItem>
                 {userMenu && <ToolbarItem>{userMenu}</ToolbarItem>}
               </ToolbarGroup>
             </ToolbarContent>

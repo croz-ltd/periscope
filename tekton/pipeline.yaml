@@ -17,7 +17,9 @@ spec:
         registry, e.g. registry.example.com/platform/periscope.
       default: docker.io/crozltd/periscope
     - name: image-tag
-      description: Image tag (also stamped into the binary as the version).
+      description: >-
+        Image tag, also stamped into the binary as build metadata, so the
+        version reads "<release>+tekton-<image-tag>".
       default: latest
     - name: node-image
       description: Node base image used by the Dockerfile's UI build stage.
@@ -55,7 +57,7 @@ spec:
             - NODE_IMAGE=$(params.node-image)
             - GO_IMAGE=$(params.go-image)
             - RUNTIME_IMAGE=$(params.runtime-image)
-            - VERSION=$(params.image-tag)
+            - BUILD=tekton-$(params.image-tag)
       workspaces:
         - name: source
           workspace: shared

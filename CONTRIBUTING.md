@@ -64,7 +64,10 @@ A few rules that are easy to break and hard to notice:
 3. Don't guess a version. If the value does not parse, return it as the raw string.
    `internal/version` marks unparseable values neutral instead of comparing them
    lexically.
-4. Use the dynamic client for vendor CRs so no generated types are needed.
+4. Use the dynamic client for vendor CRs so no generated types are needed, and gate
+   the call on `c.HasResource(gvr)`. Listing a resource whose CRD is absent comes
+   back Forbidden, not 404, because a read-only account has no rule for it, and that
+   would put a scrape error on every cluster not running that vendor.
 5. If the version is just a nested field in a CR, prefer the config-driven extractor.
    `extract.NewCRFieldExtractor(...)` covers that case and lets users override the
    field path through `config/extractors.yaml` without rebuilding.

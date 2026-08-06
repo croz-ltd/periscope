@@ -47,22 +47,26 @@ jobs:
             echo "::notice::DOCKERHUB_USERNAME/DOCKERHUB_TOKEN are not set, skipping the image push."
           fi
 
-      - name: Resolve image name and version
+      # The release lives in pkg/version.Base, so a tag build reports the release
+      # alone and every other build appends where it came from.
+      - name: Resolve image name and build metadata
         if: steps.creds.outputs.present == 'true'
         id: meta
         run: |
+          set -eu
           image="${{ vars.IMAGE_NAME || 'crozltd/periscope' }}"
           short_sha="${GITHUB_SHA::7}"
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            version="${GITHUB_REF_NAME}+${short_sha}"
+            .github/check-release-tag.sh "${GITHUB_REF_NAME}"
+            build=""
             tags="${image}:${GITHUB_REF_NAME},${image}:latest"
           else
-            version="${short_sha}"
+            build="ci-${short_sha}"
             tags="${image}:edge,${image}:${short_sha}"
           fi
-          echo "image=${image}"     >> "$GITHUB_OUTPUT"
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "tags=${tags}"       >> "$GITHUB_OUTPUT"
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+          echo "build=${build}" >> "$GITHUB_OUTPUT"
+          echo "tags=${tags}"   >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
         if: steps.creds.outputs.present == 'true'
@@ -81,7 +85,7 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          build-args: VERSION=${{ steps.meta.outputs.version }}
+          build-args: BUILD=${{ steps.meta.outputs.build }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -109,18 +113,22 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      # A release binary reports pkg/version.Base with no build metadata, so the
+      # tag must match it. Checked before anything is published.
+      - name: Check the tag matches the release in source
+        run: .github/check-release-tag.sh "${GITHUB_REF_NAME}"
+
       - name: Build binaries (UI embedded)
         env:
           CGO_ENABLED: '0'
         run: |
           set -eu
-          version="${GITHUB_REF_NAME}+${GITHUB_SHA::7}"
           mkdir -p dist
           build() {
             export GOOS="$1" GOARCH="$2"
             out="dist/periscope-${GOOS}-${GOARCH}${3:-}"
             go build -trimpath \
-              -ldflags "-s -w -X github.com/croz-ltd/periscope/pkg/version.Raw=${version}" \
+              -ldflags "-s -w -X github.com/croz-ltd/periscope/pkg/version.Build=" \
               -o "${out}" ./cmd/periscope
             chmod a+x "${out}"
           }

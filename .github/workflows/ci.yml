@@ -79,7 +79,7 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           go build -trimpath \
-            -ldflags "-s -w -X github.com/croz-ltd/periscope/pkg/version.Raw=${GITHUB_SHA::7}" \
+            -ldflags "-s -w -X github.com/croz-ltd/periscope/pkg/version.Build=ci-${GITHUB_SHA::7}" \
             -o "bin/periscope-${GOOS}-${GOARCH}${{ matrix.ext }}" ./cmd/periscope
 
   # Verifies the multi-stage Dockerfile still builds. No push on PRs.
@@ -93,6 +93,6 @@ jobs:
         with:
           context: .
           push: false
-          build-args: VERSION=${{ github.sha }}
+          build-args: BUILD=ci-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -23,10 +23,13 @@ var hyperConvergedGVR = schema.GroupVersionResource{
 }
 
 func (Virtualization) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(hyperConvergedGVR) {
+		return nil, nil // OpenShift Virtualization (HCO CRD) not installed
+	}
 	list, err := c.Dynamic.Resource(hyperConvergedGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil // OpenShift Virtualization (HCO CRD) not installed
+			return nil, nil
 		}
 		return nil, err
 	}

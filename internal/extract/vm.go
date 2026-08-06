@@ -33,10 +33,13 @@ var vmGVR = schema.GroupVersionResource{
 }
 
 func (VirtualMachines) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(vmGVR) {
+		return nil, nil // KubeVirt/CNV not installed
+	}
 	list, err := c.Dynamic.Resource(vmGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil // KubeVirt/CNV not installed
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -87,10 +90,13 @@ var (
 )
 
 func (VMSnapshots) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(vmSnapshotGVR) {
+		return nil, nil // VM snapshots CRD not installed
+	}
 	snaps, err := c.Dynamic.Resource(vmSnapshotGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil // VM snapshots CRD not installed
+			return nil, nil
 		}
 		return nil, err
 	}
@@ -144,12 +150,15 @@ func (VMTemplates) Key() string { return "vm-templates" }
 var templateGVR = schema.GroupVersionResource{Group: "template.openshift.io", Version: "v1", Resource: "templates"}
 
 func (VMTemplates) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(templateGVR) {
+		return nil, nil // Templates API not present
+	}
 	list, err := c.Dynamic.Resource(templateGVR).List(ctx, metav1.ListOptions{
 		LabelSelector: "template.kubevirt.io/type=vm",
 	})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil // Templates API not present
+			return nil, nil
 		}
 		return nil, err
 	}

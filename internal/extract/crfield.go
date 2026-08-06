@@ -44,10 +44,13 @@ func NewCRFieldExtractor(key, display, kind, group, version, resource string, ve
 func (e crFieldExtractor) Key() string { return e.key }
 
 func (e crFieldExtractor) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(e.gvr) {
+		return nil, nil // this vendor's CRD isn't installed on this cluster
+	}
 	list, err := c.Dynamic.Resource(e.gvr).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil // this vendor's CRD isn't installed on this cluster
+			return nil, nil
 		}
 		return nil, err
 	}

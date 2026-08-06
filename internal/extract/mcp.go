@@ -23,10 +23,13 @@ var mcpGVR = schema.GroupVersionResource{
 }
 
 func (MachineConfigPools) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(mcpGVR) {
+		return nil, nil // not an OpenShift/MCO cluster
+	}
 	list, err := c.Dynamic.Resource(mcpGVR).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			return nil, nil // not an OpenShift/MCO cluster
+			return nil, nil
 		}
 		return nil, err
 	}

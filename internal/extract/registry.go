@@ -5,7 +5,10 @@ package extract
 
 import (
 	"context"
+	"sync"
 
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
@@ -17,6 +20,59 @@ type Clients struct {
 	Typed   kubernetes.Interface
 	Dynamic dynamic.Interface
 	Host    string // API server URL, for TLS cert inspection
+
+	mu     sync.Mutex
+	served map[string]map[string]bool // group/version -> resource -> served
+}
+
+// HasResource reports whether the cluster serves the given resource.
+//
+// Optional CRs (Portworx, Dell, KubeVirt) are absent on most clusters, and
+// listing a resource whose CRD is not installed does not come back as 404:
+// authorization runs first, and a read-only service account has no rule for an
+// unknown resource, so the API server answers Forbidden. That looked like a
+// scrape failure and put an error on every cluster not running that vendor.
+// Asking discovery first tells absence and misconfiguration apart.
+//
+// Results are cached per Clients (one scrape of one cluster), so each group is
+// discovered once no matter how many extractors ask. When discovery itself
+// fails the answer is true, leaving the extractor to report the real error.
+func (c *Clients) HasResource(gvr schema.GroupVersionResource) bool {
+	gv := gvr.GroupVersion().String()
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	res, cached := c.served[gv]
+	if !cached {
+		res = c.discover(gv)
+		if c.served == nil {
+			c.served = make(map[string]map[string]bool)
+		}
+		c.served[gv] = res
+	}
+	if res == nil {
+		return true // discovery unavailable, so do not suppress anything
+	}
+	return res[gvr.Resource]
+}
+
+// discover lists the resources served for one group/version. It returns an
+// empty (non-nil) map when the group/version is not served at all, and nil when
+// discovery failed for any other reason.
+func (c *Clients) discover(groupVersion string) map[string]bool {
+	list, err := c.Typed.Discovery().ServerResourcesForGroupVersion(groupVersion)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return map[string]bool{} // group/version not installed on this cluster
+		}
+		return nil
+	}
+	res := make(map[string]bool, len(list.APIResources))
+	for _, r := range list.APIResources {
+		res[r.Name] = true
+	}
+	return res
 }
 
 // Extractor pulls one class of version information from a cluster. Key is used

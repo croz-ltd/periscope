@@ -20,7 +20,6 @@ import {
   Modal,
   ModalHeader,
   ModalBody,
-  Content,
 } from '@patternfly/react-core'
 import {
   BarsIcon,
@@ -33,21 +32,21 @@ import { COLOR_SCHEME_OPTIONS, THEME_OPTIONS, CONTRAST_OPTIONS } from './setting
 import { useDisplaySettings } from './useDisplaySettings'
 import { DisplayPreferences } from './DisplayPreferences'
 import { PeriscopeLogo } from './PeriscopeLogo'
-import { APP_VERSION, REPO_URL } from './project'
+import { REPO_URL } from './project'
 import { fetchUser } from './api'
 
 interface Props {
   isSidebarOpen: boolean
   onSidebarToggle: () => void
+  onAbout: () => void
 }
 
-export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
+export function AppMasthead({ isSidebarOpen, onSidebarToggle, onAbout }: Props) {
   const settings = useDisplaySettings()
 
   const [helpOpen, setHelpOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [userOpen, setUserOpen] = useState(false)
-  const [aboutOpen, setAboutOpen] = useState(false)
   const [prefsOpen, setPrefsOpen] = useState(false)
   const [user, setUser] = useState('')
 
@@ -74,7 +73,7 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
       )}
     >
       <DropdownList>
-        <DropdownItem key="about" onClick={() => setAboutOpen(true)}>
+        <DropdownItem key="about" onClick={onAbout}>
           About
         </DropdownItem>
         <DropdownItem
@@ -210,26 +209,6 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle }: Props) {
           </Toolbar>
         </MastheadContent>
       </Masthead>
-
-      <Modal
-        variant="small"
-        isOpen={aboutOpen}
-        onClose={() => setAboutOpen(false)}
-        aria-labelledby="cc-about-title"
-      >
-        <ModalHeader title="About" labelId="cc-about-title" />
-        <ModalBody>
-          <Content component="p">
-            <strong>Periscope</strong>
-          </Content>
-          <Content component="p">Version {APP_VERSION}</Content>
-          <Content component="p">
-            <a href={REPO_URL} target="_blank" rel="noreferrer">
-              Source repository
-            </a>
-          </Content>
-        </ModalBody>
-      </Modal>
 
       <Modal
         variant="small"

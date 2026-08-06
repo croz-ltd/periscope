@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import {
   Button,
   Content,
@@ -8,9 +9,16 @@ import {
   Flex,
 } from '@patternfly/react-core'
 import { BugIcon, GithubIcon } from '@patternfly/react-icons'
-import { APP_VERSION, ISSUES_URL, REPO_URL } from './project'
+import { ISSUES_URL, REPO_URL } from './project'
+import { fetchVersion } from './api'
 
 export function About() {
+  const [version, setVersion] = useState('')
+
+  useEffect(() => {
+    void fetchVersion().then(setVersion)
+  }, [])
+
   return (
     <>
       <Content className="cc-prose">
@@ -98,8 +106,8 @@ export function About() {
 
       <DescriptionList isHorizontal isCompact className="cc-about-meta">
         <DescriptionListGroup>
-          <DescriptionListTerm>Web UI version</DescriptionListTerm>
-          <DescriptionListDescription>{APP_VERSION}</DescriptionListDescription>
+          <DescriptionListTerm>Version</DescriptionListTerm>
+          <DescriptionListDescription>{version || 'unknown'}</DescriptionListDescription>
         </DescriptionListGroup>
         <DescriptionListGroup>
           <DescriptionListTerm>License</DescriptionListTerm>

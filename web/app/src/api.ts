@@ -75,6 +75,19 @@ export async function triggerRefresh(): Promise<void> {
   }
 }
 
+// fetchVersion returns the version stamped into the server binary, or "" when
+// the endpoint is unavailable (older server, or the UI served standalone).
+export async function fetchVersion(): Promise<string> {
+  try {
+    const res = await fetch('/api/version', { headers: { Accept: 'application/json' } })
+    if (!res.ok) return ''
+    const body = (await res.json()) as { version?: string }
+    return body.version ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export interface User {
   user: string
   email: string

@@ -12,6 +12,7 @@ import (
 	"github.com/croz-ltd/periscope/internal/drift"
 	"github.com/croz-ltd/periscope/internal/model"
 	"github.com/croz-ltd/periscope/internal/store"
+	"github.com/croz-ltd/periscope/pkg/version"
 )
 
 func TestServerEndpoints(t *testing.T) {
@@ -64,6 +65,13 @@ func TestServerEndpoints(t *testing.T) {
 	}
 	if body, _ := get(t, ts.URL+"/api/export.csv"); !strings.Contains(body, "component,kind,leader") {
 		t.Errorf("csv header missing: %.80q", body)
+	}
+
+	// /api/version reports the version stamped into the binary.
+	var v map[string]string
+	getJSON(t, ts.URL+"/api/version", &v)
+	if v["version"] != version.Raw {
+		t.Errorf("version = %q, want %q", v["version"], version.Raw)
 	}
 }
 

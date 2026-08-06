@@ -172,7 +172,11 @@ export default function App() {
   const pageTitle = page?.title ?? (pageId === 'statistics' ? 'Statistics' : 'Compare')
 
   const masthead = (
-    <AppMasthead isSidebarOpen={isSidebarOpen} onSidebarToggle={() => setSidebarOpen((o) => !o)} />
+    <AppMasthead
+      isSidebarOpen={isSidebarOpen}
+      onSidebarToggle={() => setSidebarOpen((o) => !o)}
+      onAbout={() => setActiveNav('about')}
+    />
   )
 
   // One Actions menu per matrix page, the way the console groups page actions.

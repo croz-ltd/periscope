@@ -17,6 +17,7 @@ import (
 	"github.com/croz-ltd/periscope/internal/drift"
 	"github.com/croz-ltd/periscope/internal/scrape"
 	"github.com/croz-ltd/periscope/internal/store"
+	"github.com/croz-ltd/periscope/pkg/version"
 	"github.com/croz-ltd/periscope/web"
 )
 
@@ -39,6 +40,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/export.csv", s.handleExportCSV)
 	mux.HandleFunc("/api/refresh", s.handleRefresh)
 	mux.HandleFunc("/api/user", s.handleUser)
+	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.Handle("/", web.Handler())
@@ -141,6 +143,14 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 		"user":  name,
 		"email": r.Header.Get("X-Forwarded-Email"),
 	})
+}
+
+// handleVersion reports the version stamped into the binary at build time. The
+// UI reads it from here rather than carrying its own number, because the web
+// assets are built before the version is known (see the Dockerfile), so the
+// dashboard always shows the version it is actually running.
+func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, map[string]string{"version": version.Raw})
 }
 
 func firstNonEmpty(vals ...string) string {

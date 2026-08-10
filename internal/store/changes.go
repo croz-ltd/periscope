@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"sort"
+	"strconv"
 	"time"
 
 	"github.com/croz-ltd/periscope/internal/model"
@@ -218,83 +219,154 @@ func insertChanges(e execer, changes []model.Change) error {
 	return nil
 }
 
-// backfillWindow bounds how far back the one-time backfill walks. Rebuilding
-// the feed means loading the components of every snapshot in the window, so a
-// database with a year of half-hourly scrapes would stall startup for minutes
-// to recover changes nobody is going to scroll to.
+// backfillWindow bounds how far back a rebuild walks. It reads every snapshot in
+// the window, so a database with years of history would spend startup
+// recovering changes nobody is going to scroll back to.
 const backfillWindow = 90 * 24 * time.Hour
 
-// backfillChanges reconstructs the feed from history already on disk, once,
-// when the changes table is introduced to an existing database. Without it the
-// feed would start empty on upgrade and pretend the fleet had never changed.
-func (s *Store) backfillChanges(now time.Time) (int, error) {
-	var done string
-	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'changes_backfilled'`).Scan(&done)
-	if err == nil {
-		return 0, nil // already done, never redo it
-	}
-	if err != sql.ErrNoRows {
-		return 0, err
+// changesLogicVersion identifies how the feed was derived. The feed is not
+// source data: it is what diff() made of the snapshot history, so a correction
+// to diff() leaves already-recorded events wrong, and no amount of running the
+// fixed code repairs them. Bumping this rebuilds the feed from history on the
+// next start, which is the only way a fix reaches what people are looking at.
+//
+//	1: initial
+//	2: carried-forward baseline, so a scrape that timed out partway through the
+//	   extractor list no longer reports the fleet as uninstalled and reinstalled
+const changesLogicVersion = 2
+
+const changesVersionKey = "changes_version"
+
+// rebuildChanges derives the feed from stored history whenever the recorded one
+// was produced by older logic (or does not exist yet). Returns how many events
+// it wrote, and whether it ran at all.
+func (s *Store) rebuildChanges(now time.Time) (written int, ran bool, err error) {
+	var have string
+	switch err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, changesVersionKey).Scan(&have); err {
+	case nil:
+		if have == strconv.Itoa(changesLogicVersion) {
+			return 0, false, nil // recorded by the current logic, leave it alone
+		}
+	case sql.ErrNoRows: // never recorded, or recorded before this key existed
+	default:
+		return 0, false, err
 	}
 
-	rows, err := s.db.Query(
-		`SELECT id, cluster, ts, ok, COALESCE(error,'') FROM snapshots WHERE ts >= ? ORDER BY cluster, ts, id`,
-		now.Add(-backfillWindow).Unix())
+	// Hold the write lock for the whole rebuild: it rewrites the same table a
+	// scrape appends to, and SQLite takes one writer at a time anyway.
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, false, err
+	}
+	defer tx.Rollback()
+
+	// Re-derive exactly the range that gets replayed. Deleting the whole table
+	// would drop everything older than the window, since the snapshots needed to
+	// regenerate those events are no longer being read.
+	from := now.Add(-backfillWindow)
+	if _, err := tx.Exec(`DELETE FROM changes WHERE ts >= ?`, from.Unix()); err != nil {
+		return 0, false, err
+	}
+
+	written, err = s.replayHistory(tx, from)
+	if err != nil {
+		return 0, false, err
+	}
+
+	if _, err := tx.Exec(
+		`INSERT INTO meta(key, value) VALUES(?, ?)
+		 ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+		changesVersionKey, strconv.Itoa(changesLogicVersion)); err != nil {
+		return 0, false, err
+	}
+	return written, true, tx.Commit()
+}
+
+// replayHistory walks every snapshot since "from" in order and records what
+// each one changed.
+//
+// Snapshots and their components are read in one ordered pass rather than a
+// query per snapshot: a fleet scraped every ten minutes for ninety days is
+// hundreds of thousands of snapshots, and a round trip each would turn startup
+// into minutes of work while the liveness probe watches.
+func (s *Store) replayHistory(tx execer, from time.Time) (int, error) {
+	rows, err := s.db.Query(`
+SELECT s.id, s.cluster, s.ts, s.ok, COALESCE(s.error,''),
+       c.comp_key, c.namespace, c.name, c.version, c.comp_group, c.comp_compare
+FROM snapshots s
+LEFT JOIN components c ON c.snapshot_id = s.id
+WHERE s.ts >= ?
+ORDER BY s.cluster, s.ts, s.id`, from.Unix())
 	if err != nil {
 		return 0, err
 	}
 	defer rows.Close()
 
-	type snapRow struct {
-		id   int64
-		snap model.Snapshot
+	var (
+		prior   history
+		current model.Snapshot
+		haveOne bool
+		curID   int64
+		total   int
+	)
+
+	// flush records what the snapshot just finished reading changed.
+	flush := func() error {
+		if !haveOne {
+			return nil
+		}
+		changes := diff(prior, current)
+		if err := insertChanges(tx, changes); err != nil {
+			return err
+		}
+		total += len(changes)
+		prior.observe(current)
+		return nil
 	}
-	var past []snapRow
+
 	for rows.Next() {
-		var r snapRow
-		var ts int64
-		var ok int
-		if err := rows.Scan(&r.id, &r.snap.Cluster, &ts, &ok, &r.snap.Error); err != nil {
+		var (
+			id                             int64
+			cluster, errStr                string
+			ts                             int64
+			ok                             int
+			key, ns, name, ver, grp, cmpre sql.NullString
+		)
+		if err := rows.Scan(&id, &cluster, &ts, &ok, &errStr, &key, &ns, &name, &ver, &grp, &cmpre); err != nil {
 			return 0, err
 		}
-		r.snap.Time, r.snap.OK = time.Unix(ts, 0), ok == 1
-		past = append(past, r)
+
+		if !haveOne || id != curID {
+			if err := flush(); err != nil {
+				return 0, err
+			}
+			if !haveOne || cluster != current.Cluster {
+				prior = history{} // rows are grouped by cluster; start the next clean
+			}
+			current = model.Snapshot{Cluster: cluster, Time: time.Unix(ts, 0), OK: ok == 1, Error: errStr}
+			curID, haveOne = id, true
+		}
+		if key.Valid { // NULL when the snapshot read nothing at all
+			current.Components = append(current.Components, model.Component{
+				Key:       key.String,
+				Namespace: ns.String,
+				Name:      name.String,
+				Version:   ver.String,
+				Group:     grp.String,
+				Compare:   cmpre.String,
+			})
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return 0, err
 	}
-
-	tx, err := s.db.Begin()
-	if err != nil {
+	if err := flush(); err != nil {
 		return 0, err
 	}
-	defer tx.Rollback()
-
-	var prior history
-	total := 0
-	for _, r := range past {
-		if r.snap.Cluster != prior.last.Cluster {
-			prior = history{} // rows are ordered by cluster; start the next one clean
-		}
-		comps, err := s.componentsFor(r.id)
-		if err != nil {
-			return 0, err
-		}
-		r.snap.Components = comps
-
-		changes := diff(prior, r.snap)
-		if err := insertChanges(tx, changes); err != nil {
-			return 0, err
-		}
-		total += len(changes)
-		prior.observe(r.snap)
-	}
-
-	if _, err := tx.Exec(`INSERT INTO meta(key, value) VALUES('changes_backfilled', ?)`,
-		now.UTC().Format(time.RFC3339)); err != nil {
-		return 0, err
-	}
-	return total, tx.Commit()
+	return total, nil
 }
 
 // ChangeQuery filters the change feed. Zero values mean "no filter".

@@ -41,6 +41,9 @@ type Store struct {
 	// goroutine per cluster, so writes are serialised here rather than left to
 	// collide on the database lock.
 	writeMu sync.Mutex
+	// rebuilt is closed once the startup feed rebuild has finished, whether it
+	// did any work or not.
+	rebuilt chan struct{}
 }
 
 // Open opens (creating if needed) the SQLite database at path.
@@ -49,26 +52,48 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	s := &Store{db: db}
+	s := &Store{db: db, rebuilt: make(chan struct{})}
 	if err := s.migrate(); err != nil {
 		db.Close()
 		return nil, err
 	}
-	log := logging.For("store")
-	log.Debug("store opened", "path", path)
+	logging.For("store").Debug("store opened", "path", path)
 
-	started := time.Now()
-	n, err := s.backfillChanges(time.Now())
-	if err != nil {
-		db.Close()
-		return nil, err
-	}
-	if n > 0 {
-		log.Info("reconstructed the change feed from existing history",
-			"changes", n, "duration", time.Since(started).Round(time.Millisecond))
-	}
+	go s.rebuildFeed(time.Now())
 	return s, nil
 }
+
+// rebuildFeed brings the derived change feed up to date with the current
+// detection logic.
+//
+// It runs in the background because on a fleet with months of history this is
+// tens of seconds of work against the database, and doing it before the server
+// starts would race the pod's liveness probe into a restart loop. Nothing is
+// lost by waiting: readers keep seeing the feed that is already recorded until
+// the rebuild commits, and then it swaps over in one step. A failure leaves the
+// version marker alone, so the next start tries again.
+func (s *Store) rebuildFeed(now time.Time) {
+	defer close(s.rebuilt)
+	log := logging.For("store")
+
+	started := time.Now()
+	n, ran, err := s.rebuildChanges(now)
+	switch {
+	case err != nil:
+		log.Error("cannot rebuild the change feed, keeping the recorded one",
+			"error", err, "duration", time.Since(started).Round(time.Millisecond))
+	case ran:
+		log.Info("rebuilt the change feed from stored history",
+			"changes", n, "logicVersion", changesLogicVersion,
+			"duration", time.Since(started).Round(time.Millisecond))
+	default:
+		log.Debug("change feed is current", "logicVersion", changesLogicVersion)
+	}
+}
+
+// waitRebuild blocks until the startup rebuild has finished. Tests use it so
+// they read a settled feed rather than racing it.
+func (s *Store) waitRebuild() { <-s.rebuilt }
 
 func (s *Store) Close() error { return s.db.Close() }
 

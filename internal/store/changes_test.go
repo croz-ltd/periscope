@@ -15,6 +15,7 @@ func openTest(t *testing.T) *Store {
 	if err != nil {
 		t.Fatalf("open store: %v", err)
 	}
+	st.waitRebuild() // the startup rebuild is asynchronous; do not race it
 	t.Cleanup(func() { st.Close() })
 	return st
 }
@@ -219,6 +220,7 @@ func TestBackfillReconstructsFeedFromHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open: %v", err)
 	}
+	st.waitRebuild()
 	t0 := time.Now().Add(-2 * time.Hour)
 	save(t, st, model.Snapshot{Cluster: "a", Time: t0, OK: true, Components: []model.Component{comp("openshift", "4.14.9")}})
 	save(t, st, model.Snapshot{Cluster: "a", Time: t0.Add(time.Hour), OK: true, Components: []model.Component{comp("openshift", "4.15.0")}})
@@ -233,6 +235,7 @@ func TestBackfillReconstructsFeedFromHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
+	st2.waitRebuild()
 	defer st2.Close()
 
 	changes, err := st2.Changes(ChangeQuery{})
@@ -249,6 +252,7 @@ func TestBackfillReconstructsFeedFromHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reopen: %v", err)
 	}
+	st3.waitRebuild()
 	defer st3.Close()
 	again, err := st3.Changes(ChangeQuery{})
 	if err != nil {
@@ -467,5 +471,73 @@ func TestChangesRealRemovalSurvivesADegradedPeriod(t *testing.T) {
 	}
 	if !removed {
 		t.Error("a genuine uninstall during a degraded period must still be reported")
+	}
+}
+
+// The feed is derived data, so a correction to how changes are detected has to
+// reach what people are already looking at. Events recorded by superseded logic
+// are rebuilt from the stored history on the next start, or the bad ones stay on
+// the page forever and the fix appears not to have worked.
+func TestRebuildReplacesEventsFromSupersededLogic(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+
+	t0 := time.Now().Add(-3 * time.Hour)
+	full := []model.Component{comp("openshift", "4.20.1"), comp("loki-operator", "6.5.1")}
+	save(t, st, model.Snapshot{Cluster: "erls-p", Time: t0, OK: true, Components: full})
+	save(t, st, model.Snapshot{Cluster: "erls-p", Time: t0.Add(time.Hour), OK: true,
+		Error: "olm: context deadline exceeded", Components: []model.Component{comp("openshift", "4.20.1")}})
+	save(t, st, model.Snapshot{Cluster: "erls-p", Time: t0.Add(2 * time.Hour), OK: true, Components: full})
+
+	// Stand in for a database written by the old logic: a spurious "appeared"
+	// event, and a version marker from before the fix.
+	if _, err := st.db.Exec(
+		`INSERT INTO changes(cluster, ts, kind, comp_key, name, comp_group, comp_compare, old_value, new_value)
+		 VALUES('erls-p', ?, 'added', 'loki-operator', 'Loki', 'Operators', 'version', '', '6.5.1')`,
+		t0.Add(2*time.Hour).Unix()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := st.db.Exec(`UPDATE meta SET value = '1' WHERE key = ?`, changesVersionKey); err != nil {
+		t.Fatal(err)
+	}
+	st.Close()
+
+	st2, err := Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	st2.waitRebuild()
+	defer st2.Close()
+
+	changes, err := st2.Changes(ChangeQuery{})
+	if err != nil {
+		t.Fatalf("changes: %v", err)
+	}
+	for _, c := range changes {
+		if c.Kind == model.ChangeAdded {
+			t.Errorf("an event from the old logic survived the rebuild: %+v", c)
+		}
+	}
+	if len(changes) != 1 || changes[0].Kind != model.ChangeJoined {
+		t.Errorf("rebuilt feed = %+v, want only the join", changes)
+	}
+
+	// A second start must leave the rebuilt feed alone rather than doubling it.
+	st2.Close()
+	st3, err := Open(path)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	st3.waitRebuild()
+	defer st3.Close()
+	again, err := st3.Changes(ChangeQuery{})
+	if err != nil {
+		t.Fatalf("changes: %v", err)
+	}
+	if len(again) != len(changes) {
+		t.Errorf("rebuild ran again on an up-to-date database: %d became %d", len(changes), len(again))
 	}
 }

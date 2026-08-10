@@ -240,6 +240,13 @@ scrape, so an upgrade that happened during an outage is still reported when the
 cluster comes back. And a scrape with a partial error cannot tell "uninstalled" from
 "could not read", so removals wait for a clean scrape.
 
+The feed is derived from the snapshot history rather than being source data, so a
+correction to how changes are detected also has to reach the events already
+recorded. Each release stamps the logic it used; when that changes, the last 90
+days are re-derived from stored history on the next start. The rebuild runs in the
+background (tens of seconds on a fleet with months of history) and swaps in when it
+commits, so the pod serves throughout and nothing is half-replaced.
+
 Counters that move on nearly every scrape (VM totals, snapshot volumes) are recorded
 but hidden behind the **Include counters** switch, and the calendar counts them the
 same way the feed does. A day's colour is how much really changed; a day whose only

@@ -1,3 +1,10 @@
-# The only configurable value: the container image tag.
+# The container image tag, and how the pod logs.
 # Everything else is inlined directly in the templates.
 version: latest
+
+# Log verbosity: debug | info | warn | error. Raise to debug to see every
+# cluster, extractor and request while diagnosing a scrape.
+logLevel: info
+
+# Log output format: json for the cluster's log collector, text to read by eye.
+logFormat: json

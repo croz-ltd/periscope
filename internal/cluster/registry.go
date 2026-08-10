@@ -9,12 +9,15 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+
+	"github.com/croz-ltd/periscope/internal/logging"
 )
 
 // OrderLabel, when set on a cluster Secret to an integer, controls column order
@@ -81,17 +84,28 @@ func hubConfig() (*rest.Config, error) {
 // apiURL, token, and optional caBundle (PEM). A Secret without caBundle falls
 // back to an insecure TLS connection. The cluster name is the Secret name.
 func (r *Registry) Discover(ctx context.Context) ([]Target, error) {
+	log := logging.For("cluster")
 	sel := fmt.Sprintf("%s=%s", r.LabelKey, r.LabelVal)
+	log.Debug("listing cluster Secrets", "namespace", r.Namespace, "selector", sel)
+
 	secrets, err := r.hub.CoreV1().Secrets(r.Namespace).List(ctx, metav1.ListOptions{LabelSelector: sel})
 	if err != nil {
 		return nil, err
 	}
 
 	var targets []Target
+	var skipped, insecure []string
 	for _, s := range secrets.Items {
 		apiURL := string(s.Data["apiURL"])
 		token := string(s.Data["token"])
 		if apiURL == "" || token == "" {
+			// A Secret that carries the label but not the credentials is a join
+			// half-done. It used to be skipped in silence, which looks exactly
+			// like the cluster never having been joined at all.
+			log.Warn("ignoring labeled Secret with incomplete credentials",
+				"secret", s.Name, "namespace", s.Namespace,
+				"hasApiURL", apiURL != "", "hasToken", token != "")
+			skipped = append(skipped, s.Name)
 			continue
 		}
 		cfg := &rest.Config{Host: apiURL, BearerToken: token}
@@ -99,12 +113,34 @@ func (r *Registry) Discover(ctx context.Context) ([]Target, error) {
 			cfg.TLSClientConfig = rest.TLSClientConfig{CAData: ca}
 		} else {
 			cfg.TLSClientConfig = rest.TLSClientConfig{Insecure: true}
+			insecure = append(insecure, s.Name)
 		}
 		order := DefaultOrder
-		if v, err := strconv.Atoi(s.Labels[OrderLabel]); err == nil {
-			order = v
+		if raw, set := s.Labels[OrderLabel]; set {
+			if v, err := strconv.Atoi(raw); err == nil {
+				order = v
+			} else {
+				log.Warn("ignoring unparseable order label", "secret", s.Name,
+					"label", OrderLabel, "value", raw)
+			}
 		}
+		log.Debug("cluster discovered", "cluster", s.Name, "host", apiURL, "order", order,
+			"tls", tlsMode(cfg))
 		targets = append(targets, Target{Name: s.Name, Config: cfg, Order: order})
 	}
+
+	if len(insecure) > 0 {
+		// Worth saying out loud once per cycle: these connections are not verified.
+		log.Warn("scraping without a CA bundle, TLS verification disabled",
+			"clusters", strings.Join(insecure, ","))
+	}
+	log.Info("cluster discovery finished", "found", len(targets), "skipped", len(skipped))
 	return targets, nil
+}
+
+func tlsMode(cfg *rest.Config) string {
+	if cfg.TLSClientConfig.Insecure {
+		return "insecure"
+	}
+	return "verified"
 }

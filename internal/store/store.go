@@ -5,12 +5,12 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
-	"log"
 	"sync"
 	"time"
 
 	_ "modernc.org/sqlite" // pure-Go driver, no cgo
 
+	"github.com/croz-ltd/periscope/internal/logging"
 	"github.com/croz-ltd/periscope/internal/model"
 )
 
@@ -54,13 +54,18 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	log := logging.For("store")
+	log.Debug("store opened", "path", path)
+
+	started := time.Now()
 	n, err := s.backfillChanges(time.Now())
 	if err != nil {
 		db.Close()
 		return nil, err
 	}
 	if n > 0 {
-		log.Printf("store: reconstructed %d change events from existing history", n)
+		log.Info("reconstructed the change feed from existing history",
+			"changes", n, "duration", time.Since(started).Round(time.Millisecond))
 	}
 	return s, nil
 }
@@ -176,7 +181,14 @@ func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 	if err := insertChanges(tx, changes); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	logging.For("store").Debug("snapshot saved",
+		"cluster", snap.Cluster, "ok", snap.OK,
+		"components", len(snap.Components), "changes", len(changes))
+	return nil
 }
 
 // LatestSnapshots returns the most recent snapshot per cluster.

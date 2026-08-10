@@ -158,11 +158,46 @@ Flags common to `serve` and `report`:
 | `--label-key` / `--label-value` | `periscope.io/cluster` / `true` | label marking those Secrets |
 | `--db` | `/data/periscope.db` (`DB_PATH`) | SQLite database path |
 | `--stale-after` | `30m` | mark a cluster stale when its last scrape is older than this |
+| `--log-level` | `info` (`LOG_LEVEL`) | `debug` \| `info` \| `warn` \| `error` |
+| `--log-format` | `text` (`LOG_FORMAT`) | `text` to read by eye, `json` for a log collector |
 
 `serve` adds `--addr` (`LISTEN_ADDR`, default `:8080`), `--interval` (`10m`),
 `--timeout` (per cluster, `30s`), `--concurrency` (`4`), and `--config`, an optional
 file that overrides vendor CR field paths without rebuilding. See
 [`config/extractors.yaml`](config/extractors.yaml).
+
+## Logs
+
+Everything logs through `log/slog`, tagged with the subsystem that produced it
+(`component=scrape`, `cluster`, `store`, `api`, `extract`), so a fleet of thirty
+clusters can be read by filtering rather than by grepping prose. The chart sets
+`LOG_FORMAT=json` so OpenShift's log collector indexes the fields; a terminal is
+better served by `text`.
+
+**info** is what a healthy hub says, and is meant to stay readable: one line per
+scrape cycle with how many clusters were degraded or unreachable, one per cluster
+with its component count and duration, plus discovery results and startup
+configuration. Anything that silently degrades the result is a **warn**: an
+extractor that failed (with how much of the per-cluster deadline was left when it
+gave up, which separates a slow cluster from a broken extractor), a labeled Secret
+missing its credentials, a cluster scraped without a CA bundle, an invalid grouping
+ConfigMap.
+
+**debug** explains one scrape in full: every extractor with its duration and
+component count, every resource skipped because its CRD is not installed, every
+snapshot saved with how many changes it recorded, and every HTTP request. It is
+the level to raise while diagnosing, and to lower again afterwards.
+
+```
+level=WARN msg="extractor failed" component=scrape cluster=erls-p extractor=olm \
+  duration=12.3s remaining=-1.2s error="context deadline exceeded"
+level=WARN msg="cluster scraped" component=scrape cluster=erls-p components=42 \
+  extractorsFailed=5 duration=30.0s
+```
+
+That pair is what a scrape timing out mid-list looks like, which is worth
+recognising: the components the failed extractors would have read are missing from
+that snapshot, and the matrix shows them as not installed until the next good scrape.
 
 ## API
 

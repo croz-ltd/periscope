@@ -27,6 +27,13 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            # debug explains a single scrape in full: every cluster, every
+            # extractor, every request. Raise it while diagnosing, not for long.
+            - name: LOG_LEVEL
+              value: {{ .Values.logLevel | quote }}
+            # json so the cluster's log collector can index the fields.
+            - name: LOG_FORMAT
+              value: {{ .Values.logFormat | quote }}
           ports:
             - name: http
               containerPort: 8080

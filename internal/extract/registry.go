@@ -12,6 +12,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/croz-ltd/periscope/internal/logging"
 	"github.com/croz-ltd/periscope/internal/model"
 )
 
@@ -54,7 +55,14 @@ func (c *Clients) HasResource(gvr schema.GroupVersionResource) bool {
 	if res == nil {
 		return true // discovery unavailable, so do not suppress anything
 	}
-	return res[gvr.Resource]
+	served := res[gvr.Resource]
+	if !served {
+		// Skipping is the normal case for a vendor CRD nobody installed, but it
+		// is also the answer to "why is this row missing on that cluster".
+		logging.For("extract").Debug("resource not served, skipping",
+			"group", gvr.Group, "version", gvr.Version, "resource", gvr.Resource)
+	}
+	return served
 }
 
 // discover lists the resources served for one group/version. It returns an

@@ -7,6 +7,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"sort"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	"github.com/croz-ltd/periscope/internal/drift"
+	"github.com/croz-ltd/periscope/internal/logging"
 	"github.com/croz-ltd/periscope/internal/scrape"
 	"github.com/croz-ltd/periscope/internal/store"
 	"github.com/croz-ltd/periscope/pkg/version"
@@ -47,7 +49,53 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.Handle("/", web.Handler())
-	return mux
+	return logRequests(mux)
+}
+
+// logRequests records every request once it has finished. Served pages are
+// debug-only (the UI polls, and an access log at info would drown the scrape
+// lines), while a server error is always worth seeing.
+func logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		started := time.Now()
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(rec, r)
+
+		log := logging.For("api")
+		level := slog.LevelDebug
+		switch {
+		case rec.status >= http.StatusInternalServerError:
+			level = slog.LevelError
+		case rec.status >= http.StatusBadRequest:
+			level = slog.LevelWarn
+		}
+		log.Log(r.Context(), level, "request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"query", r.URL.RawQuery,
+			"status", rec.status,
+			"duration", time.Since(started).Round(time.Millisecond))
+	})
+}
+
+// statusRecorder remembers the status code so it can be logged; without it
+// every response looks like a 200.
+type statusRecorder struct {
+	http.ResponseWriter
+	status  int
+	written bool
+}
+
+func (r *statusRecorder) WriteHeader(status int) {
+	if !r.written {
+		r.status, r.written = status, true
+	}
+	r.ResponseWriter.WriteHeader(status)
+}
+
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	r.written = true // an implicit 200
+	return r.ResponseWriter.Write(b)
 }
 
 // matrix builds the current matrix, or the matrix as it stood at "at" when that
@@ -94,18 +142,27 @@ func (s *Server) groupConfig(ctx context.Context) (*drift.GroupConfig, string) {
 	if s.Scheduler == nil || s.Scheduler.Registry == nil {
 		return nil, ""
 	}
+	log := logging.For("api")
 	data, err := s.Scheduler.Registry.ConfigMapData(ctx, groupConfigMapName)
 	if err != nil {
+		log.Warn("cannot read the grouping ConfigMap", "configMap", groupConfigMapName, "error", err)
 		return nil, "custom grouping unavailable: " + err.Error()
 	}
 	raw := strings.TrimSpace(data[groupConfigMapKey])
 	if raw == "" {
+		log.Debug("no custom grouping, using the built-in sections", "configMap", groupConfigMapName)
 		return nil, ""
 	}
 	var cfg drift.GroupConfig
 	if err := yaml.Unmarshal([]byte(raw), &cfg); err != nil {
+		// The UI shows this too, but a malformed ConfigMap is worth a log line:
+		// the matrix silently falls back to the built-in grouping.
+		log.Warn("ignoring invalid grouping ConfigMap",
+			"configMap", groupConfigMapName, "key", groupConfigMapKey, "error", err)
 		return nil, "custom grouping ignored (invalid " + groupConfigMapKey + "): " + err.Error()
 	}
+	log.Debug("custom grouping loaded", "compareGroups", len(cfg.Compare),
+		"statisticsGroups", len(cfg.Statistics), "hidden", len(cfg.Hidden))
 	return &cfg, ""
 }
 
@@ -300,6 +357,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "no scheduler", http.StatusServiceUnavailable)
 		return
 	}
+	logging.For("api").Info("refresh requested, scraping now")
 	go s.Scheduler.ScrapeAll(context.Background())
 	w.WriteHeader(http.StatusAccepted)
 	_, _ = w.Write([]byte(`{"status":"refresh started"}`))

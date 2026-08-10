@@ -9,7 +9,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -20,6 +20,7 @@ import (
 	"github.com/croz-ltd/periscope/internal/api"
 	"github.com/croz-ltd/periscope/internal/cluster"
 	"github.com/croz-ltd/periscope/internal/config"
+	"github.com/croz-ltd/periscope/internal/logging"
 	"github.com/croz-ltd/periscope/internal/report"
 	"github.com/croz-ltd/periscope/internal/scrape"
 	"github.com/croz-ltd/periscope/internal/store"
@@ -27,9 +28,6 @@ import (
 )
 
 func main() {
-	log.SetFlags(log.LstdFlags | log.Lmsgprefix)
-	log.SetPrefix("periscope: ")
-
 	args := os.Args[1:]
 	cmd := "serve"
 	if len(args) > 0 && !isFlag(args[0]) {
@@ -57,6 +55,8 @@ type commonFlags struct {
 	labelVal   string
 	db         string
 	staleAfter time.Duration
+	logLevel   string
+	logFormat  string
 }
 
 func registerCommon(fs *flag.FlagSet) *commonFlags {
@@ -66,7 +66,28 @@ func registerCommon(fs *flag.FlagSet) *commonFlags {
 	fs.StringVar(&c.labelVal, "label-value", "true", "label value marking joined-cluster Secrets")
 	fs.StringVar(&c.db, "db", envOr("DB_PATH", "/data/periscope.db"), "SQLite database path")
 	fs.DurationVar(&c.staleAfter, "stale-after", 30*time.Minute, "mark a cluster stale if its last scrape is older than this")
+	fs.StringVar(&c.logLevel, "log-level", envOr("LOG_LEVEL", "info"),
+		"log verbosity: "+strings.Join(logging.LevelNames(), " | "))
+	fs.StringVar(&c.logFormat, "log-format", envOr("LOG_FORMAT", logging.FormatText),
+		"log output format: text | json")
 	return c
+}
+
+// setupLogging installs the logger before anything else runs, so a bad level is
+// reported plainly rather than through a logger that does not exist yet.
+func (c *commonFlags) setupLogging() slog.Level {
+	level, err := logging.Setup(c.logLevel, c.logFormat)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "periscope:", err)
+		os.Exit(2)
+	}
+	return level
+}
+
+// fatal reports an unrecoverable startup failure and stops.
+func fatal(msg string, args ...any) {
+	slog.Error(msg, args...)
+	os.Exit(1)
 }
 
 func serve(args []string) {
@@ -79,16 +100,33 @@ func serve(args []string) {
 	configPath := fs.String("config", envOr("CONFIG_PATH", ""), "optional extractor config file (see config/extractors.yaml)")
 	_ = fs.Parse(args)
 
+	level := c.setupLogging()
+	slog.Info("starting periscope",
+		"version", version.Raw,
+		"namespace", c.namespace,
+		"db", c.db,
+		"interval", *interval,
+		"timeout", *timeout,
+		"concurrency", *concurrency,
+		"staleAfter", c.staleAfter,
+		"logLevel", level)
+
 	st := mustOpenStore(c.db)
 	defer st.Close()
 
 	extractors, err := config.BuildExtractors(*configPath)
 	if err != nil {
-		log.Fatalf("extractors: %v", err)
+		fatal("cannot build extractors", "config", *configPath, "error", err)
 	}
+	keys := make([]string, 0, len(extractors))
+	for _, e := range extractors {
+		keys = append(keys, e.Key())
+	}
+	slog.Info("extractors ready", "count", len(extractors), "extractors", strings.Join(keys, ","), "config", *configPath)
+
 	reg, err := cluster.NewRegistry(c.namespace, c.labelKey, c.labelVal)
 	if err != nil {
-		log.Fatalf("registry: %v", err)
+		fatal("cannot reach the hub cluster", "namespace", c.namespace, "error", err)
 	}
 	sched := &scrape.Scheduler{
 		Registry:    reg,
@@ -108,15 +146,19 @@ func serve(args []string) {
 
 	go func() {
 		<-ctx.Done()
+		slog.Info("shutting down")
 		sctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_ = httpSrv.Shutdown(sctx)
+		if err := httpSrv.Shutdown(sctx); err != nil {
+			slog.Warn("http shutdown did not finish cleanly", "error", err)
+		}
 	}()
 
-	log.Printf("periscope %s listening on %s (namespace=%s, interval=%s)", version.Raw, *addr, c.namespace, *interval)
+	slog.Info("listening", "addr", *addr)
 	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		log.Fatalf("http: %v", err)
+		fatal("http server failed", "addr", *addr, "error", err)
 	}
+	slog.Info("stopped")
 }
 
 func runReport(args []string) {
@@ -124,18 +166,20 @@ func runReport(args []string) {
 	c := registerCommon(fs)
 	_ = fs.Parse(args)
 
+	c.setupLogging()
+
 	st := mustOpenStore(c.db)
 	defer st.Close()
 
 	if err := report.Print(os.Stdout, st, c.staleAfter); err != nil {
-		log.Fatalf("report: %v", err)
+		fatal("cannot build the report", "error", err)
 	}
 }
 
 func mustOpenStore(path string) *store.Store {
 	st, err := store.Open(path)
 	if err != nil {
-		log.Fatalf("open store %q: %v", path, err)
+		fatal("cannot open the store", "path", path, "error", err)
 	}
 	return st
 }

@@ -91,6 +91,7 @@ export interface Change {
 export interface ChangeDay {
   date: string // YYYY-MM-DD in the browser's zone
   count: number
+  counters: number // how many of those were counter updates
   clusters: number
 }
 

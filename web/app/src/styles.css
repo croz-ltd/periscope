@@ -401,10 +401,18 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 .cc-cal-pad {
   cursor: default;
 }
-/* A day nothing happened on is still a day: readable, just not shouting. */
+/* A day nothing happened on is still a day: readable, just not shouting, and
+   not offering a click that would open an empty feed. */
 .cc-cal-quiet {
   color: var(--pf-t--global--text--color--subtle);
+}
+.cc-cal-day:disabled {
   cursor: default;
+}
+/* A day whose only news was counters moving: no background, because the feed
+   hides those, but a dot so it does not read as a day nothing happened on. */
+.cc-cal-counters {
+  cursor: pointer;
 }
 .cc-cal-num {
   font-size: 0.8rem;
@@ -415,7 +423,7 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   height: 4px;
   border-radius: 50%;
   background: currentColor;
-  opacity: 0.7;
+  opacity: 0.55;
 }
 /* Four steps of "how much changed", light to dark. */
 .cc-cal-heat-1 { background: #e7f1fa; color: #06c; }
@@ -429,6 +437,27 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 .cc-cal-selected {
   outline: 2px solid var(--pf-t--global--color--brand--default, #06c);
   outline-offset: -2px;
+}
+.cc-cal-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  justify-content: center;
+  margin: var(--pf-t--global--spacer--sm) 0 0;
+  font-size: 0.75rem;
+  color: var(--pf-t--global--text--color--subtle);
+}
+.cc-cal-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: var(--pf-t--global--border--radius--small, 3px);
+}
+.cc-cal-key + span,
+.cc-cal-legend .cc-cal-key:not(:first-child) {
+  margin-left: 0.5rem;
 }
 .cc-cal-actions {
   display: flex;

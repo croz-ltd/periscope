@@ -294,3 +294,49 @@ func TestChangesAcrossAnOutageComparesToLastGoodState(t *testing.T) {
 		t.Error("an upgrade that happened during the outage was lost")
 	}
 }
+
+// The calendar has to agree with the feed. Counters move on nearly every
+// scrape, so a day is reported with its counter share broken out: marking a day
+// that opens empty is what makes people stop trusting the calendar.
+func TestChangeDaysSeparatesCounters(t *testing.T) {
+	st := openTest(t)
+	day := time.Date(2026, 3, 10, 12, 0, 0, 0, time.UTC)
+
+	counter := func(key, v string) model.Component {
+		return model.Component{Key: key, Name: key, Version: v, Group: "OpenShift Virtualization", Compare: model.CompareInfo}
+	}
+	save(t, st, model.Snapshot{Cluster: "a", Time: day, OK: true, Components: []model.Component{
+		comp("openshift", "4.14.9"), counter("vm-total", "12"),
+	}})
+	// Next day only the VM count moves: real churn, but not news.
+	save(t, st, model.Snapshot{Cluster: "a", Time: day.AddDate(0, 0, 1), OK: true, Components: []model.Component{
+		comp("openshift", "4.14.9"), counter("vm-total", "13"),
+	}})
+	// The day after, a genuine upgrade alongside more counter movement.
+	save(t, st, model.Snapshot{Cluster: "a", Time: day.AddDate(0, 0, 2), OK: true, Components: []model.Component{
+		comp("openshift", "4.15.0"), counter("vm-total", "14"),
+	}})
+
+	days, err := st.ChangeDays(day.AddDate(0, 0, -1), day.AddDate(0, 0, 3), time.UTC)
+	if err != nil {
+		t.Fatalf("change days: %v", err)
+	}
+	got := map[string]ChangeDay{}
+	for _, d := range days {
+		got[d.Date] = d
+	}
+
+	// Counter-only day: marked, but every one of its changes is a counter, so
+	// the calendar can render it as a dot rather than colouring it in.
+	quiet := got["2026-03-11"]
+	if quiet.Count != 1 || quiet.Counters != 1 {
+		t.Errorf("counter-only day = %+v, want 1 change, all of it counters", quiet)
+	}
+	busy := got["2026-03-12"]
+	if busy.Count != 2 || busy.Counters != 1 {
+		t.Errorf("mixed day = %+v, want 2 changes of which 1 counter", busy)
+	}
+	if busy.Count-busy.Counters != 1 {
+		t.Errorf("mixed day should have exactly one substantive change, got %d", busy.Count-busy.Counters)
+	}
+}

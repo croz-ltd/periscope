@@ -206,7 +206,11 @@ cluster comes back. And a scrape with a partial error cannot tell "uninstalled" 
 "could not read", so removals wait for a clean scrape.
 
 Counters that move on nearly every scrape (VM totals, snapshot volumes) are recorded
-but hidden behind the **Include counters** switch.
+but hidden behind the **Include counters** switch, and the calendar counts them the
+same way the feed does. A day's colour is how much really changed; a day whose only
+news was counters moving gets a dot instead, so it does not read as empty and does
+not read as busy either. Turning counters on folds them into the colour, because then
+they are what you came to look at.
 
 ## Knowing what can be upgraded
 

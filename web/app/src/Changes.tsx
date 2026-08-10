@@ -49,6 +49,20 @@ function endOfDay(key: string): Date {
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+// What a calendar day says on hover. With counters hidden it has to be honest
+// about a day whose only news was counters, or the day looks marked for nothing.
+function label(d: ChangeDay, showCounters: boolean): string {
+  const across = ` across ${plural(d.clusters, 'cluster')}`
+  if (showCounters) return `${plural(d.count, 'change')}${across}`
+
+  const real = d.count - d.counters
+  if (real === 0) return `Only ${plural(d.counters, 'counter update')}${across}`
+  if (d.counters === 0) return `${plural(real, 'change')}${across}`
+  return `${plural(real, 'change')}${across}, plus ${plural(d.counters, 'counter update')}`
+}
+
 const KIND_META: Record<ChangeKind, { icon: React.ComponentType; label: string; cls: string }> = {
   updated: { icon: ArrowCircleUpIcon, label: 'Updated', cls: 'cc-chg-updated' },
   added: { icon: PlusCircleIcon, label: 'Installed', cls: 'cc-chg-added' },
@@ -89,40 +103,55 @@ function describe(c: Change): React.ReactNode {
   }
 }
 
-// Month grid, Monday first. Days that changed are marked, and the mark darkens
-// with how much changed, so a month of quiet weeks and one busy Tuesday reads
-// at a glance.
+// Month grid, Monday first.
+//
+// The calendar has to agree with the feed beside it, so it marks days the same
+// way the feed counts them: the background is how much really changed, and it
+// darkens with the amount, while a dot marks a day whose only news was counters
+// moving. Weighing counters the same would colour in every day and promise
+// changes the feed then hides. Turning counters on folds them into the
+// background, because then they are what you came to look at.
 function Calendar({
   month,
   days,
   selected,
+  showCounters,
   onSelect,
   onMonth,
 }: {
   month: Date
   days: Map<string, ChangeDay>
   selected: string | null
+  showCounters: boolean
   onSelect: (key: string | null) => void
   onMonth: (delta: number) => void
 }) {
+  // What the day is worth on this calendar, given the counter switch.
+  const weight = (d: ChangeDay) => (showCounters ? d.count : d.count - d.counters)
   const first = new Date(month.getFullYear(), month.getMonth(), 1)
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate()
   const leading = (first.getDay() + 6) % 7 // Sunday=0 -> Monday-first
   const today = dayKey(new Date())
 
-  const busiest = Math.max(1, ...[...days.values()].map((d) => d.count))
+  const busiest = Math.max(1, ...[...days.values()].map(weight))
   const cells: React.ReactNode[] = []
   for (let i = 0; i < leading; i++) cells.push(<div key={`pad-${i}`} className="cc-cal-day cc-cal-pad" />)
 
   for (let day = 1; day <= daysInMonth; day++) {
     const key = dayKey(new Date(month.getFullYear(), month.getMonth(), day))
     const entry = days.get(key)
+    const marked = entry ? weight(entry) : 0
     // Four steps: enough to tell a busy day from a quiet one, few enough that
     // each step is a visible difference.
-    const heat = entry ? Math.min(4, Math.ceil((entry.count / busiest) * 4)) : 0
+    const heat = marked > 0 ? Math.min(4, Math.ceil((marked / busiest) * 4)) : 0
+    // The dot exists for one case: a day that looks empty but is not, because
+    // all it had was counters. On a day that is already coloured the background
+    // has said it, and with counters folded in it would say it twice.
+    const dot = !showCounters && !!entry && entry.counters > 0 && marked === 0
     const classes = [
       'cc-cal-day',
-      entry ? `cc-cal-heat-${heat}` : 'cc-cal-quiet',
+      heat > 0 ? `cc-cal-heat-${heat}` : 'cc-cal-quiet',
+      dot ? 'cc-cal-counters' : '',
       key === selected ? 'cc-cal-selected' : '',
       key === today ? 'cc-cal-today' : '',
     ]
@@ -134,22 +163,18 @@ function Calendar({
         key={key}
         type="button"
         className={classes}
-        aria-label={entry ? `${key}, ${entry.count} changes` : key}
+        aria-label={entry ? `${key}, ${label(entry, showCounters)}` : key}
         aria-pressed={key === selected}
+        disabled={!entry}
         onClick={() => onSelect(key === selected ? null : key)}
       >
         <span className="cc-cal-num">{day}</span>
-        {entry && <span className="cc-cal-dot" />}
+        {dot && <span className="cc-cal-dot" />}
       </button>
     )
     cells.push(
       entry ? (
-        <Tooltip
-          key={key}
-          content={`${entry.count} change${entry.count === 1 ? '' : 's'} across ${entry.clusters} cluster${
-            entry.clusters === 1 ? '' : 's'
-          }`}
-        >
+        <Tooltip key={key} content={label(entry, showCounters)}>
           {cell}
         </Tooltip>
       ) : (
@@ -254,9 +279,21 @@ export function Changes({ onTimeTravel }: { onTimeTravel: (at: string) => void }
           month={month}
           days={days}
           selected={selected}
+          showCounters={showCounters}
           onSelect={setSelected}
           onMonth={(d) => setMonth(new Date(month.getFullYear(), month.getMonth() + d, 1))}
         />
+        <p className="cc-cal-legend">
+          <span className="cc-cal-key cc-cal-heat-3" /> changes
+          {!showCounters && (
+            <>
+              <span className="cc-cal-key cc-cal-quiet cc-cal-counters">
+                <span className="cc-cal-dot" />
+              </span>{' '}
+              counter updates only
+            </>
+          )}
+        </p>
         {selected && (
           <div className="cc-cal-actions">
             <Button

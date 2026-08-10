@@ -302,9 +302,13 @@ func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
 }
 
 // ChangeDay is one calendar day that has changes, so the calendar can mark it.
+// Counters are reported separately from the total because they move on nearly
+// every scrape: a calendar that weighed them the same would mark every day and
+// promise changes the feed then hides.
 type ChangeDay struct {
 	Date     string `json:"date"`     // YYYY-MM-DD, in the location the query was made with
-	Count    int    `json:"count"`    // number of changes that day
+	Count    int    `json:"count"`    // all changes that day
+	Counters int    `json:"counters"` // how many of those were counter updates
 	Clusters int    `json:"clusters"` // number of distinct clusters that changed
 }
 
@@ -316,7 +320,7 @@ func (s *Store) ChangeDays(from, to time.Time, loc *time.Location) ([]ChangeDay,
 		loc = time.UTC
 	}
 	rows, err := s.db.Query(
-		`SELECT cluster, ts FROM changes WHERE ts >= ? AND ts <= ?`,
+		`SELECT cluster, ts, COALESCE(comp_compare,'') FROM changes WHERE ts >= ? AND ts <= ?`,
 		from.Unix(), to.Unix())
 	if err != nil {
 		return nil, err
@@ -324,15 +328,19 @@ func (s *Store) ChangeDays(from, to time.Time, loc *time.Location) ([]ChangeDay,
 	defer rows.Close()
 
 	counts := map[string]int{}
+	counters := map[string]int{}
 	clusters := map[string]map[string]bool{}
 	for rows.Next() {
-		var cluster string
+		var cluster, compare string
 		var ts int64
-		if err := rows.Scan(&cluster, &ts); err != nil {
+		if err := rows.Scan(&cluster, &ts, &compare); err != nil {
 			return nil, err
 		}
 		day := time.Unix(ts, 0).In(loc).Format("2006-01-02")
 		counts[day]++
+		if compare == model.CompareInfo {
+			counters[day]++
+		}
 		if clusters[day] == nil {
 			clusters[day] = map[string]bool{}
 		}
@@ -344,7 +352,7 @@ func (s *Store) ChangeDays(from, to time.Time, loc *time.Location) ([]ChangeDay,
 
 	out := make([]ChangeDay, 0, len(counts))
 	for day, n := range counts {
-		out = append(out, ChangeDay{Date: day, Count: n, Clusters: len(clusters[day])})
+		out = append(out, ChangeDay{Date: day, Count: n, Counters: counters[day], Clusters: len(clusters[day])})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Date < out[j].Date })
 	return out, nil

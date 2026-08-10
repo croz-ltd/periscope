@@ -1,8 +1,25 @@
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table'
 import { Tooltip, Label, Icon } from '@patternfly/react-core'
 import { ExclamationTriangleIcon } from '@patternfly/react-icons'
-import type { Matrix, MatrixGroup, Row } from './api'
+import type { ClusterInfo, Matrix, MatrixGroup, Row } from './api'
 import { cellClass, cellText, cellTooltip } from './cells'
+
+// A cluster that publishes a console banner is headed the way its own operators
+// label it, colours and all. The joined name stays in the tooltip, because it is
+// what the Secret, the exports and the metrics still call it.
+function ClusterName({ cluster }: { cluster: ClusterInfo }) {
+  if (!cluster.label) return <span>{cluster.name}</span>
+  return (
+    <Tooltip content={cluster.name}>
+      <span
+        className="cc-cluster-banner"
+        style={{ background: cluster.bgColor || undefined, color: cluster.color || undefined }}
+      >
+        {cluster.label}
+      </span>
+    </Tooltip>
+  )
+}
 
 export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: MatrixGroup[] }) {
   const { clusters, rows } = matrix
@@ -26,7 +43,7 @@ export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: Matrix
           {clusters.map((c) => (
             <Th key={c.name} className="cc-col-head">
               <div className="cc-col-head-inner">
-                <span>{c.name}</span>
+                <ClusterName cluster={c} />
                 {c.stale && (
                   <Tooltip content={`Stale, last scraped ${new Date(c.time).toLocaleString()}`}>
                     <Label color="orange" isCompact>

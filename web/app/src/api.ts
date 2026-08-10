@@ -42,6 +42,9 @@ export interface ClusterInfo {
   ok: boolean
   error?: string
   stale: boolean
+  label?: string // console banner text, shown instead of name
+  color?: string
+  bgColor?: string
 }
 
 export interface MatrixGroup {
@@ -60,12 +63,73 @@ export interface Matrix {
   rows: Row[]
   pages: Page[]
   warning?: string // set when custom grouping was ignored (e.g. bad ConfigMap)
+  at?: string // set when this is history rather than the live fleet
 }
 
-export async function fetchMatrix(): Promise<Matrix> {
-  const res = await fetch('/api/matrix', { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`GET /api/matrix failed: ${res.status} ${res.statusText}`)
+// fetchMatrix loads the live matrix, or the matrix as it stood at `at`.
+export async function fetchMatrix(at?: string): Promise<Matrix> {
+  const url = at ? `/api/matrix?at=${encodeURIComponent(at)}` : '/api/matrix'
+  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error(`GET ${url} failed: ${res.status} ${res.statusText}`)
   return (await res.json()) as Matrix
+}
+
+export type ChangeKind = 'added' | 'removed' | 'updated' | 'joined' | 'unreachable' | 'recovered'
+
+export interface Change {
+  time: string
+  cluster: string
+  kind: ChangeKind
+  key?: string
+  name?: string
+  group?: string
+  compare?: CompareKind
+  from?: string
+  to?: string
+}
+
+export interface ChangeDay {
+  date: string // YYYY-MM-DD in the browser's zone
+  count: number
+  clusters: number
+}
+
+export interface ChangeCalendar {
+  days: ChangeDay[]
+  first?: string // oldest snapshot on record, bounds the calendar
+  last?: string
+}
+
+export interface ChangeQuery {
+  from?: Date
+  to?: Date
+  cluster?: string
+  limit?: number
+}
+
+export async function fetchChanges(q: ChangeQuery = {}): Promise<Change[]> {
+  const params = new URLSearchParams()
+  if (q.from) params.set('from', q.from.toISOString())
+  if (q.to) params.set('to', q.to.toISOString())
+  if (q.cluster) params.set('cluster', q.cluster)
+  if (q.limit) params.set('limit', String(q.limit))
+
+  const res = await fetch(`/api/changes?${params}`, { headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error(`GET /api/changes failed: ${res.status} ${res.statusText}`)
+  return ((await res.json()) as { changes: Change[] }).changes ?? []
+}
+
+// The calendar buckets by day, so the server is told which day the reader is in
+// rather than assuming UTC. getTimezoneOffset counts west of UTC, hence the flip.
+export async function fetchChangeCalendar(from: Date, to: Date): Promise<ChangeCalendar> {
+  const params = new URLSearchParams({
+    from: from.toISOString(),
+    to: to.toISOString(),
+    tzOffset: String(-new Date().getTimezoneOffset()),
+  })
+  const res = await fetch(`/api/changes/calendar?${params}`, { headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error(`GET /api/changes/calendar failed: ${res.status} ${res.statusText}`)
+  return (await res.json()) as ChangeCalendar
 }
 
 export async function triggerRefresh(): Promise<void> {

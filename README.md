@@ -170,8 +170,12 @@ file that overrides vendor CR field paths without rebuilding. See
 |---|---|
 | `GET /` | embedded PatternFly UI |
 | `GET /api/matrix` | the full comparison matrix as JSON (what the UI renders) |
-| `GET /api/export.csv`, `GET /api/export.json` | current matrix export |
+| `GET /api/matrix?at=<RFC3339>` | the matrix as it stood at that moment |
+| `GET /api/changes` | the change feed, newest first (`from`, `to`, `cluster`, `limit`) |
+| `GET /api/changes/calendar` | per-day change counts, for marking a calendar |
+| `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
 | `POST /api/refresh` | trigger a scrape now |
+| `GET /api/version` | the version stamped into this binary |
 | `GET /metrics` | Prometheus text exposition, see below |
 | `GET /healthz` | liveness |
 
@@ -181,6 +185,51 @@ Two gauges are exported, both suitable for alerting:
 periscope_component_drift_severity{cluster,component,state}  # 0 on the fleet leader
 periscope_cluster_stale{cluster}                             # 1 when the snapshot is stale
 ```
+
+## Changes and time travel
+
+Every scrape has always been kept, so the **Changes** page reads that history back
+as an audit log: what appeared, what was upgraded, what was uninstalled, and when a
+cluster stopped answering. A scrape that found the fleet exactly as it was records
+nothing, so the feed holds events rather than heartbeats.
+
+The calendar beside it marks the days something happened, darker as more changed.
+Pick a day to read that day's events, then **View the matrix as it was** to load the
+whole matrix as of that moment, exports included. A banner says you are looking at
+history until you leave it.
+
+Two silences are deliberate, because a feed nobody trusts is a feed nobody reads.
+An unreachable cluster reports nothing, so its components are not filed as removed
+and re-added around every outage; changes are measured against the last *successful*
+scrape, so an upgrade that happened during an outage is still reported when the
+cluster comes back. And a scrape with a partial error cannot tell "uninstalled" from
+"could not read", so removals wait for a clean scrape.
+
+Counters that move on nearly every scrape (VM totals, snapshot volumes) are recorded
+but hidden behind the **Include counters** switch.
+
+## Knowing what can be upgraded
+
+Being behind the fleet only matters if there is somewhere to go, so Periscope also
+reports what each cluster can actually do about it:
+
+- **Update available** — the newest release the cluster is being offered. The cluster
+  has already asked the update service on its own channel, so this is read from its
+  ClusterVersion and needs no egress from the hub.
+- **Upgrade blocked** — an `Upgradeable=False` condition, with the reason and message.
+  This is the difference between a cluster that is behind and one that is stuck.
+- **Update in progress** — set while an upgrade is running, which explains a version
+  that disagrees with the rest of the fleet for the next hour.
+- **Operator updates pending** and **InstallPlans awaiting approval** — updates OLM
+  has resolved but not applied. On manual approval these sit unnoticed for months,
+  and they are the usual reason a cluster quietly falls behind.
+
+## Naming columns from the cluster
+
+If a cluster carries a `ConsoleNotification` named `cluster-name`, its text and
+colours head that column, so the matrix labels clusters the way their own operators
+already label them in the OpenShift console. The joined name stays in the tooltip and
+in exports, metrics and the API. Clusters without one keep their joined name.
 
 ## Extending
 
@@ -210,8 +259,9 @@ internal/
   drift/                  build the comparison matrix          (unit-tested)
   model/                  shared data types
   extract/                per-cluster extractors + registry
-                            openshift.go   ClusterVersion (release + channel)
-                            olm.go         all OLM operators, keyed by package
+                            openshift.go   ClusterVersion (release, channel, updates)
+                            console.go     console banner used to name the column
+                            olm.go         OLM operators + pending updates/InstallPlans
                             nodes.go       kubelet versions, node counts
                             mcp.go         MachineConfigPools
                             storage.go     default StorageClass
@@ -222,7 +272,7 @@ internal/
                             crfield.go     Portworx + Dell CSI (nested CR fields)
   cluster/                discover clusters from labeled Secrets
   scrape/                 periodic parallel scrape scheduler
-  store/                  SQLite persistence (full snapshot history)
+  store/                  SQLite persistence (history + recorded change feed)
   api/                    REST + CSV/JSON export + /metrics
   report/                 text-table report for the CLI
   config/                 optional extractor configuration

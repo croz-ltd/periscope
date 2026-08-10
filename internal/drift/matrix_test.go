@@ -253,3 +253,42 @@ func TestBuild(t *testing.T) {
 		t.Errorf("a portworx should be not_installed, got %s", px.Cells["a"].State)
 	}
 }
+
+// A cluster's console banner describes the column, so it must head the column
+// rather than become a row that every cluster "differs" on.
+func TestBuildLiftsConsoleBannerIntoTheHeader(t *testing.T) {
+	now := time.Now()
+	snaps := []model.Snapshot{
+		{Cluster: "a", Time: now, OK: true, Components: []model.Component{
+			{Key: "openshift", Name: "OpenShift", Compare: model.CompareVersion, Version: "4.14.9"},
+			{Key: model.KeyClusterBanner, Name: "Console banner", Compare: model.CompareInfo, Version: "PRODUCTION",
+				Extra: map[string]string{"color": "#fff", "backgroundColor": "#C9190B"}},
+		}},
+		{Cluster: "b", Time: now, OK: true, Components: []model.Component{
+			{Key: "openshift", Name: "OpenShift", Compare: model.CompareVersion, Version: "4.14.9"},
+		}},
+	}
+
+	m := Build(snaps, now, time.Hour, nil)
+
+	for _, r := range m.Rows {
+		if r.Key == model.KeyClusterBanner {
+			t.Fatal("the banner must not be a matrix row")
+		}
+	}
+	var a, b ClusterInfo
+	for _, c := range m.Clusters {
+		switch c.Name {
+		case "a":
+			a = c
+		case "b":
+			b = c
+		}
+	}
+	if a.Label != "PRODUCTION" || a.BgColor != "#C9190B" || a.Color != "#fff" {
+		t.Errorf("cluster a header = %+v, want the banner text and colours", a)
+	}
+	if b.Label != "" {
+		t.Errorf("cluster b has no banner, header should fall back to its name, got label %q", b.Label)
+	}
+}

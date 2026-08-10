@@ -45,7 +45,7 @@ func BuildExtractors(path string) ([]extract.Extractor, error) {
 		return nil, fmt.Errorf("parse config %q: %w", path, err)
 	}
 
-	exs := []extract.Extractor{extract.OpenShift{}, extract.OLM{}, extract.Nodes{}}
+	exs := []extract.Extractor{extract.OpenShift{}, extract.ConsoleBanner{}, extract.OLM{}, extract.Nodes{}}
 	for _, s := range cfg.CRExtractors {
 		if s.Key == "" || s.Resource == "" {
 			return nil, fmt.Errorf("crExtractor requires key and resource (got %+v)", s)

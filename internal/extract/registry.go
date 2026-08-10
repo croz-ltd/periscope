@@ -86,6 +86,7 @@ type Extractor interface {
 func Default() []Extractor {
 	return []Extractor{
 		OpenShift{},
+		ConsoleBanner{},
 		DefaultStorageClass{},
 		StorageVolumes{},
 		Certificates{},

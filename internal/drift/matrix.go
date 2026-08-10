@@ -63,13 +63,19 @@ type Row struct {
 }
 
 // ClusterInfo is a column header: which clusters exist and how fresh each is.
+// Label and its colours come from the cluster's own console banner when it has
+// one, so a column is headed the way its operators already label it in the
+// OpenShift console (see extract.ConsoleBanner).
 type ClusterInfo struct {
-	Name  string    `json:"name"`
-	Time  time.Time `json:"time"`
-	OK    bool      `json:"ok"`
-	Error string    `json:"error,omitempty"`
-	Stale bool      `json:"stale"`
-	Order int       `json:"order"`
+	Name    string    `json:"name"`
+	Time    time.Time `json:"time"`
+	OK      bool      `json:"ok"`
+	Error   string    `json:"error,omitempty"`
+	Stale   bool      `json:"stale"`
+	Order   int       `json:"order"`
+	Label   string    `json:"label,omitempty"`   // banner text, shown instead of Name
+	Color   string    `json:"color,omitempty"`   // banner foreground colour
+	BgColor string    `json:"bgColor,omitempty"` // banner background colour
 }
 
 // Group is an ordered matrix section: a title and the row keys under it. The
@@ -109,6 +115,10 @@ type Matrix struct {
 	Rows     []Row         `json:"rows"`      // all rows, keyed; referenced by page groups
 	Pages    []PageView    `json:"pages"`     // Compare + Statistics, each with ordered groups
 	Warning  string        `json:"warning,omitempty"`
+	// At is set only when viewing history. It is a pointer because omitempty
+	// does not apply to a time.Time, and a zero time serialised into the live
+	// matrix would tell every client it was looking at the year 1.
+	At *time.Time `json:"at,omitempty"`
 }
 
 // builtinGroupOrder is the fixed section order used when no custom grouping is set.
@@ -122,6 +132,16 @@ type instance struct {
 	comp    model.Component
 }
 
+// bannerOf finds a snapshot's console banner component, if the cluster has one.
+func bannerOf(s model.Snapshot) (model.Component, bool) {
+	for _, c := range s.Components {
+		if c.Key == model.KeyClusterBanner {
+			return c, true
+		}
+	}
+	return model.Component{}, false
+}
+
 // Build assembles the matrix from the latest snapshot per cluster. A cluster is
 // marked stale when its snapshot is older than now-staleAfter (0 disables).
 // cfg is the custom grouping (nil = built-in section order).
@@ -131,7 +151,11 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg 
 	var clusterNames []string
 	for _, s := range snaps {
 		stale := staleAfter > 0 && now.Sub(s.Time) > staleAfter
-		m.Clusters = append(m.Clusters, ClusterInfo{Name: s.Cluster, Time: s.Time, OK: s.OK, Error: s.Error, Stale: stale, Order: s.Order})
+		info := ClusterInfo{Name: s.Cluster, Time: s.Time, OK: s.OK, Error: s.Error, Stale: stale, Order: s.Order}
+		if banner, ok := bannerOf(s); ok {
+			info.Label, info.Color, info.BgColor = banner.Version, banner.Extra["color"], banner.Extra["backgroundColor"]
+		}
+		m.Clusters = append(m.Clusters, info)
 		clusterNames = append(clusterNames, s.Cluster)
 	}
 	// Column order: by the Secret's order label (lower = left), then by name.
@@ -146,6 +170,9 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg 
 	meta := map[string]model.Component{}
 	for _, s := range snaps {
 		for _, c := range s.Components {
+			if c.Key == model.KeyClusterBanner {
+				continue // describes the column, already lifted into its header
+			}
 			byKey[c.Key] = append(byKey[c.Key], instance{cluster: s.Cluster, comp: c})
 			meta[c.Key] = c
 		}

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,6 +37,8 @@ type Server struct {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/matrix", s.handleMatrix)
+	mux.HandleFunc("/api/changes", s.handleChanges)
+	mux.HandleFunc("/api/changes/calendar", s.handleChangeCalendar)
 	mux.HandleFunc("/api/export.json", s.handleExportJSON)
 	mux.HandleFunc("/api/export.csv", s.handleExportCSV)
 	mux.HandleFunc("/api/refresh", s.handleRefresh)
@@ -47,15 +50,42 @@ func (s *Server) Handler() http.Handler {
 	return mux
 }
 
-func (s *Server) matrix(ctx context.Context) (drift.Matrix, error) {
+// matrix builds the current matrix, or the matrix as it stood at "at" when that
+// is non-zero. Time travel reuses the whole pipeline: only the snapshots differ,
+// and staleness is judged against the moment being viewed, so a cluster that was
+// fresh back then does not read as stale now.
+func (s *Server) matrix(ctx context.Context, at time.Time) (drift.Matrix, error) {
+	now := time.Now()
 	snaps, err := s.Store.LatestSnapshots()
+	if !at.IsZero() {
+		now = at
+		snaps, err = s.Store.SnapshotsAt(at)
+	}
 	if err != nil {
 		return drift.Matrix{}, err
 	}
 	cfg, warn := s.groupConfig(ctx)
-	m := drift.Build(snaps, time.Now(), s.StaleAfter, cfg)
+	m := drift.Build(snaps, now, s.StaleAfter, cfg)
 	m.Warning = warn
+	if !at.IsZero() {
+		m.At = &at
+	}
 	return m, nil
+}
+
+// parseAt reads the "at" query parameter (RFC3339) used for time travel. An
+// unparseable value is ignored rather than failing the request, so a stale
+// bookmark still shows the live matrix.
+func parseAt(r *http.Request) time.Time {
+	raw := r.URL.Query().Get("at")
+	if raw == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // groupConfig loads custom grouping from the periscope-groups ConfigMap. Returns
@@ -80,7 +110,7 @@ func (s *Server) groupConfig(ctx context.Context) (*drift.GroupConfig, string) {
 }
 
 func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
-	m, err := s.matrix(r.Context())
+	m, err := s.matrix(r.Context(), parseAt(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -89,7 +119,7 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleExportJSON(w http.ResponseWriter, r *http.Request) {
-	m, err := s.matrix(r.Context())
+	m, err := s.matrix(r.Context(), parseAt(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -99,7 +129,7 @@ func (s *Server) handleExportJSON(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
-	m, err := s.matrix(r.Context())
+	m, err := s.matrix(r.Context(), parseAt(r))
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -129,6 +159,88 @@ func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
 		}
 		_ = cw.Write(rec)
 	}
+}
+
+// defaultChangeLimit bounds an unfiltered feed request. The feed is read newest
+// first, so a bound loses only the distant past, and the calendar is how you
+// reach that anyway.
+const defaultChangeLimit = 500
+
+// handleChanges serves the change feed, newest first, optionally narrowed to a
+// time range and a cluster.
+func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	query := store.ChangeQuery{
+		From:    parseTimeParam(q.Get("from")),
+		To:      parseTimeParam(q.Get("to")),
+		Cluster: q.Get("cluster"),
+		Limit:   defaultChangeLimit,
+	}
+	if n, err := strconv.Atoi(q.Get("limit")); err == nil && n > 0 {
+		query.Limit = n
+	}
+
+	changes, err := s.Store.Changes(query)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, map[string]any{"changes": changes})
+}
+
+// handleChangeCalendar serves per-day change counts so the calendar can mark
+// the days something happened, plus the span history covers so the calendar
+// knows which months are worth offering.
+func (s *Server) handleChangeCalendar(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query()
+	from, to := parseTimeParam(q.Get("from")), parseTimeParam(q.Get("to"))
+	if from.IsZero() {
+		from = time.Now().AddDate(-1, 0, 0)
+	}
+	if to.IsZero() {
+		to = time.Now()
+	}
+
+	days, err := s.Store.ChangeDays(from, to, tzOffsetLocation(q.Get("tzOffset")))
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	first, last, err := s.Store.Span()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	body := map[string]any{"days": days}
+	if !first.IsZero() {
+		body["first"], body["last"] = first, last
+	}
+	writeJSON(w, body)
+}
+
+// tzOffsetLocation turns the browser's UTC offset in minutes (east of UTC, the
+// negation of JavaScript's getTimezoneOffset) into a location. Days are bucketed
+// with it so the calendar agrees with the reader's clock. An offset is used
+// rather than a zone name because the runtime image carries no tzdata.
+func tzOffsetLocation(raw string) *time.Location {
+	mins, err := strconv.Atoi(raw)
+	if err != nil || mins < -12*60 || mins > 14*60 {
+		return time.UTC
+	}
+	return time.FixedZone("browser", mins*60)
+}
+
+// parseTimeParam reads an RFC3339 query parameter, zero when absent or invalid.
+func parseTimeParam(raw string) time.Time {
+	if raw == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		return time.Time{}
+	}
+	return t
 }
 
 // handleUser returns the signed-in user, taken from the headers oauth-proxy
@@ -175,7 +287,7 @@ func (s *Server) handleRefresh(w http.ResponseWriter, r *http.Request) {
 // handleMetrics emits a minimal Prometheus text exposition (no client dep):
 // per-cell drift severity and staleness, so alerts can fire on intra-fleet drift.
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
-	m, err := s.matrix(r.Context())
+	m, err := s.matrix(r.Context(), time.Time{})
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

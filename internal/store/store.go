@@ -5,6 +5,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"log"
 	"sync"
 	"time"
 
@@ -53,6 +54,14 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
+	n, err := s.backfillChanges(time.Now())
+	if err != nil {
+		db.Close()
+		return nil, err
+	}
+	if n > 0 {
+		log.Printf("store: reconstructed %d change events from existing history", n)
+	}
 	return s, nil
 }
 
@@ -79,8 +88,26 @@ CREATE TABLE IF NOT EXISTS components (
   comp_group   TEXT,
   comp_compare TEXT
 );
+CREATE TABLE IF NOT EXISTS changes (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  cluster      TEXT    NOT NULL,
+  ts           INTEGER NOT NULL,
+  kind         TEXT    NOT NULL,
+  comp_key     TEXT,
+  name         TEXT,
+  comp_group   TEXT,
+  comp_compare TEXT,
+  old_value    TEXT,
+  new_value    TEXT
+);
+CREATE TABLE IF NOT EXISTS meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT
+);
 CREATE INDEX IF NOT EXISTS idx_snap_cluster_ts ON snapshots(cluster, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_comp_snap ON components(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_changes_ts ON changes(ts DESC);
+CREATE INDEX IF NOT EXISTS idx_changes_cluster_ts ON changes(cluster, ts DESC);
 `)
 	if err != nil {
 		return err
@@ -94,7 +121,21 @@ CREATE INDEX IF NOT EXISTS idx_comp_snap ON components(snapshot_id);
 	return nil
 }
 
-// SaveSnapshot appends a snapshot and its components (history is retained).
+// queryer and execer let the same helpers run on the pool or inside a
+// transaction, so a save can read the previous snapshot it is diffing against.
+type queryer interface {
+	Query(string, ...any) (*sql.Rows, error)
+	QueryRow(string, ...any) *sql.Row
+}
+
+type execer interface {
+	Exec(string, ...any) (sql.Result, error)
+}
+
+// SaveSnapshot appends a snapshot and its components (history is retained), and
+// records what changed since this cluster's previous snapshot in the same
+// transaction, so the change feed can never disagree with the history it
+// describes.
 func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
@@ -104,6 +145,12 @@ func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 		return err
 	}
 	defer tx.Rollback()
+
+	prior, err := s.historyFor(tx, snap.Cluster)
+	if err != nil {
+		return err
+	}
+	changes := diff(prior, snap)
 
 	okInt := 0
 	if snap.OK {
@@ -126,6 +173,9 @@ func (s *Store) SaveSnapshot(snap model.Snapshot) error {
 			return err
 		}
 	}
+	if err := insertChanges(tx, changes); err != nil {
+		return err
+	}
 	return tx.Commit()
 }
 
@@ -140,6 +190,12 @@ GROUP BY s.cluster`)
 	if err != nil {
 		return nil, err
 	}
+	return s.scanSnapshots(rows)
+}
+
+// scanSnapshots reads snapshot rows (id, cluster, ts, ok, error, order) and
+// attaches each one's components.
+func (s *Store) scanSnapshots(rows *sql.Rows) ([]model.Snapshot, error) {
 	defer rows.Close()
 
 	var snaps []model.Snapshot
@@ -170,7 +226,11 @@ GROUP BY s.cluster`)
 }
 
 func (s *Store) componentsFor(snapID int64) ([]model.Component, error) {
-	rows, err := s.db.Query(
+	return s.componentsForQ(s.db, snapID)
+}
+
+func (s *Store) componentsForQ(q queryer, snapID int64) ([]model.Component, error) {
+	rows, err := q.Query(
 		`SELECT comp_key, name, kind, namespace, version, extra,
 		        COALESCE(comp_group,''), COALESCE(comp_compare,'')
 		 FROM components WHERE snapshot_id = ?`, snapID)

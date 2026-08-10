@@ -1,0 +1,380 @@
+package store
+
+import (
+	"database/sql"
+	"sort"
+	"time"
+
+	"github.com/croz-ltd/periscope/internal/model"
+)
+
+// history is what came before a snapshot: the last one taken, whatever state it
+// was in, and the last one that actually reported components.
+type history struct {
+	last    model.Snapshot // most recent, may be a failed scrape
+	lastOK  model.Snapshot // most recent successful scrape: the diff baseline
+	hasLast bool
+	hasOK   bool
+}
+
+// diff returns the events worth showing for a new snapshot. A scrape that found
+// nothing new returns nothing, so the feed never fills with "no change" rows.
+//
+// Components are compared against the last *successful* snapshot rather than
+// the last one taken. An unreachable cluster reports nothing, so diffing
+// against it would file every component as removed and then re-added; and a
+// cluster that is upgraded during an outage really did change, which comparing
+// against the last good state is the only way to notice.
+//
+// One more silence is deliberate: when a scrape reports a partial error,
+// removals are held back. An extractor that failed cannot be told apart from a
+// component that was uninstalled, and inventing removals every time a token
+// expires would teach people to ignore the feed.
+func diff(h history, next model.Snapshot) []model.Change {
+	at := next.Time
+
+	if !next.OK {
+		if !h.hasLast || h.last.OK {
+			return []model.Change{{Time: at, Cluster: next.Cluster, Kind: model.ChangeUnreachable, To: next.Error}}
+		}
+		return nil // still down, already reported
+	}
+
+	var out []model.Change
+	if !h.hasOK {
+		// Nothing good to compare against: the cluster is arriving, and listing
+		// every component it came with as an addition says nothing.
+		return append(out, model.Change{Time: at, Cluster: next.Cluster, Kind: model.ChangeJoined})
+	}
+	if h.hasLast && !h.last.OK {
+		out = append(out, model.Change{Time: at, Cluster: next.Cluster, Kind: model.ChangeRecovered})
+	}
+
+	prevByID := indexComponents(h.lastOK.Components)
+	nextByID := indexComponents(next.Components)
+
+	for id, c := range nextByID {
+		old, existed := prevByID[id]
+		switch {
+		case !existed:
+			out = append(out, change(at, next.Cluster, model.ChangeAdded, c, "", c.Version))
+		case old.Version != c.Version:
+			out = append(out, change(at, next.Cluster, model.ChangeUpdated, c, old.Version, c.Version))
+		}
+	}
+	if next.Error == "" { // see the note above on partial scrapes
+		for id, c := range prevByID {
+			if _, still := nextByID[id]; !still {
+				out = append(out, change(at, next.Cluster, model.ChangeRemoved, c, c.Version, ""))
+			}
+		}
+	}
+
+	// Stable order for a stable feed: group, then name, then key.
+	sort.Slice(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.Group != b.Group {
+			return a.Group < b.Group
+		}
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.Key < b.Key
+	})
+	return out
+}
+
+// indexComponents keys components by key and namespace: one operator installed
+// in two namespaces is two facts, and would otherwise flap as a single row.
+func indexComponents(comps []model.Component) map[[2]string]model.Component {
+	out := make(map[[2]string]model.Component, len(comps))
+	for _, c := range comps {
+		out[[2]string{c.Key, c.Namespace}] = c
+	}
+	return out
+}
+
+func change(at time.Time, cluster, kind string, c model.Component, from, to string) model.Change {
+	return model.Change{
+		Time: at, Cluster: cluster, Kind: kind,
+		Key: c.Key, Name: c.Name, Group: c.Group, Compare: c.Compare,
+		From: from, To: to,
+	}
+}
+
+// historyFor loads what a cluster reported before now: the last snapshot taken,
+// and the last successful one with its components.
+func (s *Store) historyFor(q queryer, cluster string) (history, error) {
+	var h history
+
+	last, id, found, err := latestSnapshot(q, cluster, false)
+	if err != nil || !found {
+		return h, err
+	}
+	h.last, h.hasLast = last, true
+
+	if last.OK {
+		h.lastOK, h.hasOK = last, true
+	} else if lastOK, okID, foundOK, err := latestSnapshot(q, cluster, true); err != nil {
+		return h, err
+	} else if foundOK {
+		h.lastOK, h.hasOK, id = lastOK, true, okID
+	}
+
+	if h.hasOK {
+		if h.lastOK.Components, err = s.componentsForQ(q, id); err != nil {
+			return history{}, err
+		}
+	}
+	return h, nil
+}
+
+// latestSnapshot returns a cluster's newest snapshot, optionally only counting
+// successful ones. Components are left to the caller: most callers only need
+// the header.
+func latestSnapshot(q queryer, cluster string, onlyOK bool) (model.Snapshot, int64, bool, error) {
+	where := ""
+	if onlyOK {
+		where = " AND ok = 1"
+	}
+	var id, ts int64
+	var ok int
+	var errStr string
+	err := q.QueryRow(
+		`SELECT id, ts, ok, COALESCE(error,'') FROM snapshots WHERE cluster = ?`+where+
+			` ORDER BY ts DESC, id DESC LIMIT 1`, cluster).
+		Scan(&id, &ts, &ok, &errStr)
+	switch err {
+	case sql.ErrNoRows:
+		return model.Snapshot{}, 0, false, nil
+	case nil:
+		return model.Snapshot{Cluster: cluster, Time: time.Unix(ts, 0), OK: ok == 1, Error: errStr}, id, true, nil
+	default:
+		return model.Snapshot{}, 0, false, err
+	}
+}
+
+func insertChanges(e execer, changes []model.Change) error {
+	for _, c := range changes {
+		if _, err := e.Exec(
+			`INSERT INTO changes(cluster, ts, kind, comp_key, name, comp_group, comp_compare, old_value, new_value)
+			 VALUES(?,?,?,?,?,?,?,?,?)`,
+			c.Cluster, c.Time.Unix(), c.Kind, c.Key, c.Name, c.Group, c.Compare, c.From, c.To); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// backfillWindow bounds how far back the one-time backfill walks. Rebuilding
+// the feed means loading the components of every snapshot in the window, so a
+// database with a year of half-hourly scrapes would stall startup for minutes
+// to recover changes nobody is going to scroll to.
+const backfillWindow = 90 * 24 * time.Hour
+
+// backfillChanges reconstructs the feed from history already on disk, once,
+// when the changes table is introduced to an existing database. Without it the
+// feed would start empty on upgrade and pretend the fleet had never changed.
+func (s *Store) backfillChanges(now time.Time) (int, error) {
+	var done string
+	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = 'changes_backfilled'`).Scan(&done)
+	if err == nil {
+		return 0, nil // already done, never redo it
+	}
+	if err != sql.ErrNoRows {
+		return 0, err
+	}
+
+	rows, err := s.db.Query(
+		`SELECT id, cluster, ts, ok, COALESCE(error,'') FROM snapshots WHERE ts >= ? ORDER BY cluster, ts, id`,
+		now.Add(-backfillWindow).Unix())
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	type snapRow struct {
+		id   int64
+		snap model.Snapshot
+	}
+	var past []snapRow
+	for rows.Next() {
+		var r snapRow
+		var ts int64
+		var ok int
+		if err := rows.Scan(&r.id, &r.snap.Cluster, &ts, &ok, &r.snap.Error); err != nil {
+			return 0, err
+		}
+		r.snap.Time, r.snap.OK = time.Unix(ts, 0), ok == 1
+		past = append(past, r)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
+
+	var prior history
+	total := 0
+	for _, r := range past {
+		if r.snap.Cluster != prior.last.Cluster {
+			prior = history{} // rows are ordered by cluster; start the next one clean
+		}
+		comps, err := s.componentsFor(r.id)
+		if err != nil {
+			return 0, err
+		}
+		r.snap.Components = comps
+
+		changes := diff(prior, r.snap)
+		if err := insertChanges(tx, changes); err != nil {
+			return 0, err
+		}
+		total += len(changes)
+
+		prior.last, prior.hasLast = r.snap, true
+		if r.snap.OK {
+			prior.lastOK, prior.hasOK = r.snap, true
+		}
+	}
+
+	if _, err := tx.Exec(`INSERT INTO meta(key, value) VALUES('changes_backfilled', ?)`,
+		now.UTC().Format(time.RFC3339)); err != nil {
+		return 0, err
+	}
+	return total, tx.Commit()
+}
+
+// ChangeQuery filters the change feed. Zero values mean "no filter".
+type ChangeQuery struct {
+	From    time.Time
+	To      time.Time
+	Cluster string
+	Limit   int
+}
+
+// Changes returns recorded changes, newest first.
+func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
+	sql := `SELECT cluster, ts, kind, COALESCE(comp_key,''), COALESCE(name,''),
+	               COALESCE(comp_group,''), COALESCE(comp_compare,''),
+	               COALESCE(old_value,''), COALESCE(new_value,'')
+	        FROM changes WHERE 1=1`
+	var args []any
+	if !q.From.IsZero() {
+		sql += " AND ts >= ?"
+		args = append(args, q.From.Unix())
+	}
+	if !q.To.IsZero() {
+		sql += " AND ts <= ?"
+		args = append(args, q.To.Unix())
+	}
+	if q.Cluster != "" {
+		sql += " AND cluster = ?"
+		args = append(args, q.Cluster)
+	}
+	sql += " ORDER BY ts DESC, id DESC"
+	if q.Limit > 0 {
+		sql += " LIMIT ?"
+		args = append(args, q.Limit)
+	}
+
+	rows, err := s.db.Query(sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []model.Change{}
+	for rows.Next() {
+		var c model.Change
+		var ts int64
+		if err := rows.Scan(&c.Cluster, &ts, &c.Kind, &c.Key, &c.Name, &c.Group, &c.Compare, &c.From, &c.To); err != nil {
+			return nil, err
+		}
+		c.Time = time.Unix(ts, 0)
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+// ChangeDay is one calendar day that has changes, so the calendar can mark it.
+type ChangeDay struct {
+	Date     string `json:"date"`     // YYYY-MM-DD, in the location the query was made with
+	Count    int    `json:"count"`    // number of changes that day
+	Clusters int    `json:"clusters"` // number of distinct clusters that changed
+}
+
+// ChangeDays counts changes per calendar day in the given range. Days are
+// bucketed in loc, so the calendar lines up with the reader's clock rather than
+// with UTC.
+func (s *Store) ChangeDays(from, to time.Time, loc *time.Location) ([]ChangeDay, error) {
+	if loc == nil {
+		loc = time.UTC
+	}
+	rows, err := s.db.Query(
+		`SELECT cluster, ts FROM changes WHERE ts >= ? AND ts <= ?`,
+		from.Unix(), to.Unix())
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	counts := map[string]int{}
+	clusters := map[string]map[string]bool{}
+	for rows.Next() {
+		var cluster string
+		var ts int64
+		if err := rows.Scan(&cluster, &ts); err != nil {
+			return nil, err
+		}
+		day := time.Unix(ts, 0).In(loc).Format("2006-01-02")
+		counts[day]++
+		if clusters[day] == nil {
+			clusters[day] = map[string]bool{}
+		}
+		clusters[day][cluster] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	out := make([]ChangeDay, 0, len(counts))
+	for day, n := range counts {
+		out = append(out, ChangeDay{Date: day, Count: n, Clusters: len(clusters[day])})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Date < out[j].Date })
+	return out, nil
+}
+
+// SnapshotsAt returns each cluster's newest snapshot at or before t, which is
+// what the matrix looked like then. Clusters that had not been scraped yet are
+// absent, exactly as they were.
+func (s *Store) SnapshotsAt(t time.Time) ([]model.Snapshot, error) {
+	rows, err := s.db.Query(`
+SELECT s.id, s.cluster, s.ts, s.ok, COALESCE(s.error,''), COALESCE(s.sort_order, 1000000)
+FROM snapshots s
+JOIN (SELECT cluster, MAX(ts) AS mts FROM snapshots WHERE ts <= ? GROUP BY cluster) m
+  ON s.cluster = m.cluster AND s.ts = m.mts
+GROUP BY s.cluster`, t.Unix())
+	if err != nil {
+		return nil, err
+	}
+	return s.scanSnapshots(rows)
+}
+
+// Span reports the time range history covers, for bounding a calendar. Both are
+// zero when there is no history yet.
+func (s *Store) Span() (first, last time.Time, err error) {
+	var lo, hi sql.NullInt64
+	if err := s.db.QueryRow(`SELECT MIN(ts), MAX(ts) FROM snapshots`).Scan(&lo, &hi); err != nil {
+		return time.Time{}, time.Time{}, err
+	}
+	if !lo.Valid || !hi.Valid {
+		return time.Time{}, time.Time{}, nil
+	}
+	return time.Unix(lo.Int64, 0), time.Unix(hi.Int64, 0), nil
+}

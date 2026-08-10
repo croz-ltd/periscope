@@ -4,6 +4,7 @@ import {
   Breadcrumb,
   BreadcrumbItem,
   Bullseye,
+  Button,
   Content,
   Divider,
   Dropdown,
@@ -32,6 +33,7 @@ import { MatrixTable } from './MatrixTable'
 import { AppMasthead } from './AppMasthead'
 import { About } from './About'
 import { Docs } from './Docs'
+import { Changes } from './Changes'
 
 const LEGEND_GROUPS: { title: string; items: { cls: string; label: string }[] }[] = [
   {
@@ -124,7 +126,7 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   statistics: 'Counts and inventory reported by each cluster',
 }
 
-type NavKey = 'compare' | 'statistics' | 'docs' | 'about'
+type NavKey = 'compare' | 'statistics' | 'changes' | 'docs' | 'about'
 
 export default function App() {
   const [matrix, setMatrix] = useState<Matrix | null>(null)
@@ -135,18 +137,21 @@ export default function App() {
   const [activeNav, setActiveNav] = useState<NavKey>('compare')
   const [isClustersExpanded, setClustersExpanded] = useState(true)
   const [actionsOpen, setActionsOpen] = useState(false)
+  // Non-null means the matrix pages are showing history rather than the fleet
+  // as it is now (RFC3339, set from the Changes calendar).
+  const [at, setAt] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
       setError(null)
-      const m = await fetchMatrix()
+      const m = await fetchMatrix(at ?? undefined)
       setMatrix(m)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [at])
 
   useEffect(() => {
     void load()
@@ -179,6 +184,11 @@ export default function App() {
     />
   )
 
+  // An export follows what is on screen, history included, so a CSV taken while
+  // time travelling is the matrix you were looking at.
+  const exportHref = (format: 'csv' | 'json') =>
+    at ? `/api/export.${format}?at=${encodeURIComponent(at)}` : `/api/export.${format}`
+
   // One Actions menu per matrix page, the way the console groups page actions.
   // The toggle shows a spinner while a refresh is in flight.
   const actions = (
@@ -201,14 +211,22 @@ export default function App() {
       )}
     >
       <DropdownList>
-        <DropdownItem key="refresh" icon={<SyncAltIcon />} onClick={onRefresh}>
-          Refresh
-        </DropdownItem>
+        {/* Scraping now would not change a view of the past, so time travel
+            offers the way back instead. */}
+        {at ? (
+          <DropdownItem key="now" icon={<SyncAltIcon />} onClick={() => setAt(null)}>
+            Back to now
+          </DropdownItem>
+        ) : (
+          <DropdownItem key="refresh" icon={<SyncAltIcon />} onClick={onRefresh}>
+            Refresh
+          </DropdownItem>
+        )}
         <Divider component="li" />
-        <DropdownItem key="csv" icon={<DownloadIcon />} component="a" href="/api/export.csv">
+        <DropdownItem key="csv" icon={<DownloadIcon />} component="a" href={exportHref('csv')}>
           Export CSV
         </DropdownItem>
-        <DropdownItem key="json" icon={<DownloadIcon />} component="a" href="/api/export.json">
+        <DropdownItem key="json" icon={<DownloadIcon />} component="a" href={exportHref('json')}>
           Export JSON
         </DropdownItem>
       </DropdownList>
@@ -240,6 +258,9 @@ export default function App() {
               <NavItem itemId="statistics" isActive={activeNav === 'statistics'}>
                 Statistics
               </NavItem>
+              <NavItem itemId="changes" isActive={activeNav === 'changes'}>
+                Changes
+              </NavItem>
             </NavExpandable>
             <NavItem itemId="docs" isActive={activeNav === 'docs'}>
               Docs
@@ -259,6 +280,25 @@ export default function App() {
         <PageSection>
           <PageHeader title="About" description="What Periscope is and how it collects its data" />
           <About />
+        </PageSection>
+      ) : activeNav === 'changes' ? (
+        <PageSection>
+          <PageHeader
+            breadcrumb={
+              <Breadcrumb className="cc-breadcrumb">
+                <BreadcrumbItem>Clusters</BreadcrumbItem>
+                <BreadcrumbItem isActive>Changes</BreadcrumbItem>
+              </Breadcrumb>
+            }
+            title="Changes"
+            description="What changed across the fleet, and what the matrix looked like then"
+          />
+          <Changes
+            onTimeTravel={(t) => {
+              setAt(t)
+              setActiveNav('compare')
+            }}
+          />
         </PageSection>
       ) : activeNav === 'docs' ? (
         <PageSection>
@@ -281,6 +321,24 @@ export default function App() {
             description={PAGE_DESCRIPTIONS[pageId]}
             actions={actions}
           />
+
+          {/* Time travel is easy to forget you are in, and every cell would be
+              quietly wrong for today. The banner stays until you leave it. */}
+          {at && (
+            <Alert
+              variant="info"
+              isInline
+              title={`Showing the fleet as it was on ${new Date(at).toLocaleString()}`}
+              style={{ marginBottom: '1rem' }}
+              actionLinks={
+                <Button variant="link" isInline onClick={() => setAt(null)}>
+                  Back to now
+                </Button>
+              }
+            >
+              This is history: nothing here reflects the clusters as they are right now.
+            </Alert>
+          )}
 
           {error && (
             <Alert variant="danger" title="Failed to load matrix" isInline style={{ marginBottom: '1rem' }}>

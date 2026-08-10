@@ -29,6 +29,11 @@ const (
 	CompareInfo = "info"
 )
 
+// KeyClusterBanner is the component key carrying a cluster's console banner.
+// It describes the column rather than comparing anything across columns, so
+// drift.Build lifts it into the column header instead of making it a row.
+const KeyClusterBanner = "cluster-banner"
+
 // Component is one comparable fact found on a cluster: a version, a config
 // value, or a certificate expiry.
 type Component struct {

@@ -67,6 +67,24 @@ func TestServerEndpoints(t *testing.T) {
 		t.Errorf("csv header missing: %.80q", body)
 	}
 
+	// /api/changes serves the feed; both clusters have just joined.
+	var feed struct {
+		Changes []model.Change `json:"changes"`
+	}
+	getJSON(t, ts.URL+"/api/changes", &feed)
+	if len(feed.Changes) != 2 {
+		t.Errorf("want a join per cluster, got %+v", feed.Changes)
+	}
+
+	// /api/changes/calendar marks the days something happened.
+	var cal struct {
+		Days []store.ChangeDay `json:"days"`
+	}
+	getJSON(t, ts.URL+"/api/changes/calendar", &cal)
+	if len(cal.Days) != 1 || cal.Days[0].Count != 2 {
+		t.Errorf("calendar = %+v, want one day with both joins", cal.Days)
+	}
+
 	// /api/version reports the version stamped into the binary.
 	var v map[string]string
 	getJSON(t, ts.URL+"/api/version", &v)
@@ -102,5 +120,60 @@ func getJSON(t *testing.T, url string, v any) {
 	}
 	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
 		t.Fatalf("decode %s: %v", url, err)
+	}
+}
+
+// Time travel rebuilds the matrix from what each cluster last reported at that
+// moment, so a cluster that had not been scraped yet is simply not there.
+func TestMatrixTimeTravel(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	defer st.Close()
+
+	base := time.Now().Add(-72 * time.Hour)
+	openshift := func(v string) []model.Component {
+		return []model.Component{{Key: "openshift", Name: "OpenShift", Kind: "openshift", Version: v}}
+	}
+	for _, s := range []model.Snapshot{
+		{Cluster: "a", Time: base, OK: true, Components: openshift("4.14.9")},
+		{Cluster: "a", Time: base.Add(48 * time.Hour), OK: true, Components: openshift("4.15.0")},
+		{Cluster: "b", Time: base.Add(60 * time.Hour), OK: true, Components: openshift("4.15.0")},
+	} {
+		if err := st.SaveSnapshot(s); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	ts := httptest.NewServer((&Server{Store: st, StaleAfter: time.Hour}).Handler())
+	defer ts.Close()
+
+	var past drift.Matrix
+	at := base.Add(time.Minute).UTC().Format(time.RFC3339)
+	getJSON(t, ts.URL+"/api/matrix?at="+at, &past)
+
+	if len(past.Clusters) != 1 || past.Clusters[0].Name != "a" {
+		t.Fatalf("want only cluster a back then, got %+v", past.Clusters)
+	}
+	if past.Rows[0].Cells["a"].Version != "4.14.9" {
+		t.Errorf("cell = %q, want the version a was on then", past.Rows[0].Cells["a"].Version)
+	}
+	if past.At == nil {
+		t.Error("a historical matrix must say so, or the UI cannot warn that it is not live")
+	}
+	// Staleness is judged against the moment being viewed: a snapshot that was
+	// fresh then must not be branded stale by today's clock.
+	if past.Clusters[0].Stale {
+		t.Error("a snapshot taken at the viewed moment is not stale")
+	}
+
+	var now drift.Matrix
+	getJSON(t, ts.URL+"/api/matrix", &now)
+	if len(now.Clusters) != 2 {
+		t.Errorf("live matrix should have both clusters, got %d", len(now.Clusters))
+	}
+	if now.At != nil {
+		t.Error("the live matrix must not claim to be history")
 	}
 }

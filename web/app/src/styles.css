@@ -341,3 +341,176 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   background: rgba(127, 127, 127, 0.25);
   color: inherit;
 }
+
+/* ------------------------------------------------------------------ */
+/* Cluster banner: a column headed the way the cluster's own console   */
+/* banner heads it, so the colours come from the cluster, not from us. */
+/* ------------------------------------------------------------------ */
+.cc-cluster-banner {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: var(--pf-t--global--border--radius--small, 3px);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  max-width: 12rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ */
+/* Changes: calendar on the left, feed on the right.                   */
+/* ------------------------------------------------------------------ */
+.cc-changes-side {
+  width: 21rem;
+  max-width: 100%;
+}
+.cc-changes-feed {
+  min-width: 22rem;
+}
+
+.cc-calendar {
+  border: var(--pf-t--global--border--width--divider--default) solid var(--pf-t--global--border--color--default);
+  border-radius: var(--pf-t--global--border--radius--small, 3px);
+}
+.cc-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.cc-cal-weekday {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--pf-t--global--text--color--subtle);
+  padding-bottom: var(--pf-t--global--spacer--xs, 0.25rem);
+}
+.cc-cal-day {
+  position: relative;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--pf-t--global--border--radius--small, 3px);
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.cc-cal-pad {
+  cursor: default;
+}
+/* A day nothing happened on is still a day: readable, just not shouting. */
+.cc-cal-quiet {
+  color: var(--pf-t--global--text--color--subtle);
+  cursor: default;
+}
+.cc-cal-num {
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
+.cc-cal-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
+}
+/* Four steps of "how much changed", light to dark. */
+.cc-cal-heat-1 { background: #e7f1fa; color: #06c; }
+.cc-cal-heat-2 { background: #bee1f4; color: #004080; }
+.cc-cal-heat-3 { background: #73bcf7; color: #002952; }
+.cc-cal-heat-4 { background: #2b9af3; color: #fff; }
+.cc-cal-today {
+  border-color: var(--pf-t--global--border--color--default);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+.cc-cal-selected {
+  outline: 2px solid var(--pf-t--global--color--brand--default, #06c);
+  outline-offset: -2px;
+}
+.cc-cal-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  margin-top: var(--pf-t--global--spacer--md);
+}
+
+.cc-feed-toolbar {
+  margin-bottom: var(--pf-t--global--spacer--md);
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+.cc-feed-day {
+  margin-bottom: var(--pf-t--global--spacer--lg);
+}
+.cc-feed-date {
+  display: flex;
+  align-items: center;
+  gap: var(--pf-t--global--spacer--sm);
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--pf-t--global--text--color--subtle);
+  padding-bottom: var(--pf-t--global--spacer--xs, 0.25rem);
+  border-bottom: var(--pf-t--global--border--width--divider--default) solid var(--pf-t--global--border--color--default);
+}
+.cc-feed-count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+.cc-feed-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.cc-feed-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--pf-t--global--spacer--sm);
+  padding: 0.35rem 0;
+  border-bottom: 1px solid var(--pf-t--global--border--color--default);
+}
+.cc-feed-item:last-child {
+  border-bottom: none;
+}
+.cc-feed-time {
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: 0.85rem;
+  min-width: 3.2rem;
+}
+.cc-feed-icon {
+  display: inline-flex;
+  align-self: center;
+}
+.cc-feed-cluster {
+  flex-shrink: 0;
+}
+.cc-feed-text {
+  overflow-wrap: anywhere;
+}
+.cc-chg-arrow {
+  margin: 0 0.15rem;
+  opacity: 0.6;
+}
+.cc-chg-from {
+  color: var(--pf-t--global--text--color--subtle);
+  text-decoration: line-through;
+}
+.cc-chg-to {
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+}
+/* The icon carries the kind, so only it is coloured: a feed of coloured
+   rows would read as severity, and most of these are routine. */
+.cc-chg-updated .cc-feed-icon { color: #06c; }
+.cc-chg-added .cc-feed-icon { color: #3e8635; }
+.cc-chg-removed .cc-feed-icon { color: #c9190b; }
+.cc-chg-joined .cc-feed-icon { color: #06c; }
+.cc-chg-unreachable .cc-feed-icon { color: #c9190b; }
+.cc-chg-recovered .cc-feed-icon { color: #3e8635; }
+.cc-feed-hidden {
+  color: var(--pf-t--global--text--color--subtle);
+  font-size: 0.85rem;
+}

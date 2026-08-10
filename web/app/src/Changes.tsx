@@ -213,6 +213,7 @@ export function Changes({ onTimeTravel }: { onTimeTravel: (at: string) => void }
   const [days, setDays] = useState<Map<string, ChangeDay>>(new Map())
   const [selected, setSelected] = useState<string | null>(null)
   const [changes, setChanges] = useState<Change[]>([])
+  const [hiddenCount, setHiddenCount] = useState(0)
   const [showCounters, setShowCounters] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -227,45 +228,41 @@ export function Changes({ onTimeTravel }: { onTimeTravel: (at: string) => void }
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [month])
 
+  // Counters (VM totals, snapshot volumes) move on nearly every scrape. They are
+  // real changes, but they are not news, so they stay behind a switch, and the
+  // server leaves them out so the limit is not spent on them.
   const load = useCallback(async () => {
     setLoading(true)
     try {
       setError(null)
-      setChanges(
-        await fetchChanges(
-          selected ? { from: startOfDay(selected), to: endOfDay(selected) } : { limit: 200 },
-        ),
-      )
+      const feed = await fetchChanges({
+        ...(selected ? { from: startOfDay(selected), to: endOfDay(selected) } : { limit: 200 }),
+        includeCounters: showCounters,
+      })
+      setChanges(feed.changes)
+      setHiddenCount(feed.hiddenCounters)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLoading(false)
     }
-  }, [selected])
+  }, [selected, showCounters])
 
   useEffect(() => {
     void load()
   }, [load])
 
-  // Counters (VM totals, snapshot volumes) move on nearly every scrape. They are
-  // real changes, but they are not news, so they stay behind a switch.
-  const visible = useMemo(
-    () => (showCounters ? changes : changes.filter((c) => c.compare !== 'info')),
-    [changes, showCounters],
-  )
-  const hiddenCount = changes.length - visible.length
-
   // The feed reads as a diary: one heading per day, entries under it.
   const byDay = useMemo(() => {
     const groups = new Map<string, Change[]>()
-    for (const c of visible) {
+    for (const c of changes) {
       const key = dayKey(new Date(c.time))
       const list = groups.get(key)
       if (list) list.push(c)
       else groups.set(key, [c])
     }
     return [...groups.entries()]
-  }, [visible])
+  }, [changes])
 
   return (
     <Flex
@@ -348,7 +345,7 @@ export function Changes({ onTimeTravel }: { onTimeTravel: (at: string) => void }
               {selected
                 ? 'No cluster reported anything new that day.'
                 : 'Every scrape so far found the fleet exactly as it was.'}
-              {hiddenCount > 0 && ` ${hiddenCount} counter update${hiddenCount === 1 ? '' : 's'} hidden.`}
+              {hiddenCount > 0 && ` ${plural(hiddenCount, 'counter update')} hidden.`}
             </EmptyStateBody>
           </EmptyState>
         ) : (
@@ -386,7 +383,7 @@ export function Changes({ onTimeTravel }: { onTimeTravel: (at: string) => void }
 
         {!loading && hiddenCount > 0 && byDay.length > 0 && (
           <p className="cc-feed-hidden">
-            {hiddenCount} counter update{hiddenCount === 1 ? '' : 's'} hidden.
+            {plural(hiddenCount, 'counter update')} hidden.
           </p>
         )}
       </FlexItem>

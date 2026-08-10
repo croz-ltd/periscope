@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -338,5 +339,61 @@ func TestChangeDaysSeparatesCounters(t *testing.T) {
 	}
 	if busy.Count-busy.Counters != 1 {
 		t.Errorf("mixed day should have exactly one substantive change, got %d", busy.Count-busy.Counters)
+	}
+}
+
+// The limit has to apply to what is shown. A day of counter churn used to fill
+// the page with counters that the caller then filtered away, handing back an
+// empty feed for a day that really did have upgrades in it.
+func TestChangesLimitIsSpentOnVisibleRows(t *testing.T) {
+	st := openTest(t)
+	day := time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC)
+
+	counter := func(n int) model.Component {
+		return model.Component{Key: "vm-total", Name: "Virtual machines", Group: "OpenShift Virtualization",
+			Compare: model.CompareInfo, Version: strconv.Itoa(n)}
+	}
+
+	// One real upgrade early in the day, then a long tail of counter movement,
+	// so the newest rows are all counters.
+	save(t, st, model.Snapshot{Cluster: "a", Time: day, OK: true,
+		Components: []model.Component{comp("openshift", "4.14.9"), counter(0)}})
+	save(t, st, model.Snapshot{Cluster: "a", Time: day.Add(time.Hour), OK: true,
+		Components: []model.Component{comp("openshift", "4.15.0"), counter(1)}})
+	for i := 2; i < 30; i++ {
+		save(t, st, model.Snapshot{Cluster: "a", Time: day.Add(time.Duration(i) * 30 * time.Minute), OK: true,
+			Components: []model.Component{comp("openshift", "4.15.0"), counter(i)}})
+	}
+
+	q := ChangeQuery{From: day, To: day.AddDate(0, 0, 1), ExcludeCounters: true, Limit: 5}
+	changes, err := st.Changes(q)
+	if err != nil {
+		t.Fatalf("changes: %v", err)
+	}
+	if len(changes) == 0 {
+		t.Fatal("the upgrade was pushed out of the page by counter updates")
+	}
+	for _, c := range changes {
+		if c.Compare == model.CompareInfo {
+			t.Errorf("counter update leaked into the feed: %+v", c)
+		}
+	}
+	var upgraded bool
+	for _, c := range changes {
+		if c.Kind == model.ChangeUpdated && c.Key == "openshift" {
+			upgraded = true
+		}
+	}
+	if !upgraded {
+		t.Error("the upgrade is the one thing this day had to show")
+	}
+
+	// And the feed can say what it left out, whatever the limit was.
+	hidden, err := st.CountCounters(q)
+	if err != nil {
+		t.Fatalf("count counters: %v", err)
+	}
+	if hidden != 29 {
+		t.Errorf("hidden counters = %d, want every counter update in the range (29)", hidden)
 	}
 }

@@ -251,18 +251,17 @@ func (s *Store) backfillChanges(now time.Time) (int, error) {
 
 // ChangeQuery filters the change feed. Zero values mean "no filter".
 type ChangeQuery struct {
-	From    time.Time
-	To      time.Time
-	Cluster string
-	Limit   int
+	From            time.Time
+	To              time.Time
+	Cluster         string
+	Limit           int
+	ExcludeCounters bool // drop counter updates before the limit is applied
 }
 
-// Changes returns recorded changes, newest first.
-func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
-	sql := `SELECT cluster, ts, kind, COALESCE(comp_key,''), COALESCE(name,''),
-	               COALESCE(comp_group,''), COALESCE(comp_compare,''),
-	               COALESCE(old_value,''), COALESCE(new_value,'')
-	        FROM changes WHERE 1=1`
+// where builds the shared predicate, so the feed and the counts it is described
+// by can never be selected from different sets of rows.
+func (q ChangeQuery) where() (string, []any) {
+	sql := " WHERE 1=1"
 	var args []any
 	if !q.From.IsZero() {
 		sql += " AND ts >= ?"
@@ -276,7 +275,25 @@ func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
 		sql += " AND cluster = ?"
 		args = append(args, q.Cluster)
 	}
-	sql += " ORDER BY ts DESC, id DESC"
+	if q.ExcludeCounters {
+		sql += " AND COALESCE(comp_compare,'') != ?"
+		args = append(args, model.CompareInfo)
+	}
+	return sql, args
+}
+
+// Changes returns recorded changes, newest first.
+//
+// Counters are excluded here rather than by the caller, because the limit has
+// to apply to what is actually shown. A day with thousands of counter updates
+// would otherwise fill the limit with them and hand back a page that looks
+// empty once they are filtered out.
+func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
+	where, args := q.where()
+	sql := `SELECT cluster, ts, kind, COALESCE(comp_key,''), COALESCE(name,''),
+	               COALESCE(comp_group,''), COALESCE(comp_compare,''),
+	               COALESCE(old_value,''), COALESCE(new_value,'')
+	        FROM changes` + where + " ORDER BY ts DESC, id DESC"
 	if q.Limit > 0 {
 		sql += " LIMIT ?"
 		args = append(args, q.Limit)
@@ -299,6 +316,20 @@ func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
 		out = append(out, c)
 	}
 	return out, rows.Err()
+}
+
+// CountCounters returns how many counter updates the query's range holds,
+// ignoring its limit, so the feed can say what it is not showing. The query's
+// own ExcludeCounters is ignored: this counts exactly what that flag removes.
+func (s *Store) CountCounters(q ChangeQuery) (int, error) {
+	q.ExcludeCounters = false
+	where, args := q.where()
+	args = append(args, model.CompareInfo)
+
+	var n int
+	err := s.db.QueryRow(
+		`SELECT COUNT(*) FROM changes`+where+` AND COALESCE(comp_compare,'') = ?`, args...).Scan(&n)
+	return n, err
 }
 
 // ChangeDay is one calendar day that has changes, so the calendar can mark it.

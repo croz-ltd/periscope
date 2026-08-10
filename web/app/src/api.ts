@@ -106,18 +106,29 @@ export interface ChangeQuery {
   to?: Date
   cluster?: string
   limit?: number
+  includeCounters?: boolean
 }
 
-export async function fetchChanges(q: ChangeQuery = {}): Promise<Change[]> {
+export interface ChangeFeed {
+  changes: Change[]
+  hiddenCounters: number // counter updates left out, only meaningful when they are excluded
+}
+
+// Counters are excluded by the server, not here: the limit must be spent on
+// rows that will be shown, or a day of counter churn returns a full page that
+// filters down to nothing.
+export async function fetchChanges(q: ChangeQuery = {}): Promise<ChangeFeed> {
   const params = new URLSearchParams()
   if (q.from) params.set('from', q.from.toISOString())
   if (q.to) params.set('to', q.to.toISOString())
   if (q.cluster) params.set('cluster', q.cluster)
   if (q.limit) params.set('limit', String(q.limit))
+  if (!q.includeCounters) params.set('counters', 'false')
 
   const res = await fetch(`/api/changes?${params}`, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`GET /api/changes failed: ${res.status} ${res.statusText}`)
-  return ((await res.json()) as { changes: Change[] }).changes ?? []
+  const body = (await res.json()) as { changes?: Change[]; hiddenCounters?: number }
+  return { changes: body.changes ?? [], hiddenCounters: body.hiddenCounters ?? 0 }
 }
 
 // The calendar buckets by day, so the server is told which day the reader is in

@@ -175,6 +175,9 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 		To:      parseTimeParam(q.Get("to")),
 		Cluster: q.Get("cluster"),
 		Limit:   defaultChangeLimit,
+		// Counter updates are dropped here rather than by the caller, so the
+		// limit is spent on rows that will actually be shown.
+		ExcludeCounters: q.Get("counters") == "false",
 	}
 	if n, err := strconv.Atoi(q.Get("limit")); err == nil && n > 0 {
 		query.Limit = n
@@ -185,7 +188,25 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	writeJSON(w, map[string]any{"changes": changes})
+
+	body := map[string]any{"changes": changes}
+	if query.ExcludeCounters {
+		// Say how many were left out, so "nothing changed" can be told apart
+		// from "nothing but counters changed". Count over the window actually
+		// returned: on an open-ended request the answer would otherwise be
+		// every counter update ever recorded, next to a page holding a day.
+		counted := query
+		if counted.From.IsZero() && len(changes) > 0 {
+			counted.From = changes[len(changes)-1].Time
+		}
+		hidden, err := s.Store.CountCounters(counted)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		body["hiddenCounters"] = hidden
+	}
+	writeJSON(w, body)
 }
 
 // handleChangeCalendar serves per-day change counts so the calendar can mark

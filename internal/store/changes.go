@@ -9,27 +9,58 @@ import (
 )
 
 // history is what came before a snapshot: the last one taken, whatever state it
-// was in, and the last one that actually reported components.
+// was in, and the state to compare against.
+//
+// The baseline is carried forward rather than taken from a single snapshot.
+// Extractors share one deadline and run in order, so a slow cluster produces a
+// snapshot that is "successful" but stops partway down the list: everything the
+// later extractors would have read is simply missing. Treating that as the
+// state of the cluster claims a dozen operators were uninstalled and then
+// reinstalled a scrape later. What a degraded scrape did not read is filled in
+// from the last scrape that did read it, up to the most recent clean one, which
+// by definition read everything.
 type history struct {
-	last    model.Snapshot // most recent, may be a failed scrape
-	lastOK  model.Snapshot // most recent successful scrape: the diff baseline
-	hasLast bool
-	hasOK   bool
+	last        model.Snapshot                // most recent, may be a failed scrape
+	baseline    map[[2]string]model.Component // effective state before this scrape
+	hasLast     bool
+	hasBaseline bool
+}
+
+// observe folds a snapshot into the carried-forward state, walking forwards.
+// It is the mirror of the backwards walk in historyFor, and the two must agree.
+func (h *history) observe(snap model.Snapshot) {
+	h.last, h.hasLast = snap, true
+	if !snap.OK {
+		return // read nothing, so it says nothing about what is installed
+	}
+	if snap.Error == "" {
+		// A clean scrape read everything: it replaces the state outright, which
+		// is what lets a genuine uninstall be noticed.
+		h.baseline, h.hasBaseline = indexComponents(snap.Components), true
+		return
+	}
+	if h.baseline == nil {
+		h.baseline = map[[2]string]model.Component{}
+	}
+	for _, c := range snap.Components { // partial: overlay what it did read
+		h.baseline[[2]string{c.Key, c.Namespace}] = c
+	}
+	h.hasBaseline = true
 }
 
 // diff returns the events worth showing for a new snapshot. A scrape that found
 // nothing new returns nothing, so the feed never fills with "no change" rows.
 //
-// Components are compared against the last *successful* snapshot rather than
-// the last one taken. An unreachable cluster reports nothing, so diffing
-// against it would file every component as removed and then re-added; and a
-// cluster that is upgraded during an outage really did change, which comparing
-// against the last good state is the only way to notice.
+// Components are compared against the carried-forward baseline rather than
+// against whatever the previous snapshot happened to contain, so neither an
+// outage nor a scrape that timed out partway through invents changes. A cluster
+// upgraded while it was unreachable is still reported when it comes back.
 //
-// One more silence is deliberate: when a scrape reports a partial error,
-// removals are held back. An extractor that failed cannot be told apart from a
-// component that was uninstalled, and inventing removals every time a token
-// expires would teach people to ignore the feed.
+// One silence is deliberate: when a scrape reports a partial error, removals
+// are held back. An extractor that failed cannot be told apart from a component
+// that was uninstalled, and inventing removals every time a token expires would
+// teach people to ignore the feed. The removal is reported by the next clean
+// scrape, which can tell the difference.
 func diff(h history, next model.Snapshot) []model.Change {
 	at := next.Time
 
@@ -41,8 +72,8 @@ func diff(h history, next model.Snapshot) []model.Change {
 	}
 
 	var out []model.Change
-	if !h.hasOK {
-		// Nothing good to compare against: the cluster is arriving, and listing
+	if !h.hasBaseline {
+		// Nothing to compare against: the cluster is arriving, and listing
 		// every component it came with as an addition says nothing.
 		return append(out, model.Change{Time: at, Cluster: next.Cluster, Kind: model.ChangeJoined})
 	}
@@ -50,7 +81,7 @@ func diff(h history, next model.Snapshot) []model.Change {
 		out = append(out, model.Change{Time: at, Cluster: next.Cluster, Kind: model.ChangeRecovered})
 	}
 
-	prevByID := indexComponents(h.lastOK.Components)
+	prevByID := h.baseline
 	nextByID := indexComponents(next.Components)
 
 	for id, c := range nextByID {
@@ -102,56 +133,77 @@ func change(at time.Time, cluster, kind string, c model.Component, from, to stri
 	}
 }
 
+// baselineWalk bounds how far back a carried-forward baseline is assembled. A
+// healthy cluster stops at the first snapshot, so this only costs anything
+// while scrapes are degraded, and a cluster degraded for longer than this is
+// better served by an incomplete baseline than by an unbounded scan.
+const baselineWalk = 200
+
 // historyFor loads what a cluster reported before now: the last snapshot taken,
-// and the last successful one with its components.
+// and the carried-forward state to compare against.
+//
+// Walking backwards, each snapshot fills in only the components no newer one
+// reported, and the walk stops at the first clean scrape because that one read
+// everything. See history for why the state is assembled this way.
 func (s *Store) historyFor(q queryer, cluster string) (history, error) {
-	var h history
-
-	last, id, found, err := latestSnapshot(q, cluster, false)
-	if err != nil || !found {
-		return h, err
-	}
-	h.last, h.hasLast = last, true
-
-	if last.OK {
-		h.lastOK, h.hasOK = last, true
-	} else if lastOK, okID, foundOK, err := latestSnapshot(q, cluster, true); err != nil {
-		return h, err
-	} else if foundOK {
-		h.lastOK, h.hasOK, id = lastOK, true, okID
+	type snapRow struct {
+		id   int64
+		snap model.Snapshot
 	}
 
-	if h.hasOK {
-		if h.lastOK.Components, err = s.componentsForQ(q, id); err != nil {
+	rows, err := q.Query(
+		`SELECT id, ts, ok, COALESCE(error,'') FROM snapshots WHERE cluster = ?
+		 ORDER BY ts DESC, id DESC LIMIT ?`, cluster, baselineWalk)
+	if err != nil {
+		return history{}, err
+	}
+	// Read the rows out before loading any components: a transaction serves one
+	// query at a time, and the save path runs this inside one.
+	var recent []snapRow
+	for rows.Next() {
+		var r snapRow
+		var ts int64
+		var ok int
+		if err := rows.Scan(&r.id, &ts, &ok, &r.snap.Error); err != nil {
+			rows.Close()
 			return history{}, err
+		}
+		r.snap.Cluster, r.snap.Time, r.snap.OK = cluster, time.Unix(ts, 0), ok == 1
+		recent = append(recent, r)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return history{}, err
+	}
+	rows.Close()
+
+	var h history
+	for i, r := range recent {
+		if i == 0 {
+			h.last, h.hasLast = r.snap, true
+		}
+		if !r.snap.OK {
+			continue // read nothing, so it says nothing about what is installed
+		}
+		comps, err := s.componentsForQ(q, r.id)
+		if err != nil {
+			return history{}, err
+		}
+		if h.baseline == nil {
+			h.baseline = make(map[[2]string]model.Component, len(comps))
+		}
+		for _, c := range comps {
+			id := [2]string{c.Key, c.Namespace}
+			if _, newer := h.baseline[id]; !newer {
+				h.baseline[id] = c // a newer reading already won
+			}
+		}
+		h.hasBaseline = true
+		if r.snap.Error == "" {
+			break // a clean scrape read everything; older ones cannot add to it
 		}
 	}
 	return h, nil
-}
-
-// latestSnapshot returns a cluster's newest snapshot, optionally only counting
-// successful ones. Components are left to the caller: most callers only need
-// the header.
-func latestSnapshot(q queryer, cluster string, onlyOK bool) (model.Snapshot, int64, bool, error) {
-	where := ""
-	if onlyOK {
-		where = " AND ok = 1"
-	}
-	var id, ts int64
-	var ok int
-	var errStr string
-	err := q.QueryRow(
-		`SELECT id, ts, ok, COALESCE(error,'') FROM snapshots WHERE cluster = ?`+where+
-			` ORDER BY ts DESC, id DESC LIMIT 1`, cluster).
-		Scan(&id, &ts, &ok, &errStr)
-	switch err {
-	case sql.ErrNoRows:
-		return model.Snapshot{}, 0, false, nil
-	case nil:
-		return model.Snapshot{Cluster: cluster, Time: time.Unix(ts, 0), OK: ok == 1, Error: errStr}, id, true, nil
-	default:
-		return model.Snapshot{}, 0, false, err
-	}
 }
 
 func insertChanges(e execer, changes []model.Change) error {
@@ -235,11 +287,7 @@ func (s *Store) backfillChanges(now time.Time) (int, error) {
 			return 0, err
 		}
 		total += len(changes)
-
-		prior.last, prior.hasLast = r.snap, true
-		if r.snap.OK {
-			prior.lastOK, prior.hasOK = r.snap, true
-		}
+		prior.observe(r.snap)
 	}
 
 	if _, err := tx.Exec(`INSERT INTO meta(key, value) VALUES('changes_backfilled', ?)`,

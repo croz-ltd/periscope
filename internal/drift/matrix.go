@@ -112,8 +112,8 @@ type GroupConfig struct {
 // Matrix is the full comparison view.
 type Matrix struct {
 	Clusters []ClusterInfo `json:"clusters"`
-	Rows     []Row         `json:"rows"`      // all rows, keyed; referenced by page groups
-	Pages    []PageView    `json:"pages"`     // Compare + Statistics, each with ordered groups
+	Rows     []Row         `json:"rows"`  // all rows, keyed; referenced by page groups
+	Pages    []PageView    `json:"pages"` // Compare + Statistics, each with ordered groups
 	Warning  string        `json:"warning,omitempty"`
 	// At is set only when viewing history. It is a pointer because omitempty
 	// does not apply to a time.Time, and a zero time serialised into the live

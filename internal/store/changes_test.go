@@ -397,3 +397,75 @@ func TestChangesLimitIsSpentOnVisibleRows(t *testing.T) {
 		t.Errorf("hidden counters = %d, want every counter update in the range (29)", hidden)
 	}
 }
+
+// A scrape whose per-cluster deadline expires partway through the extractor
+// list stores a snapshot that is OK but missing everything the later
+// extractors would have read. That snapshot must not become the baseline: the
+// components were never uninstalled, they were never read, and the next
+// healthy scrape would otherwise report every one of them as newly appeared.
+func TestChangesTimedOutScrapeDoesNotResurrectComponents(t *testing.T) {
+	st := openTest(t)
+	t0 := time.Now().Add(-4 * time.Hour)
+
+	full := []model.Component{
+		comp("openshift", "4.20.1"), // an early extractor, always succeeds
+		comp("loki-operator", "6.5.1"),
+		comp("portworx-csi", "26.1.2"),
+		comp("kubelet", "v1.33.12"),
+	}
+	// Everything from Nodes onward failed: the deadline hit mid-list.
+	partial := []model.Component{comp("openshift", "4.20.1")}
+
+	save(t, st, model.Snapshot{Cluster: "erls-p", Time: t0, OK: true, Components: full})
+	save(t, st, model.Snapshot{Cluster: "erls-p", Time: t0.Add(time.Hour), OK: true,
+		Error: "olm: context deadline exceeded; portworx-csi: context deadline exceeded", Components: partial})
+	// Next scrape is healthy again and reads the same fleet as before.
+	save(t, st, model.Snapshot{Cluster: "erls-p", Time: t0.Add(2 * time.Hour), OK: true, Components: full})
+
+	changes, err := st.Changes(ChangeQuery{})
+	if err != nil {
+		t.Fatalf("changes: %v", err)
+	}
+	for _, c := range changes {
+		if c.Kind == model.ChangeAdded {
+			t.Errorf("component reported as newly appeared after a timed-out scrape: %+v", c)
+		}
+		if c.Kind == model.ChangeRemoved {
+			t.Errorf("component reported as removed by a timed-out scrape: %+v", c)
+		}
+	}
+	if len(changes) != 1 || changes[0].Kind != model.ChangeJoined {
+		t.Errorf("nothing actually changed, so only the join belongs in the feed, got %+v", changes)
+	}
+}
+
+// The carried-forward baseline must not hide a real uninstall that happened
+// while scrapes were degraded: it is reported once the reading is trustworthy.
+func TestChangesRealRemovalSurvivesADegradedPeriod(t *testing.T) {
+	st := openTest(t)
+	t0 := time.Now().Add(-4 * time.Hour)
+
+	save(t, st, model.Snapshot{Cluster: "a", Time: t0, OK: true, Components: []model.Component{
+		comp("openshift", "4.20.1"), comp("loki-operator", "6.5.1"),
+	}})
+	save(t, st, model.Snapshot{Cluster: "a", Time: t0.Add(time.Hour), OK: true,
+		Error: "olm: context deadline exceeded", Components: []model.Component{comp("openshift", "4.20.1")}})
+	// Loki really was uninstalled, and this scrape read OLM cleanly.
+	save(t, st, model.Snapshot{Cluster: "a", Time: t0.Add(2 * time.Hour), OK: true, Components: []model.Component{
+		comp("openshift", "4.20.1"),
+	}})
+
+	changes, err := st.Changes(ChangeQuery{})
+	if err != nil {
+		t.Fatalf("changes: %v", err)
+	}
+	var removed bool
+	for _, c := range changes {
+		if c.Kind == model.ChangeRemoved && c.Key == "loki-operator" {
+			removed = true
+		}
+	}
+	if !removed {
+		t.Error("a genuine uninstall during a degraded period must still be reported")
+	}
+}

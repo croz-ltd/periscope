@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -103,9 +104,14 @@ func get(t *testing.T, url string) (string, string) {
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s: status %d", url, resp.StatusCode)
 	}
-	buf := make([]byte, 1<<16)
-	n, _ := resp.Body.Read(buf)
-	return string(buf[:n]), resp.Header.Get("Content-Type")
+	// Read the whole body: a single Read returns whatever happens to have
+	// arrived, which is not the whole response. That passed for as long as the
+	// bodies fit in one chunk and failed the moment index.html grew past it.
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("GET %s: read body: %v", url, err)
+	}
+	return string(body), resp.Header.Get("Content-Type")
 }
 
 func getJSON(t *testing.T, url string, v any) {

@@ -29,9 +29,10 @@ type Config struct {
 }
 
 // BuildExtractors returns the extractor set. With no path it returns the
-// built-in defaults. With a config file, the always-on extractors (OpenShift,
-// OLM, nodes) are kept and the CR extractors come entirely from the file,
-// letting operators redefine Portworx/Dell paths or add new vendors.
+// built-in defaults. With a config file, every hand-written extractor is kept
+// (see extract.AlwaysOn) and the CR-field extractors come entirely from the
+// file, letting operators redefine Portworx/Dell paths or add new vendors
+// without losing anything they were not asking to change.
 func BuildExtractors(path string) ([]extract.Extractor, error) {
 	if path == "" {
 		return extract.Default(), nil
@@ -45,7 +46,7 @@ func BuildExtractors(path string) ([]extract.Extractor, error) {
 		return nil, fmt.Errorf("parse config %q: %w", path, err)
 	}
 
-	exs := []extract.Extractor{extract.OpenShift{}, extract.ConsoleBanner{}, extract.OLM{}, extract.Nodes{}}
+	exs := extract.AlwaysOn()
 	for _, s := range cfg.CRExtractors {
 		if s.Key == "" || s.Resource == "" {
 			return nil, fmt.Errorf("crExtractor requires key and resource (got %+v)", s)

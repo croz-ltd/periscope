@@ -41,7 +41,7 @@ type Component struct {
 	Name      string            `json:"name"`    // human display name
 	Group     string            `json:"group"`   // display group (see Group* consts)
 	Compare   string            `json:"compare"` // comparison kind (see Compare* consts); "" == version
-	Kind      string            `json:"kind"`    // semantic kind: openshift | operator | csi | nodes | cert | virt
+	Kind      string            `json:"kind"`    // semantic kind: openshift | operator | csi | managed | nodes | cert | virt
 	Version   string            `json:"version"` // the value (version / config string / RFC3339 expiry)
 	Namespace string            `json:"namespace,omitempty"`
 	Extra     map[string]string `json:"extra,omitempty"`

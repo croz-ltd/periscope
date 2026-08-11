@@ -31,6 +31,7 @@ Per cluster, in one matrix:
 | Storage | default StorageClass, PV/PVC counts per storage class, Portworx and Dell CSI operator and managed driver versions |
 | Virtualization | OpenShift Virtualization version, VM counts by state, VM snapshots per storage class, VM templates |
 | Certificates | API server and ingress certificate expiry, colour-coded by urgency |
+| Managed workloads | the Grafana version `grafana-operator` actually runs, which its own operator version does not tell you |
 
 There are two views over the same data: Compare, for version and configuration drift,
 and Statistics, for fleet counts and capacity. Both can be grouped through a
@@ -316,6 +317,7 @@ internal/
                             virt.go        OpenShift Virtualization
                             vm.go          VM counts, snapshots, templates
                             crfield.go     Portworx + Dell CSI (nested CR fields)
+                            grafana.go     Grafana version the operator manages
   cluster/                discover clusters from labeled Secrets
   scrape/                 periodic parallel scrape scheduler
   store/                  SQLite persistence (history + recorded change feed)

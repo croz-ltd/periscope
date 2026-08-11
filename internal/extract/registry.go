@@ -107,5 +107,24 @@ func Default() []Extractor {
 		OLM{},
 		Portworx(),
 		DellCSM(),
+		Grafana{},
 	}
+}
+
+// AlwaysOn returns the extractors a config file cannot replace: everything in
+// Default() except the CR-field ones.
+//
+// A config file redefines the CR-field extractors (that is its whole purpose),
+// but it has no way to express the hand-written ones, so listing them by hand
+// meant every extractor added since went missing the moment anyone passed
+// --config. Deriving the set keeps that from happening again.
+func AlwaysOn() []Extractor {
+	var out []Extractor
+	for _, e := range Default() {
+		if _, isCRField := e.(crFieldExtractor); isCRField {
+			continue
+		}
+		out = append(out, e)
+	}
+	return out
 }

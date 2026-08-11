@@ -22,8 +22,9 @@ REST API, CSV/JSON export and Prometheus metrics.
 and certificate rows across eight clusters, with the clusters that are behind shaded
 red and one cluster flagged stale](docs/screenshot.png)
 
-*Every screenshot on this page is the real UI, running against the synthetic fleet
-described in [Working on the UI without a cluster](#working-on-the-ui-without-a-cluster).*
+*Every screenshot on this page is the real UI in its glass [theme](#themes), running
+against the synthetic fleet described in
+[Working on the UI without a cluster](#working-on-the-ui-without-a-cluster).*
 
 ## Contents
 
@@ -62,13 +63,22 @@ remembered in the browser's `localStorage`, so it is per reader rather than per 
 hidden clusters still count toward the reference version, and the exports, metrics and
 `report` output still cover everything joined.
 
-![The Compare page filtered to "graf", showing a Grafana row and a Grafana Operator
-row that disagree: the cluster with the newest operator runs an older Grafana than the
-cluster with the oldest one](docs/screenshot-search.png)
+![The Compare page filtered to "graf": the Grafana Operator row sits at the fleet's
+leading version on almost every cluster, while the Grafana row it manages spans three
+versions, two majors apart](docs/screenshot-search.png)
 
-Those two rows are the reason the managed-workload extractors exist. The operator
-version and the version of the thing it manages are different facts, and reading the
-first one tells you nothing about the second.
+Those two rows are the reason the managed-workload extractors exist. The operator is at
+the leading version nearly everywhere, and the Grafana it runs still ranges over two
+major versions. They are different facts, and reading the first tells you nothing about
+the second.
+
+### Themes
+
+The masthead's settings menu carries PatternFly's three theming axes, remembered per
+browser in `localStorage` like the cluster selection: colour scheme (follow the system,
+light, dark), theme (default or Project Felt), and contrast (default, high contrast, or
+the translucent glass used for the screenshots here). Nothing about it is per fleet, so
+readers of the same hub can each have their own.
 
 ### How drift is decided
 

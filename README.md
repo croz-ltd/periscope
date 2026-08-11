@@ -18,7 +18,12 @@ Periscope is a single Go binary that scrapes every cluster on an interval, keeps
 full history in an embedded SQLite database, and serves a comparison matrix with a
 REST API, CSV/JSON export and Prometheus metrics.
 
-<!-- Add a screenshot here: docs/screenshot.png -->
+![The Compare page: OpenShift release, update channel, kubelet, MachineConfigPool
+and certificate rows across eight clusters, with the clusters that are behind shaded
+red and one cluster flagged stale](docs/screenshot.png)
+
+*Every screenshot on this page is the real UI, run against the mock fleet described
+in [Working on the UI](#working-on-the-ui).*
 
 ## What it shows
 
@@ -37,11 +42,22 @@ There are two views over the same data: Compare, for version and configuration d
 and Statistics, for fleet counts and capacity. Both can be grouped through a
 ConfigMap, see [`examples/periscope-groups.configmap.yaml`](examples/periscope-groups.configmap.yaml).
 
-Both pages have a component search and a **Manage clusters** dialog for taking
-columns out of a matrix too wide to read. Both are client-side, and the cluster
-selection is remembered in the browser's `localStorage`, so it is per reader rather
-than per fleet: hidden clusters still count toward the reference version, and the
-exports, metrics and `report` output still cover everything joined.
+![The Statistics page: node counts, PV and PVC counts per storage class and virtual
+machine counts per cluster](docs/screenshot-statistics.png)
+
+Both pages have a component search and a **Manage view** dialog for taking columns
+out of a matrix too wide to read. Both are client-side, and the cluster selection is
+remembered in the browser's `localStorage`, so it is per reader rather than per fleet:
+hidden clusters still count toward the reference version, and the exports, metrics and
+`report` output still cover everything joined.
+
+![The Compare page filtered to "graf", showing a Grafana row and a Grafana Operator
+row that disagree: the cluster with the newest operator runs an older Grafana than the
+cluster with the oldest one](docs/screenshot-search.png)
+
+Those two rows are the reason the managed-workload extractors exist. The operator
+version and the version of the thing it manages are different facts, and reading the
+first one tells you nothing about the second.
 
 ### How drift is decided
 
@@ -260,6 +276,10 @@ Pick a day to read that day's events, then **View the matrix as it was** to load
 whole matrix as of that moment, exports included. A banner says you are looking at
 history until you leave it.
 
+![The Changes page: a month calendar with the busy days shaded, beside a feed of
+operator upgrades, an installed operator, and a cluster that stopped answering and
+recovered](docs/screenshot-changes.png)
+
 Two silences are deliberate, because a feed nobody trusts is a feed nobody reads.
 An unreachable cluster reports nothing, so its components are not filed as removed
 and re-added around every outage; changes are measured against the last *successful*
@@ -357,6 +377,7 @@ charts/
   periscope-join/         per-cluster read-only SA + token + RBAC
 tekton/                   example on-cluster build (OpenShift Pipelines)
 examples/                 custom grouping ConfigMap
+docs/                     screenshots used by this README
 ```
 
 ## CI/CD

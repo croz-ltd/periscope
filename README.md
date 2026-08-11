@@ -37,6 +37,12 @@ There are two views over the same data: Compare, for version and configuration d
 and Statistics, for fleet counts and capacity. Both can be grouped through a
 ConfigMap, see [`examples/periscope-groups.configmap.yaml`](examples/periscope-groups.configmap.yaml).
 
+Both pages have a component search and a **Manage clusters** dialog for taking
+columns out of a matrix too wide to read. Both are client-side, and the cluster
+selection is remembered in the browser's `localStorage`, so it is per reader rather
+than per fleet: hidden clusters still count toward the reference version, and the
+exports, metrics and `report` output still cover everything joined.
+
 ### How drift is decided
 
 The baseline for each component is the highest version seen across your fleet. That

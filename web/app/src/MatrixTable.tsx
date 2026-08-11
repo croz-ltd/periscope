@@ -21,8 +21,19 @@ function ClusterName({ cluster }: { cluster: ClusterInfo }) {
   )
 }
 
-export function MatrixTable({ matrix, groups }: { matrix: Matrix; groups: MatrixGroup[] }) {
-  const { clusters, rows } = matrix
+// clusters is passed in rather than read from the matrix, because the reader can
+// hide columns (see ManageClustersModal) while the rows keep comparing against
+// the whole fleet.
+export function MatrixTable({
+  matrix,
+  groups,
+  clusters,
+}: {
+  matrix: Matrix
+  groups: MatrixGroup[]
+  clusters: ClusterInfo[]
+}) {
+  const { rows } = matrix
 
   // The backend now defines sections via matrix.groups; a key may appear in
   // several groups (rendered under each). Look rows up by key, in group order.

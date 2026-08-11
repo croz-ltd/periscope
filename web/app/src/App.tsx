@@ -11,7 +11,9 @@ import {
   DropdownItem,
   DropdownList,
   EmptyState,
+  EmptyStateActions,
   EmptyStateBody,
+  EmptyStateFooter,
   Flex,
   FlexItem,
   MenuToggle,
@@ -26,10 +28,14 @@ import {
   Spinner,
   Title,
 } from '@patternfly/react-core'
-import { ClusterIcon, CubesIcon, SyncAltIcon, DownloadIcon } from '@patternfly/react-icons'
+import { ClusterIcon, CubesIcon, SearchIcon, SyncAltIcon, DownloadIcon } from '@patternfly/react-icons'
 import type { Matrix } from './api'
 import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
+import { MatrixToolbar } from './MatrixToolbar'
+import { ManageClustersModal } from './ManageClusters'
+import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './clusterPrefs'
+import { countComponents, filterGroups, rowsByKey } from './matrixView'
 import { AppMasthead } from './AppMasthead'
 import { About } from './About'
 import { Docs } from './Docs'
@@ -140,6 +146,18 @@ export default function App() {
   // Non-null means the matrix pages are showing history rather than the fleet
   // as it is now (RFC3339, set from the Changes calendar).
   const [at, setAt] = useState<string | null>(null)
+  // Client-side component search, shared by both matrix pages: a large fleet
+  // makes either page longer than a screen, and the answer is usually one row.
+  const [query, setQuery] = useState('')
+  // Cluster columns this browser leaves out, read once at startup and written
+  // back on every change (localStorage, never sent to the server).
+  const [hidden, setHidden] = useState<string[]>(getHiddenClusters)
+  const [manageOpen, setManageOpen] = useState(false)
+
+  const changeHidden = useCallback((names: string[]) => {
+    saveHiddenClusters(names)
+    setHidden(names)
+  }, [])
 
   const load = useCallback(async () => {
     try {
@@ -175,6 +193,16 @@ export default function App() {
   const pageId = activeNav === 'statistics' ? 'statistics' : 'compare'
   const page = matrix?.pages.find((p) => p.id === pageId)
   const pageTitle = page?.title ?? (pageId === 'statistics' ? 'Statistics' : 'Compare')
+
+  // What this page actually renders: the fleet minus the hidden columns, and the
+  // page's groups minus the components the search excludes.
+  const allClusters = matrix?.clusters ?? []
+  const shownClusters = visibleClusters(allClusters, hidden)
+  const hiddenCount = allClusters.length - shownClusters.length
+  const pageGroups = page?.groups ?? []
+  const shownGroups = filterGroups(pageGroups, rowsByKey(matrix?.rows ?? []), query)
+  const totalComponents = countComponents(pageGroups)
+  const shownComponents = countComponents(shownGroups)
 
   const masthead = (
     <AppMasthead
@@ -366,9 +394,56 @@ export default function App() {
             <>
               {/* Statistics cells are plain values, so the drift key would explain nothing. */}
               {pageId === 'compare' && <Legend />}
-              <div className="cc-table-wrap">
-                <MatrixTable matrix={matrix!} groups={page.groups} />
-              </div>
+              <MatrixToolbar
+                query={query}
+                onQueryChange={setQuery}
+                shown={shownComponents}
+                total={totalComponents}
+                hiddenClusters={hiddenCount}
+                onManageClusters={() => setManageOpen(true)}
+                onShowAllClusters={() => changeHidden([])}
+              />
+              {/* A stored preference can outlive the fleet it was made for, so
+                  hiding everything is recoverable rather than a blank table. */}
+              {shownClusters.length === 0 ? (
+                <EmptyState titleText="All clusters are hidden" headingLevel="h2" icon={CubesIcon}>
+                  <EmptyStateBody>
+                    Every joined cluster is hidden in this browser, so there is nothing to compare.
+                  </EmptyStateBody>
+                  <EmptyStateFooter>
+                    <EmptyStateActions>
+                      <Button variant="primary" onClick={() => changeHidden([])}>
+                        Show all clusters
+                      </Button>
+                    </EmptyStateActions>
+                  </EmptyStateFooter>
+                </EmptyState>
+              ) : shownGroups.length === 0 ? (
+                <EmptyState titleText="No components match your search" headingLevel="h2" icon={SearchIcon}>
+                  <EmptyStateBody>
+                    Nothing on this page matches “{query.trim()}”. Component names, keys and kinds are
+                    searched.
+                  </EmptyStateBody>
+                  <EmptyStateFooter>
+                    <EmptyStateActions>
+                      <Button variant="link" onClick={() => setQuery('')}>
+                        Clear search
+                      </Button>
+                    </EmptyStateActions>
+                  </EmptyStateFooter>
+                </EmptyState>
+              ) : (
+                <div className="cc-table-wrap">
+                  <MatrixTable matrix={matrix!} groups={shownGroups} clusters={shownClusters} />
+                </div>
+              )}
+              <ManageClustersModal
+                isOpen={manageOpen}
+                clusters={allClusters}
+                hidden={hidden}
+                onClose={() => setManageOpen(false)}
+                onSave={changeHidden}
+              />
             </>
           ) : (
             <EmptyState titleText="Nothing to show on this page" headingLevel="h2" icon={CubesIcon}>

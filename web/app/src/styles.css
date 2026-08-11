@@ -294,6 +294,30 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   text-align: left;
 }
 
+/* Matrix toolbar: component search and column management, sitting directly on
+   the page rather than in a card of its own. */
+.cc-matrix-toolbar {
+  background: transparent;
+  padding-block-end: var(--pf-t--global--spacer--sm);
+}
+
+/* Cluster picker: a long fleet scrolls inside the modal instead of pushing the
+   Save button off the screen. */
+.cc-cluster-picker {
+  display: grid;
+  gap: var(--pf-t--global--spacer--sm);
+  max-block-size: 18rem;
+  overflow-y: auto;
+  margin-block: var(--pf-t--global--spacer--md);
+  padding-inline-start: var(--pf-t--global--spacer--xs);
+}
+.cc-manage-hint {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+}
+.cc-manage-warn {
+  color: var(--pf-t--global--text--color--status--warning--default);
+}
+
 /* Masthead control labels */
 .cc-ctl-label {
   margin-right: 0.4rem;

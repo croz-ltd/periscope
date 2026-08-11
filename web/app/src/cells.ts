@@ -41,7 +41,7 @@ const isExpiry = (s: Cell['state']) =>
   s === 'expiry_ok' || s === 'expiry_warn' || s === 'expiry_crit'
 
 export function cellText(cell: Cell | undefined): string {
-  if (!cell || cell.state === 'not_installed') return '—'
+  if (!cell || cell.state === 'not_installed') return '-'
   const v = cell.version && cell.version.length > 0 ? cell.version : '(none)'
   if (cell.state === 'unknown') return `${v} ?`
   if (isExpiry(cell.state)) {
@@ -63,7 +63,7 @@ export function cellTooltip(cell: Cell | undefined, reference?: string): string 
       lines.push(`Behind by ${cell.gapKind ?? 'version'}`)
       break
     case 'unknown':
-      lines.push('Version could not be parsed as semver')
+      lines.push('Version did not parse as semver')
       break
     case 'not_installed':
       lines.push('Not installed on this cluster')

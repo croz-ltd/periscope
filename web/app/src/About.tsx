@@ -32,25 +32,25 @@ export function About() {
         <h2>What it compares</h2>
         <ul>
           <li>
-            <strong>OpenShift release</strong> — the cluster version reported by the cluster version
+            <strong>OpenShift release</strong>: the cluster version reported by the cluster version
             operator.
           </li>
           <li>
-            <strong>Operators</strong> — the installed version of each operator, taken from its
+            <strong>Operators</strong>: the installed version of each operator, taken from its
             cluster service version.
           </li>
           <li>
-            <strong>CSI drivers</strong> — the version of each managed storage driver.
+            <strong>CSI drivers</strong>: the version of each managed storage driver.
           </li>
           <li>
-            <strong>Configuration</strong> — values that are meant to be identical fleet-wide, such
+            <strong>Configuration</strong>: values that are meant to be identical fleet-wide, such
             as the update channel. These are flagged when a cluster differs, rather than ranked.
           </li>
           <li>
-            <strong>Certificates</strong> — days left before expiry, warning as the date gets close.
+            <strong>Certificates</strong>: days left before expiry, warning as the date gets close.
           </li>
           <li>
-            <strong>Inventory</strong> — counts and details that are reported rather than ranked,
+            <strong>Inventory</strong>: counts and details that are reported rather than ranked,
             such as total nodes, machine config pools, the default storage class, and virtual
             machines.
           </li>

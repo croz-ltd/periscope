@@ -22,7 +22,7 @@ function ClusterName({ cluster }: { cluster: ClusterInfo }) {
 }
 
 // clusters is passed in rather than read from the matrix, because the reader can
-// hide columns (see ManageClustersModal) while the rows keep comparing against
+// hide columns (see ManageViewModal) while the rows keep comparing against
 // the whole fleet.
 export function MatrixTable({
   matrix,

@@ -6,6 +6,7 @@ import {
   ToolbarContent,
   ToolbarGroup,
   ToolbarItem,
+  Tooltip,
 } from '@patternfly/react-core'
 import { ColumnsIcon, EyeSlashIcon } from '@patternfly/react-icons'
 
@@ -17,7 +18,7 @@ export function MatrixToolbar({
   shown,
   total,
   hiddenClusters,
-  onManageClusters,
+  onManageView,
   onShowAllClusters,
 }: {
   query: string
@@ -25,7 +26,7 @@ export function MatrixToolbar({
   shown: number
   total: number
   hiddenClusters: number
-  onManageClusters: () => void
+  onManageView: () => void
   onShowAllClusters: () => void
 }) {
   return (
@@ -45,10 +46,18 @@ export function MatrixToolbar({
             resultsCount={query.trim() ? `${shown} of ${total}` : undefined}
           />
         </ToolbarItem>
+        {/* Icon only, the way the console puts its column manager next to a
+            table's search: the name belongs on the dialog, not on a button
+            competing with the matrix for attention. */}
         <ToolbarItem>
-          <Button variant="secondary" icon={<ColumnsIcon />} onClick={onManageClusters}>
-            Manage clusters
-          </Button>
+          <Tooltip content="Manage view">
+            <Button
+              variant="plain"
+              aria-label="Manage view"
+              icon={<ColumnsIcon />}
+              onClick={onManageView}
+            />
+          </Tooltip>
         </ToolbarItem>
         {/* Columns missing from a comparison must never be a silent state, so the
             count stays on screen with the way back next to it. */}

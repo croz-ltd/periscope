@@ -33,7 +33,7 @@ import type { Matrix } from './api'
 import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
 import { MatrixToolbar } from './MatrixToolbar'
-import { ManageClustersModal } from './ManageClusters'
+import { ManageViewModal } from './ManageView'
 import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './clusterPrefs'
 import { countComponents, filterGroups, rowsByKey } from './matrixView'
 import { AppMasthead } from './AppMasthead'
@@ -400,7 +400,7 @@ export default function App() {
                 shown={shownComponents}
                 total={totalComponents}
                 hiddenClusters={hiddenCount}
-                onManageClusters={() => setManageOpen(true)}
+                onManageView={() => setManageOpen(true)}
                 onShowAllClusters={() => changeHidden([])}
               />
               {/* A stored preference can outlive the fleet it was made for, so
@@ -437,7 +437,7 @@ export default function App() {
                   <MatrixTable matrix={matrix!} groups={shownGroups} clusters={shownClusters} />
                 </div>
               )}
-              <ManageClustersModal
+              <ManageViewModal
                 isOpen={manageOpen}
                 clusters={allClusters}
                 hidden={hidden}

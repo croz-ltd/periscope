@@ -11,13 +11,14 @@ import {
 } from '@patternfly/react-core'
 import type { ClusterInfo } from './api'
 
-// Manage clusters: pick the columns the matrix shows. The list is checked rather
-// than crossed out, so it reads the way the OpenShift console's column manager
-// does, and a fleet too wide to scan can be cut down to the clusters in question.
+// Manage view: pick the cluster columns the matrix shows. The list is checked
+// rather than crossed out, so it reads the way the OpenShift console's column
+// manager does, and a fleet too wide to scan can be cut down to the clusters in
+// question.
 //
 // Selection is confirmed on Save, not applied per click, so a reader taking half
 // a dozen clusters out of a wide matrix is not made to watch it reflow six times.
-export function ManageClustersModal({
+export function ManageViewModal({
   isOpen,
   clusters,
   hidden,
@@ -53,9 +54,9 @@ export function ManageClustersModal({
       variant="small"
       isOpen={isOpen}
       onClose={onClose}
-      aria-labelledby="cc-manage-clusters-title"
+      aria-labelledby="cc-manage-view-title"
     >
-      <ModalHeader title="Manage clusters" labelId="cc-manage-clusters-title" />
+      <ModalHeader title="Manage view" labelId="cc-manage-view-title" />
       <ModalBody>
         <Content component="p">Selected clusters will appear in the matrix.</Content>
         {/* Hiding the leader would otherwise look like the whole fleet fell

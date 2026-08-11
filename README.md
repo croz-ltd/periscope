@@ -22,8 +22,20 @@ REST API, CSV/JSON export and Prometheus metrics.
 and certificate rows across eight clusters, with the clusters that are behind shaded
 red and one cluster flagged stale](docs/screenshot.png)
 
-*Every screenshot on this page is the real UI, run against the mock fleet described
-in [Working on the UI](#working-on-the-ui).*
+*Every screenshot on this page is the real UI, running against the synthetic fleet
+described in [Working on the UI without a cluster](#working-on-the-ui-without-a-cluster).*
+
+## Contents
+
+- [What it shows](#what-it-shows) — the matrix, drift, upgrade readiness, history
+- [How it works](#how-it-works) — the pull model in one diagram
+- [Getting started](#getting-started) — deploy, join clusters, first-run checks
+- [Configuration](#configuration) — grouping the matrix, covering new components
+- [CLI](#cli) — commands, flags, environment variables
+- [API and metrics](#api-and-metrics) — REST endpoints, exports, Prometheus
+- [Logs](#logs) — what each level says
+- [Development](#development) — build, run the UI on mock data
+- [Contributing](#contributing) and [License](#license)
 
 ## What it shows
 
@@ -38,15 +50,14 @@ Per cluster, in one matrix:
 | Certificates | API server and ingress certificate expiry, colour-coded by urgency |
 | Managed workloads | the Grafana version `grafana-operator` actually runs, which its own operator version does not tell you |
 
-There are two views over the same data: Compare, for version and configuration drift,
-and Statistics, for fleet counts and capacity. Both can be grouped through a
-ConfigMap, see [`examples/periscope-groups.configmap.yaml`](examples/periscope-groups.configmap.yaml).
+There are two views over the same data: **Compare**, for version and configuration
+drift, and **Statistics**, for fleet counts and capacity.
 
 ![The Statistics page: node counts, PV and PVC counts per storage class and virtual
 machine counts per cluster](docs/screenshot-statistics.png)
 
-Both pages have a component search and a **Manage view** dialog for taking columns
-out of a matrix too wide to read. Both are client-side, and the cluster selection is
+Both pages have a component search and a **Manage view** dialog for taking columns out
+of a matrix too wide to read. Both are client-side, and the cluster selection is
 remembered in the browser's `localStorage`, so it is per reader rather than per fleet:
 hidden clusters still count toward the reference version, and the exports, metrics and
 `report` output still cover everything joined.
@@ -79,6 +90,66 @@ When a scrape fails or times out, the last good snapshot is kept and the cluster
 a `stale since HH:MM` badge with the error reason, so you can tell stale data from
 current data.
 
+### What can actually be upgraded
+
+Being behind the fleet only matters if there is somewhere to go, so Periscope also
+reports what each cluster can do about it:
+
+- **Update available** — the newest release the cluster is being offered. The cluster
+  has already asked the update service on its own channel, so this is read from its
+  ClusterVersion and needs no egress from the hub.
+- **Upgrade blocked** — an `Upgradeable=False` condition, with the reason and message.
+  This is the difference between a cluster that is behind and one that is stuck.
+- **Update in progress** — set while an upgrade is running, which explains a version
+  that disagrees with the rest of the fleet for the next hour.
+- **Operator updates pending** and **InstallPlans awaiting approval** — updates OLM
+  has resolved but not applied. On manual approval these sit unnoticed for months,
+  and they are the usual reason a cluster quietly falls behind.
+
+### Changes and time travel
+
+Every scrape has always been kept, so the **Changes** page reads that history back
+as an audit log: what appeared, what was upgraded, what was uninstalled, and when a
+cluster stopped answering. A scrape that found the fleet exactly as it was records
+nothing, so the feed holds events rather than heartbeats.
+
+The calendar beside it marks the days something happened, darker as more changed.
+Pick a day to read that day's events, then **View the matrix as it was** to load the
+whole matrix as of that moment, exports included. A banner says you are looking at
+history until you leave it.
+
+![The Changes page: a month calendar with the busy days shaded, beside a feed of
+operator upgrades, an installed operator, and a cluster that stopped answering and
+recovered](docs/screenshot-changes.png)
+
+Two silences are deliberate, because a feed nobody trusts is a feed nobody reads.
+An unreachable cluster reports nothing, so its components are not filed as removed
+and re-added around every outage; changes are measured against the last *successful*
+scrape, so an upgrade that happened during an outage is still reported when the
+cluster comes back. And a scrape with a partial error cannot tell "uninstalled" from
+"could not read", so removals wait for a clean scrape.
+
+Counters that move on nearly every scrape (VM totals, snapshot volumes) are recorded
+but hidden behind the **Include counters** switch, and the calendar counts them the
+same way the feed does. A day's colour is how much really changed; a day whose only
+news was counters moving gets a dot instead, so it does not read as empty and does
+not read as busy either. Turning counters on folds them into the colour, because then
+they are what you came to look at.
+
+The feed is derived from the snapshot history rather than being source data, so a
+correction to how changes are detected also has to reach the events already
+recorded. Each release stamps the logic it used; when that changes, the last 90
+days are re-derived from stored history on the next start. The rebuild runs in the
+background (tens of seconds on a fleet with months of history) and swaps in when it
+commits, so the pod serves throughout and nothing is half-replaced.
+
+### Columns named by the clusters themselves
+
+If a cluster carries a `ConsoleNotification` named `cluster-name`, its text and
+colours head that column, so the matrix labels clusters the way their own operators
+already label them in the OpenShift console. The joined name stays in the tooltip and
+in exports, metrics and the API. Clusters without one keep their joined name.
+
 ## How it works
 
 ```
@@ -102,7 +173,7 @@ it compared.
 Page loads read the cache and never fan out live. [DESIGN.md](DESIGN.md) covers the
 reasoning behind these choices and what was left for later.
 
-## Quick start
+## Getting started
 
 ### Deploy on OpenShift
 
@@ -148,42 +219,66 @@ for linux/amd64 only, matching the clusters they run on, so on an arm64 machine
 (Apple silicon) add `--platform linux/amd64` to the command above and expect
 emulation. Building locally with `make image` gives you a native image instead.
 
-### Build from source
+### Before running against a real fleet
 
-Requires Go 1.26+ and Node 20+.
+Verify the Portworx and Dell CR field paths. The defaults in
+`internal/extract/crfield.go` (`status.version`, `spec.driver.configVersion`) are
+best-effort. Confirm them against your clusters with
+`oc get storagecluster,containerstoragemodule -o yaml` and override them via
+`--config` rather than patching the code.
+
+Watch extractor errors rather than empty cells. The reader SA binds OpenShift's
+`cluster-reader`, so missing RBAC is mostly a non-issue, but if you narrow that role a
+missing rule returns `403`, which the scheduler records in the snapshot error. An empty
+cell on its own does not prove that a component is absent.
+
+## Configuration
+
+Periscope runs with none of this: operators are discovered through OLM, and the
+built-in extractors need no configuration. These are the knobs for when the defaults
+are not what your fleet looks like.
+
+### Grouping the matrix
+
+By default each page groups rows by subsystem in a fixed order. A `periscope-groups`
+ConfigMap in the hub namespace replaces that with your own sections, per page, and can
+hide rows entirely:
 
 ```bash
-make web      # build the PatternFly UI into web/dist (embedded by the Go build)
-make build    # build bin/periscope
-make test     # go test ./...
-make image    # docker build
-
-# serve using your current kubeconfig context
-bin/periscope serve --namespace periscope --db ./periscope.db
-
-# one-off matrix printed to stdout (no web UI), useful in CI
-bin/periscope report --db ./periscope.db
+oc apply -f examples/periscope-groups.configmap.yaml -n periscope
 ```
 
-### Working on the UI
+The [example](examples/periscope-groups.configmap.yaml) documents the schema:
+`compare` and `statistics` take ordered groups of component keys, `hidden` removes keys
+from both pages. A page you configure becomes authoritative for that page, with
+anything left over collected into "Ungrouped"; a page you leave out keeps the built-in
+grouping. Component keys are listed on the UI's **Docs** page, and changes are picked
+up on the next matrix load.
 
-The UI needs a fleet to show anything, which is a poor way to start work on it, so it
-ships with a synthetic one:
+### Covering a component Periscope doesn't know
 
-```bash
-make web-mock          # or: cd web/app && npm run dev:mock
+Adding coverage is usually a small change. If the version you need is a nested field
+in a custom resource, no code is required, just declare it in the extractor config and
+pass it with `--config`:
+
+```yaml
+crExtractors:
+  - key: my-csi
+    display: My CSI
+    kind: csi
+    group: storage.example.com
+    version: v1
+    resource: mydrivers
+    versionPath: [spec, driver, configVersion]
 ```
 
-That runs Vite with a dev-server middleware answering `/api/*` from a mock fleet of
-eight clusters: two production regions, staging, dev and two edge sites, one of them
-stale and one reporting an extractor error, with real drift, expiring certificates,
-counts and a month of change history. No cluster, no Go server, no database.
+The same file overrides the built-in Portworx and Dell field paths, see
+[`config/extractors.yaml`](config/extractors.yaml). Every hand-written extractor stays
+enabled alongside it.
 
-The fixture lives in [`web/app/mock/`](web/app/mock/) and is typed against the same
-interfaces the app uses for real responses, so it cannot drift from the API's shapes.
-It is a Vite plugin rather than a branch in `src/`, enabled only by `--mode mock`, so a
-production build cannot pick it up. Every screenshot in this README was taken from it,
-which is also how they can be retaken without a fleet.
+Anything a nested field cannot express means implementing the `Extractor` interface and
+registering it, which is a dozen lines. See
+[CONTRIBUTING.md](CONTRIBUTING.md#adding-an-extractor).
 
 ## CLI
 
@@ -204,10 +299,37 @@ Flags common to `serve` and `report`:
 | `--log-level` | `info` (`LOG_LEVEL`) | `debug` \| `info` \| `warn` \| `error` |
 | `--log-format` | `text` (`LOG_FORMAT`) | `text` to read by eye, `json` for a log collector |
 
-`serve` adds `--addr` (`LISTEN_ADDR`, default `:8080`), `--interval` (`10m`),
-`--timeout` (per cluster, `30s`), `--concurrency` (`4`), and `--config`, an optional
-file that overrides vendor CR field paths without rebuilding. See
-[`config/extractors.yaml`](config/extractors.yaml).
+`serve` only:
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `--addr` | `:8080` (`LISTEN_ADDR`) | HTTP listen address |
+| `--interval` | `10m` | how often the whole fleet is scraped |
+| `--timeout` | `30s` | per-cluster scrape deadline |
+| `--concurrency` | `4` | clusters scraped in parallel |
+| `--config` | none (`CONFIG_PATH`) | extractor config, see [Configuration](#configuration) |
+
+## API and metrics
+
+| Endpoint | |
+|---|---|
+| `GET /` | embedded PatternFly UI |
+| `GET /api/matrix` | the full comparison matrix as JSON (what the UI renders) |
+| `GET /api/matrix?at=<RFC3339>` | the matrix as it stood at that moment |
+| `GET /api/changes` | the change feed, newest first (`from`, `to`, `cluster`, `limit`) |
+| `GET /api/changes/calendar` | per-day change counts, for marking a calendar |
+| `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
+| `POST /api/refresh` | trigger a scrape now |
+| `GET /api/version` | the version stamped into this binary |
+| `GET /metrics` | Prometheus text exposition |
+| `GET /healthz` | liveness |
+
+Two gauges are exported, both suitable for alerting:
+
+```
+periscope_component_drift_severity{cluster,component,state}  # 0 on the fleet leader
+periscope_cluster_stale{cluster}                             # 1 when the snapshot is stale
+```
 
 ## Logs
 
@@ -242,161 +364,47 @@ That pair is what a scrape timing out mid-list looks like, which is worth
 recognising: the components the failed extractors would have read are missing from
 that snapshot, and the matrix shows them as not installed until the next good scrape.
 
-## API
+## Development
 
-| Endpoint | |
-|---|---|
-| `GET /` | embedded PatternFly UI |
-| `GET /api/matrix` | the full comparison matrix as JSON (what the UI renders) |
-| `GET /api/matrix?at=<RFC3339>` | the matrix as it stood at that moment |
-| `GET /api/changes` | the change feed, newest first (`from`, `to`, `cluster`, `limit`) |
-| `GET /api/changes/calendar` | per-day change counts, for marking a calendar |
-| `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
-| `POST /api/refresh` | trigger a scrape now |
-| `GET /api/version` | the version stamped into this binary |
-| `GET /metrics` | Prometheus text exposition, see below |
-| `GET /healthz` | liveness |
+Requires Go 1.26+ and Node 20+.
 
-Two gauges are exported, both suitable for alerting:
+```bash
+make web      # build the PatternFly UI into web/dist (embedded by the Go build)
+make build    # build bin/periscope
+make test     # go test ./...
+make image    # docker build
 
-```
-periscope_component_drift_severity{cluster,component,state}  # 0 on the fleet leader
-periscope_cluster_stale{cluster}                             # 1 when the snapshot is stale
+# serve using your current kubeconfig context
+bin/periscope serve --namespace periscope --db ./periscope.db
+
+# one-off matrix printed to stdout (no web UI), useful in CI
+bin/periscope report --db ./periscope.db
 ```
 
-## Changes and time travel
+### Working on the UI without a cluster
 
-Every scrape has always been kept, so the **Changes** page reads that history back
-as an audit log: what appeared, what was upgraded, what was uninstalled, and when a
-cluster stopped answering. A scrape that found the fleet exactly as it was records
-nothing, so the feed holds events rather than heartbeats.
+The UI needs a fleet to show anything, which is a poor way to start work on it, so it
+ships with a synthetic one:
 
-The calendar beside it marks the days something happened, darker as more changed.
-Pick a day to read that day's events, then **View the matrix as it was** to load the
-whole matrix as of that moment, exports included. A banner says you are looking at
-history until you leave it.
-
-![The Changes page: a month calendar with the busy days shaded, beside a feed of
-operator upgrades, an installed operator, and a cluster that stopped answering and
-recovered](docs/screenshot-changes.png)
-
-Two silences are deliberate, because a feed nobody trusts is a feed nobody reads.
-An unreachable cluster reports nothing, so its components are not filed as removed
-and re-added around every outage; changes are measured against the last *successful*
-scrape, so an upgrade that happened during an outage is still reported when the
-cluster comes back. And a scrape with a partial error cannot tell "uninstalled" from
-"could not read", so removals wait for a clean scrape.
-
-The feed is derived from the snapshot history rather than being source data, so a
-correction to how changes are detected also has to reach the events already
-recorded. Each release stamps the logic it used; when that changes, the last 90
-days are re-derived from stored history on the next start. The rebuild runs in the
-background (tens of seconds on a fleet with months of history) and swaps in when it
-commits, so the pod serves throughout and nothing is half-replaced.
-
-Counters that move on nearly every scrape (VM totals, snapshot volumes) are recorded
-but hidden behind the **Include counters** switch, and the calendar counts them the
-same way the feed does. A day's colour is how much really changed; a day whose only
-news was counters moving gets a dot instead, so it does not read as empty and does
-not read as busy either. Turning counters on folds them into the colour, because then
-they are what you came to look at.
-
-## Knowing what can be upgraded
-
-Being behind the fleet only matters if there is somewhere to go, so Periscope also
-reports what each cluster can actually do about it:
-
-- **Update available** — the newest release the cluster is being offered. The cluster
-  has already asked the update service on its own channel, so this is read from its
-  ClusterVersion and needs no egress from the hub.
-- **Upgrade blocked** — an `Upgradeable=False` condition, with the reason and message.
-  This is the difference between a cluster that is behind and one that is stuck.
-- **Update in progress** — set while an upgrade is running, which explains a version
-  that disagrees with the rest of the fleet for the next hour.
-- **Operator updates pending** and **InstallPlans awaiting approval** — updates OLM
-  has resolved but not applied. On manual approval these sit unnoticed for months,
-  and they are the usual reason a cluster quietly falls behind.
-
-## Naming columns from the cluster
-
-If a cluster carries a `ConsoleNotification` named `cluster-name`, its text and
-colours head that column, so the matrix labels clusters the way their own operators
-already label them in the OpenShift console. The joined name stays in the tooltip and
-in exports, metrics and the API. Clusters without one keep their joined name.
-
-## Extending
-
-Adding coverage is usually a small change. If the version you need is a nested field
-in a custom resource, no code is required, just declare it in the extractor config:
-
-```yaml
-crExtractors:
-  - key: my-csi
-    display: My CSI
-    kind: csi
-    group: storage.example.com
-    version: v1
-    resource: mydrivers
-    versionPath: [spec, driver, configVersion]
+```bash
+make web-mock          # or: cd web/app && npm run dev:mock
 ```
 
-Anything else means implementing the `Extractor` interface and registering it. See
-[CONTRIBUTING.md](CONTRIBUTING.md#adding-an-extractor).
+That runs Vite with a dev-server middleware answering `/api/*` from a mock fleet of
+eight clusters: two production regions, staging, dev and two edge sites, one of them
+stale and one reporting an extractor error, with real drift, expiring certificates,
+counts and a month of change history. No cluster, no Go server, no database.
 
-## Layout
+The fixture lives in [`web/app/mock/`](web/app/mock/) and is typed against the same
+interfaces the app uses for real responses, so it cannot drift from the API's shapes.
+It is a Vite plugin rather than a branch in `src/`, enabled only by `--mode mock`, so a
+production build cannot pick it up. Every screenshot in this README was taken from it,
+which is also how they can be retaken without a fleet.
 
-```
-cmd/periscope/            CLI entrypoint (serve | report | version)
-internal/
-  version/                tolerant semver parse + compare      (unit-tested)
-  drift/                  build the comparison matrix          (unit-tested)
-  model/                  shared data types
-  extract/                per-cluster extractors + registry
-                            openshift.go   ClusterVersion (release, channel, updates)
-                            console.go     console banner used to name the column
-                            olm.go         OLM operators + pending updates/InstallPlans
-                            nodes.go       kubelet versions, node counts
-                            mcp.go         MachineConfigPools
-                            storage.go     default StorageClass
-                            volumes.go     PV/PVC counts per storage class
-                            certs.go       API + ingress certificate expiry
-                            virt.go        OpenShift Virtualization
-                            vm.go          VM counts, snapshots, templates
-                            crfield.go     Portworx + Dell CSI (nested CR fields)
-                            grafana.go     Grafana version the operator manages
-  cluster/                discover clusters from labeled Secrets
-  scrape/                 periodic parallel scrape scheduler
-  store/                  SQLite persistence (history + recorded change feed)
-  api/                    REST + CSV/JSON export + /metrics
-  report/                 text-table report for the CLI
-  config/                 optional extractor configuration
-web/                      go:embed'd UI, PatternFly app in web/app, built to web/dist
-  app/mock/               synthetic fleet + dev-server middleware (npm run dev:mock)
-charts/
-  periscope/              hub chart (Deployment, oauth-proxy, RBAC, PVC, Route)
-  periscope-join/         per-cluster read-only SA + token + RBAC
-tekton/                   example on-cluster build (OpenShift Pipelines)
-examples/                 custom grouping ConfigMap
-docs/                     screenshots used by this README
-```
+### Version strings
 
-## CI/CD
-
-Two GitHub Actions workflows:
-
-[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request. It builds
-the UI once and shares it as an artifact, because the Go build embeds `web/dist`, then
-runs `go vet`, `go test`, cross-platform builds and a container build.
-
-[`release.yml`](.github/workflows/release.yml) pushes the image to Docker Hub, tagged
-`:edge` and `:<sha>` from `master` and `:<tag>` and `:latest` from tags. On tags it
-also attaches the binaries and `SHA256SUMS` to a GitHub Release.
-
-### Versions
-
-The release lives in source, as `Base` in [`pkg/version`](pkg/version/version.go), and
-every build reports it. Builds that are not a release tag append build metadata saying
-where they came from, so a version is always traceable to both a release and a commit:
+Every build reports the release it came from, plus metadata saying where it was built,
+so a version is always traceable to both a release and a commit:
 
 ```
 1.0.0             a release build of the v1.0.0 tag
@@ -405,36 +413,11 @@ where they came from, so a version is always traceable to both a release and a c
 1.0.0+dev         a local `make build`
 ```
 
-The running value is shown on the UI's About page, printed by `periscope version`, and
-served from `/api/version`.
+The running value is on the UI's About page, printed by `periscope version`, and served
+from `/api/version`.
 
-Cutting a release means bumping `Base`, both chart versions and `web/app/package.json`
-in one commit, then tagging it. The tag must match `Base`, which
-[`check-release-tag.sh`](.github/check-release-tag.sh) enforces before anything is
-published, so a mistagged release cannot ship binaries that misreport themselves.
-
-Image publishing needs two repository secrets, `DOCKERHUB_USERNAME` and
-`DOCKERHUB_TOKEN` (a Docker Hub access token with push rights). Without them the push
-is skipped rather than failed. The image name can be overridden with the `IMAGE_NAME`
-repository variable.
-
-If you would rather build on a cluster than in a hosted runner,
-[`tekton/`](tekton/README.md) has a self-contained OpenShift Pipelines pipeline
-(git-clone plus buildah) that builds the same `Dockerfile` and pushes to a registry of
-your choice.
-
-## Before running against a real fleet
-
-Verify the Portworx and Dell CR field paths. The defaults in
-`internal/extract/crfield.go` (`status.version`, `spec.driver.configVersion`) are
-best-effort. Confirm them against your clusters with
-`oc get storagecluster,containerstoragemodule -o yaml` and override them via
-`--config` rather than patching the code.
-
-Watch extractor errors rather than empty cells. The reader SA binds OpenShift's
-`cluster-reader`, so missing RBAC is mostly a non-issue, but if you narrow that role a
-missing rule returns `403`, which the scheduler records in the snapshot error. An empty
-cell on its own does not prove that a component is absent.
+[CONTRIBUTING.md](CONTRIBUTING.md) has the repository layout, how to add an extractor,
+the CI workflows and how a release is cut.
 
 ## Contributing
 

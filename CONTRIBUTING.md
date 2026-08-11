@@ -43,16 +43,42 @@ The README's screenshots are taken from it.
 
 ## Project layout
 
-The README has the full layout and [DESIGN.md](DESIGN.md) has the architectural
-reasoning. In short:
+[DESIGN.md](DESIGN.md) has the architectural reasoning behind this shape.
 
-- `internal/extract/` one file per extractor, registered in `registry.go`
-- `internal/drift/` matrix construction and drift classification
-- `internal/store/` SQLite persistence with full snapshot history
-- `internal/api/` REST, CSV/JSON export, Prometheus metrics
-- `web/app/` PatternFly React UI, built into `web/dist`
-- `web/app/mock/` synthetic fleet for `npm run dev:mock`, never part of a build
-- `charts/` hub chart and per-cluster join chart
+```
+cmd/periscope/            CLI entrypoint (serve | report | version)
+internal/
+  version/                tolerant semver parse + compare      (unit-tested)
+  drift/                  build the comparison matrix          (unit-tested)
+  model/                  shared data types
+  extract/                per-cluster extractors + registry
+                            openshift.go   ClusterVersion (release, channel, updates)
+                            console.go     console banner used to name the column
+                            olm.go         OLM operators + pending updates/InstallPlans
+                            nodes.go       kubelet versions, node counts
+                            mcp.go         MachineConfigPools
+                            storage.go     default StorageClass
+                            volumes.go     PV/PVC counts per storage class
+                            certs.go       API + ingress certificate expiry
+                            virt.go        OpenShift Virtualization
+                            vm.go          VM counts, snapshots, templates
+                            crfield.go     Portworx + Dell CSI (nested CR fields)
+                            grafana.go     Grafana version the operator manages
+  cluster/                discover clusters from labeled Secrets
+  scrape/                 periodic parallel scrape scheduler
+  store/                  SQLite persistence (history + recorded change feed)
+  api/                    REST + CSV/JSON export + /metrics
+  report/                 text-table report for the CLI
+  config/                 optional extractor configuration
+web/                      go:embed'd UI, PatternFly app in web/app, built to web/dist
+  app/mock/               synthetic fleet + dev-server middleware (npm run dev:mock)
+charts/
+  periscope/              hub chart (Deployment, oauth-proxy, RBAC, PVC, Route)
+  periscope-join/         per-cluster read-only SA + token + RBAC
+tekton/                   example on-cluster build (OpenShift Pipelines)
+examples/                 custom grouping ConfigMap
+docs/                     screenshots used by the README
+```
 
 ## Adding an extractor
 
@@ -98,6 +124,49 @@ from the API, so a new key appears there automatically.
   cross-platform builds and a container build.
 - Say in the PR description whether you verified the change against a real cluster and
   on which OpenShift version.
+
+## CI
+
+Two GitHub Actions workflows.
+
+[`ci.yml`](.github/workflows/ci.yml) runs on every push and pull request. It builds
+the UI once and shares it as an artifact, because the Go build embeds `web/dist`, then
+runs `go vet`, `go test`, a UI typecheck, cross-platform builds and a container build.
+
+[`release.yml`](.github/workflows/release.yml) pushes the image to Docker Hub, tagged
+`:edge` and `:<sha>` from `master` and `:<tag>` and `:latest` from tags. On tags it
+also attaches the binaries and `SHA256SUMS` to a GitHub Release.
+
+Image publishing needs two repository secrets, `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` (a Docker Hub access token with push rights). Without them the push
+is skipped rather than failed. The image name can be overridden with the `IMAGE_NAME`
+repository variable.
+
+If you would rather build on a cluster than in a hosted runner,
+[`tekton/`](tekton/README.md) has a self-contained OpenShift Pipelines pipeline
+(git-clone plus buildah) that builds the same `Dockerfile` and pushes to a registry of
+your choice.
+
+## Cutting a release
+
+The release lives in source, as `Base` in [`pkg/version`](pkg/version/version.go), and
+every build reports it (see the README's [version
+strings](README.md#version-strings)). Four places have to move together, in one commit:
+
+- `Base` in `pkg/version/version.go`
+- `version` and `appVersion` in `charts/periscope/Chart.yaml`
+- `version` and `appVersion` in `charts/periscope-join/Chart.yaml`
+- `version` in `web/app/package.json` and its lock file
+
+Then tag it. The tag must match `Base`, which
+[`check-release-tag.sh`](.github/check-release-tag.sh) enforces before anything is
+published, so a mistagged release cannot ship binaries that misreport themselves.
+
+Versions follow semver against what a user of the image and charts sees: patch for a
+fix, minor for a feature or a new extractor, major for a break in the REST or CSV
+shape, the chart values, the extractor config schema or the stored snapshot format.
+Documentation, screenshots, tests and dev-only tooling ship nothing to that user and
+need no release.
 
 ## Reporting security issues
 

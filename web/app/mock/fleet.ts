@@ -31,8 +31,17 @@ function rng(seed: number): () => number {
   }
 }
 
-const rand = rng(20260811)
+const SEED = 20260811
+let rand = rng(SEED)
 const between = (lo: number, hi: number) => lo + Math.floor(rand() * (hi - lo + 1))
+
+// Every response starts from the same seed. Without this the generator carries
+// on where the last payload left it, so a page reload reshuffles half the
+// operator versions: the fixture looks like a fleet churning, and a screenshot
+// cannot be retaken.
+const reseed = () => {
+  rand = rng(SEED)
+}
 
 const MINUTE = 60_000
 const DAY = 24 * 60 * MINUTE
@@ -200,7 +209,10 @@ const OPERATORS: [key: string, name: string, leader: string, behind: string][] =
 // Values the change feed refers to. A feed entry that ends on a version the
 // matrix does not show would be a fixture arguing with itself.
 const OPERATOR_PINS: Record<string, Values> = {
-  'grafana-operator': { 'prod-eu-west': '5.18.0' },
+  // The README's screenshot rests on this pair: the newest operator running an
+  // older Grafana than the oldest operator does, which is the whole argument for
+  // extracting the managed version separately.
+  'grafana-operator': { 'prod-eu-west': '5.18.0', 'dev-eu-central': '5.18.0', 'prod-us-east': '5.15.1' },
   'compliance-operator': { 'edge-site-02': '1.5.1' },
   'web-terminal': { 'prod-us-east': null },
   'openshift-pipelines-operator-rh': { 'prod-eu-central': '1.17.1' },
@@ -573,6 +585,7 @@ function pagesOf(rows: Row[]): Page[] {
 }
 
 export function mockMatrix(at?: string): Matrix {
+  reseed()
   const now = at ? Date.parse(at) : Date.now()
   const rows: Row[] = rowSpecs().map((spec) => {
     const { leader, cells } = cellsOf(spec, now)
@@ -642,6 +655,7 @@ export function mockChanges(q: {
   limit?: number
   counters: boolean
 }): { changes: Change[]; hiddenCounters: number } {
+  reseed()
   let changes = feed(Date.now())
   if (q.from) changes = changes.filter((c) => c.time >= q.from!)
   if (q.to) changes = changes.filter((c) => c.time <= q.to!)
@@ -658,6 +672,7 @@ export function mockChanges(q: {
 }
 
 export function mockCalendar(): { days: ChangeDay[]; first: string; last: string } {
+  reseed()
   const now = Date.now()
   const all = feed(now)
   const byDay = new Map<string, { count: number; counters: number; clusters: Set<string> }>()

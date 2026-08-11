@@ -4,15 +4,15 @@
 // from. Builds that are not a release tag add build metadata saying where they
 // came from, giving strings like:
 //
-//	0.2.0             a release build of the v0.2.0 tag
-//	0.2.0+ci-1a2b3c4  a CI build of master, at that commit
-//	0.2.0+dev         a local `make build`
+//	1.0.0             a release build of the v1.0.0 tag
+//	1.0.0+ci-1a2b3c4  a CI build of master, at that commit
+//	1.0.0+dev         a local `make build`
 package version
 
 // Base is the release this source tree carries. Bump it by hand when cutting a
 // release, together with the chart versions and web/app/package.json. The
 // release tag must match it, which CI checks before publishing.
-const Base = "0.2.0"
+const Base = "1.0.0"
 
 // Build is the build metadata, stamped at link time with
 //

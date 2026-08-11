@@ -357,10 +357,10 @@ every build reports it. Builds that are not a release tag append build metadata 
 where they came from, so a version is always traceable to both a release and a commit:
 
 ```
-0.2.0             a release build of the v0.2.0 tag
-0.2.0+ci-1a2b3c4  the :edge image, or a CI binary, at that commit
-0.2.0+tekton-...  built on a cluster by tekton/, tagged with the image tag
-0.2.0+dev         a local `make build`
+1.0.0             a release build of the v1.0.0 tag
+1.0.0+ci-1a2b3c4  the :edge image, or a CI binary, at that commit
+1.0.0+tekton-...  built on a cluster by tekton/, tagged with the image tag
+1.0.0+dev         a local `make build`
 ```
 
 The running value is shown on the UI's About page, printed by `periscope version`, and

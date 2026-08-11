@@ -1,13 +1,17 @@
 IMAGE ?= crozltd/periscope
 TAG   ?= dev
 
-.PHONY: all web build test vet image run clean
+.PHONY: all web web-mock build test vet image run clean
 
 all: web build
 
 # Build the PatternFly UI into web/dist (embedded by the Go build).
 web:
 	cd web/app && npm install && npm run build
+
+# Run the UI against a synthetic fleet: no cluster, no Go server (see web/app/mock).
+web-mock:
+	cd web/app && npm install && npm run dev:mock
 
 # Build the Go binary (expects web/dist to exist; run `make web` first).
 build:

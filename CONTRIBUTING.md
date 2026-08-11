@@ -31,6 +31,16 @@ present it starts with an empty matrix. The README describes the join flow.
 For UI-only work, `cd web/app && npm run dev` gives you Vite with hot reload against a
 running backend. The dev server proxies `/api`, see `web/app/vite.config.ts`.
 
+With no fleet to point it at, use `make web-mock` (`npm run dev:mock`) instead. It runs
+the same dev server with a middleware answering `/api/*` from the synthetic fleet in
+[`web/app/mock/`](web/app/mock/): eight clusters with real drift, a stale one, one
+reporting an extractor error, expiring certificates and a month of change history. Add
+to the fixture when you add a row type, so the next person can see it without a
+cluster. It is typed against the interfaces in `web/app/src/api.ts`, so a change to a
+response shape fails `npm run typecheck` here too, and it is a plugin enabled only by
+`--mode mock`, never imported from `src/`, so it cannot reach a production bundle.
+The README's screenshots are taken from it.
+
 ## Project layout
 
 The README has the full layout and [DESIGN.md](DESIGN.md) has the architectural
@@ -41,6 +51,7 @@ reasoning. In short:
 - `internal/store/` SQLite persistence with full snapshot history
 - `internal/api/` REST, CSV/JSON export, Prometheus metrics
 - `web/app/` PatternFly React UI, built into `web/dist`
+- `web/app/mock/` synthetic fleet for `npm run dev:mock`, never part of a build
 - `charts/` hub chart and per-cluster join chart
 
 ## Adding an extractor

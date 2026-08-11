@@ -149,6 +149,26 @@ bin/periscope serve --namespace periscope --db ./periscope.db
 bin/periscope report --db ./periscope.db
 ```
 
+### Working on the UI
+
+The UI needs a fleet to show anything, which is a poor way to start work on it, so it
+ships with a synthetic one:
+
+```bash
+make web-mock          # or: cd web/app && npm run dev:mock
+```
+
+That runs Vite with a dev-server middleware answering `/api/*` from a mock fleet of
+eight clusters: two production regions, staging, dev and two edge sites, one of them
+stale and one reporting an extractor error, with real drift, expiring certificates,
+counts and a month of change history. No cluster, no Go server, no database.
+
+The fixture lives in [`web/app/mock/`](web/app/mock/) and is typed against the same
+interfaces the app uses for real responses, so it cannot drift from the API's shapes.
+It is a Vite plugin rather than a branch in `src/`, enabled only by `--mode mock`, so a
+production build cannot pick it up. Every screenshot in this README was taken from it,
+which is also how they can be retaken without a fleet.
+
 ## CLI
 
 ```
@@ -331,6 +351,7 @@ internal/
   report/                 text-table report for the CLI
   config/                 optional extractor configuration
 web/                      go:embed'd UI, PatternFly app in web/app, built to web/dist
+  app/mock/               synthetic fleet + dev-server middleware (npm run dev:mock)
 charts/
   periscope/              hub chart (Deployment, oauth-proxy, RBAC, PVC, Route)
   periscope-join/         per-cluster read-only SA + token + RBAC

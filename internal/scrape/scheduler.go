@@ -130,7 +130,7 @@ func (s *Scheduler) scrapeOne(ctx context.Context, t cluster.Target) model.Snaps
 		comps, err := e.Extract(cctx, clients)
 		took := time.Since(at).Round(time.Millisecond)
 		if err != nil {
-			// Per-extractor failure (missing CRD, forbidden, etc.) is recorded but
+			// Per-extractor failure (missing CRD or forbidden) is recorded but
 			// does not fail the whole cluster, other components still get through.
 			// Extractors share one deadline and run in order, so the first of
 			// these is usually the one worth reading: the rest are collateral.

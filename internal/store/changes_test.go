@@ -32,8 +32,8 @@ func save(t *testing.T, st *Store, snap model.Snapshot) {
 }
 
 // The feed must only ever hold real events: a scrape that found the same thing
-// again is what happens almost every time, and recording it would bury the
-// changes that matter.
+// again is what happens almost every time, and recording it buries the changes
+// that matter.
 func TestChangesRecordsOnlyRealChanges(t *testing.T) {
 	st := openTest(t)
 	t0 := time.Now().Add(-3 * time.Hour)
@@ -63,7 +63,7 @@ func TestChangesRecordsOnlyRealChanges(t *testing.T) {
 		t.Fatalf("want 4 changes, got %d: %+v", len(changes), changes)
 	}
 	if _, ok := got[model.ChangeJoined+":"]; !ok {
-		t.Error("first scrape should record a join, not one addition per component")
+		t.Error("first scrape recorded one addition per component, want a single join")
 	}
 	if c := got[model.ChangeUpdated+":openshift"]; c.From != "4.14.9" || c.To != "4.14.12" {
 		t.Errorf("openshift update recorded as %q -> %q", c.From, c.To)
@@ -83,8 +83,8 @@ func TestChangesRecordsOnlyRealChanges(t *testing.T) {
 	}
 }
 
-// An unreachable cluster reports no components. Diffing those away would file
-// every component on the cluster as removed, then as added on recovery.
+// An unreachable cluster reports no components. Diffing those away files every
+// component on the cluster as removed, then as added on recovery.
 func TestChangesUnreachableClusterDoesNotEmptyTheFleet(t *testing.T) {
 	st := openTest(t)
 	t0 := time.Now().Add(-3 * time.Hour)
@@ -103,7 +103,7 @@ func TestChangesUnreachableClusterDoesNotEmptyTheFleet(t *testing.T) {
 		kinds[c.Kind]++
 	}
 	if kinds[model.ChangeRemoved] != 0 || kinds[model.ChangeAdded] != 0 {
-		t.Errorf("outage should not add or remove components, got %+v", kinds)
+		t.Errorf("outage added or removed components, got %+v", kinds)
 	}
 	if kinds[model.ChangeUnreachable] != 1 {
 		t.Errorf("want one unreachable event, got %d (a cluster down for hours must not repeat)", kinds[model.ChangeUnreachable])
@@ -213,7 +213,7 @@ func TestSnapshotsAt(t *testing.T) {
 }
 
 // History written before the feed existed still has to show up, or the feed
-// would claim a fleet that has been running for months never changed.
+// claims a fleet that ran for months never changed.
 func TestBackfillReconstructsFeedFromHistory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	st, err := Open(path)
@@ -264,8 +264,8 @@ func TestBackfillReconstructsFeedFromHistory(t *testing.T) {
 }
 
 // A cluster upgraded while it was unreachable really did change. Comparing
-// against the last good snapshot is the only way to notice, and reporting only
-// "recovered" would hide a whole release upgrade.
+// against the last good snapshot is the only way to notice. Reporting only
+// "recovered" hides a whole release upgrade.
 func TestChangesAcrossAnOutageComparesToLastGoodState(t *testing.T) {
 	st := openTest(t)
 	t0 := time.Now().Add(-4 * time.Hour)
@@ -342,7 +342,7 @@ func TestChangeDaysSeparatesCounters(t *testing.T) {
 		t.Errorf("mixed day = %+v, want 2 changes of which 1 counter", busy)
 	}
 	if busy.Count-busy.Counters != 1 {
-		t.Errorf("mixed day should have exactly one substantive change, got %d", busy.Count-busy.Counters)
+		t.Errorf("mixed day has %d substantive changes, want exactly one", busy.Count-busy.Counters)
 	}
 }
 
@@ -404,9 +404,9 @@ func TestChangesLimitIsSpentOnVisibleRows(t *testing.T) {
 
 // A scrape whose per-cluster deadline expires partway through the extractor
 // list stores a snapshot that is OK but missing everything the later
-// extractors would have read. That snapshot must not become the baseline: the
-// components were never uninstalled, they were never read, and the next
-// healthy scrape would otherwise report every one of them as newly appeared.
+// extractors did not read. That snapshot must not become the baseline: the
+// components were never uninstalled, they were never read, and the next healthy
+// scrape otherwise reports every one of them as newly appeared.
 func TestChangesTimedOutScrapeDoesNotResurrectComponents(t *testing.T) {
 	st := openTest(t)
 	t0 := time.Now().Add(-4 * time.Hour)

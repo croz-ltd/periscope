@@ -53,8 +53,8 @@ func (s *Server) Handler() http.Handler {
 }
 
 // logRequests records every request once it has finished. Served pages are
-// debug-only (the UI polls, and an access log at info would drown the scrape
-// lines), while a server error is always worth seeing.
+// debug-only (the UI polls, and an access log at info drowns the scrape lines),
+// while a server error is always worth seeing.
 func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		started := time.Now()
@@ -78,7 +78,7 @@ func logRequests(next http.Handler) http.Handler {
 	})
 }
 
-// statusRecorder remembers the status code so it can be logged; without it
+// statusRecorder remembers the status code so it can be logged. Without it
 // every response looks like a 200.
 type statusRecorder struct {
 	http.ResponseWriter
@@ -250,8 +250,8 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 	if query.ExcludeCounters {
 		// Say how many were left out, so "nothing changed" can be told apart
 		// from "nothing but counters changed". Count over the window actually
-		// returned: on an open-ended request the answer would otherwise be
-		// every counter update ever recorded, next to a page holding a day.
+		// returned: on an open-ended request the answer is otherwise every
+		// counter update ever recorded, next to a page holding a day.
 		counted := query
 		if counted.From.IsZero() && len(changes) > 0 {
 			counted.From = changes[len(changes)-1].Time

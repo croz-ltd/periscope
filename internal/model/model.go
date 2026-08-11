@@ -19,13 +19,13 @@ const (
 	// CompareVersion: semver drift vs the fleet-max (green ahead / red behind).
 	CompareVersion = "version"
 	// CompareMatch: config consistency, cells that differ from the fleet's
-	// common value are flagged; no "leader".
+	// common value are flagged. There is no "leader".
 	CompareMatch = "match"
 	// CompareExpiry: absolute date thresholds, NOT cross-cluster (Version holds
 	// an RFC3339 timestamp): >120d green, <=120d yellow, <=60d red.
 	CompareExpiry = "expiry"
 	// CompareInfo: purely informational, display the value, no drift judgement
-	// (e.g. node counts, which legitimately differ per cluster).
+	// (for example node counts, which legitimately differ per cluster).
 	CompareInfo = "info"
 )
 
@@ -48,8 +48,8 @@ type Component struct {
 }
 
 // Snapshot is the result of scraping one cluster at one moment. OK is false only
-// when the cluster was unreachable / auth failed; per-extractor failures leave
-// OK true but populate Error, and successfully-read components still land here.
+// when the cluster was unreachable or auth failed. A per-extractor failure
+// leaves OK true and populates Error, and the components it did read land here.
 type Snapshot struct {
 	Cluster    string      `json:"cluster"`
 	Time       time.Time   `json:"time"`

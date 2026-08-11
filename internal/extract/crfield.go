@@ -17,7 +17,7 @@ import (
 //
 // The field paths below are best-effort defaults, so verify them against your
 // installs (`oc get <cr> -o yaml`) and adjust. Making these config-driven
-// (paths in a values file) is a planned follow-up so a field rename doesn't
+// (paths in a values file) is a planned follow-up so a field rename does not
 // require a rebuild.
 type crFieldExtractor struct {
 	key         string
@@ -45,7 +45,7 @@ func (e crFieldExtractor) Key() string { return e.key }
 
 func (e crFieldExtractor) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
 	if !c.HasResource(e.gvr) {
-		return nil, nil // this vendor's CRD isn't installed on this cluster
+		return nil, nil // this vendor's CRD is not installed on this cluster
 	}
 	list, err := c.Dynamic.Resource(e.gvr).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -93,7 +93,7 @@ func Portworx() Extractor {
 		display: "Portworx (CSI)",
 		kind:    "csi",
 		gvr:     schema.GroupVersionResource{Group: "core.libopenstorage.org", Version: "v1", Resource: "storageclusters"},
-		// status.version carries the running version; if your install leaves it
+		// status.version carries the running version. If your install leaves it
 		// empty, switch to spec.image with imageTag:true.
 		versionPath: []string{"status", "version"},
 	}

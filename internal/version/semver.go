@@ -14,7 +14,7 @@ type Version struct {
 	Major, Minor, Patch int
 	Pre                 string // prerelease identifiers, without the leading '-'
 	Raw                 string // original input, shown verbatim in the UI
-	OK                  bool   // false when Raw could not be parsed
+	OK                  bool   // false when Raw did not parse
 }
 
 // Parse normalizes and parses a version string: trims space, strips a leading

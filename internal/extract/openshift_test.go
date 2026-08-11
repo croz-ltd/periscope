@@ -64,7 +64,7 @@ func TestOpenShiftReportsAvailableUpdate(t *testing.T) {
 }
 
 // A cluster at the head of its channel has nowhere to go, and an empty row
-// would read as "no data" rather than "nothing to do".
+// reads as "no data" rather than "nothing to do".
 func TestOpenShiftOmitsUpdateRowWhenAtHead(t *testing.T) {
 	cv := clusterVersion(map[string]any{"desired": map[string]any{"version": "4.14.12"}})
 
@@ -73,7 +73,7 @@ func TestOpenShiftOmitsUpdateRowWhenAtHead(t *testing.T) {
 		t.Fatalf("extract: %v", err)
 	}
 	if _, ok := byKey(comps)["openshift-update-available"]; ok {
-		t.Error("no available updates should mean no row at all")
+		t.Error("no available updates produced a row, want none")
 	}
 }
 
@@ -115,7 +115,7 @@ func TestOpenShiftQuietWhenUpgradeable(t *testing.T) {
 	})
 	got := byKey(mustExtract(t, cv))
 	if _, ok := got["openshift-upgradeable"]; ok {
-		t.Error("a healthy cluster should not carry a blocked row")
+		t.Error("a healthy cluster carries a blocked row, want none")
 	}
 	if _, ok := got["openshift-updating"]; ok {
 		t.Error("no upgrade running, no row")
@@ -137,7 +137,7 @@ func TestConsoleBannerNamesTheColumn(t *testing.T) {
 		"kind":       "ConsoleNotification",
 		"metadata":   map[string]any{"name": bannerName},
 		"spec": map[string]any{
-			"text":            "PRODUCTION — Frankfurt",
+			"text":            "PRODUCTION - Frankfurt",
 			"color":           "#FFFFFF",
 			"backgroundColor": "#C9190B",
 		},
@@ -162,7 +162,7 @@ func TestConsoleBannerNamesTheColumn(t *testing.T) {
 	if c.Key != model.KeyClusterBanner {
 		t.Errorf("key = %q, must be the well-known banner key so the matrix lifts it into the header", c.Key)
 	}
-	if c.Version != "PRODUCTION — Frankfurt" {
+	if c.Version != "PRODUCTION - Frankfurt" {
 		t.Errorf("label = %q", c.Version)
 	}
 	if c.Extra["backgroundColor"] != "#C9190B" || c.Extra["color"] != "#FFFFFF" {

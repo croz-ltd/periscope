@@ -102,7 +102,7 @@ func TestBuiltinGroupsFallback(t *testing.T) {
 		t.Fatalf("built-in group order wrong: %v", titles)
 	}
 	if strings.Join(byTitle[model.GroupOperators], ",") != "op-a,op-z" {
-		t.Errorf("Operators keys should sort by name: %v", byTitle[model.GroupOperators])
+		t.Errorf("Operators keys are not sorted by name: %v", byTitle[model.GroupOperators])
 	}
 }
 
@@ -118,10 +118,10 @@ func TestPagesSplitAndHidden(t *testing.T) {
 	_, cmp := pageGroups(m, PageCompare)
 	_, stat := pageGroups(m, PageStatistics)
 	if _, ok := cmp[model.GroupOpenShift]; !ok {
-		t.Errorf("openshift should be on Compare page: %+v", cmp)
+		t.Errorf("openshift is missing from the Compare page: %+v", cmp)
 	}
 	if len(stat) == 0 {
-		t.Errorf("info rows should populate the Statistics page")
+		t.Errorf("info rows left the Statistics page empty")
 	}
 	// Hidden removes a key from every page.
 	m2 := Build([]model.Snapshot{snap}, now, time.Hour, &GroupConfig{Hidden: []string{"vm-total"}})
@@ -147,10 +147,10 @@ func TestBuildInfo(t *testing.T) {
 	row := m.Rows[0]
 	// info never judges drift, even though the values differ.
 	if row.Cells["a"].State != StateInfo || row.Cells["b"].State != StateInfo {
-		t.Errorf("info cells should be StateInfo, got %s / %s", row.Cells["a"].State, row.Cells["b"].State)
+		t.Errorf("info cells are %s / %s, want StateInfo", row.Cells["a"].State, row.Cells["b"].State)
 	}
 	if row.Cells["a"].Version != "6" || row.Cells["b"].Version != "12" {
-		t.Errorf("info cells should keep their values, got %q / %q", row.Cells["a"].Version, row.Cells["b"].Version)
+		t.Errorf("info cells lost their values, got %q / %q", row.Cells["a"].Version, row.Cells["b"].Version)
 	}
 }
 
@@ -173,10 +173,10 @@ func TestBuildMatch(t *testing.T) {
 		t.Errorf("expected common value stable-4.14, got %q", row.Leader)
 	}
 	if row.Cells["a"].State != StateMatch || row.Cells["b"].State != StateMatch {
-		t.Errorf("a/b should match: %s %s", row.Cells["a"].State, row.Cells["b"].State)
+		t.Errorf("a/b are %s %s, want match", row.Cells["a"].State, row.Cells["b"].State)
 	}
 	if row.Cells["c"].State != StateMismatch {
-		t.Errorf("c should mismatch, got %s", row.Cells["c"].State)
+		t.Errorf("c is %s, want mismatch", row.Cells["c"].State)
 	}
 }
 
@@ -191,13 +191,13 @@ func TestBuildExpiry(t *testing.T) {
 	m := Build([]model.Snapshot{mk("crit", 30), mk("warn", 90), mk("ok", 200)}, now, time.Hour, nil)
 	row := m.Rows[0]
 	if row.Cells["crit"].State != StateExpiryCrit {
-		t.Errorf("30d should be crit, got %s", row.Cells["crit"].State)
+		t.Errorf("30d is %s, want crit", row.Cells["crit"].State)
 	}
 	if row.Cells["warn"].State != StateExpiryWarn {
-		t.Errorf("90d should be warn, got %s", row.Cells["warn"].State)
+		t.Errorf("90d is %s, want warn", row.Cells["warn"].State)
 	}
 	if row.Cells["ok"].State != StateExpiryOK {
-		t.Errorf("200d should be ok, got %s", row.Cells["ok"].State)
+		t.Errorf("200d is %s, want ok", row.Cells["ok"].State)
 	}
 	if row.Cells["warn"].Severity != 90 {
 		t.Errorf("expected 90 days remaining, got %d", row.Cells["warn"].Severity)
@@ -223,10 +223,10 @@ func TestBuild(t *testing.T) {
 		t.Fatalf("clusters not sorted/complete: %+v", m.Clusters)
 	}
 	if m.Clusters[0].Stale != true {
-		t.Errorf("cluster a should be stale (2h old, threshold 1h)")
+		t.Errorf("cluster a is fresh, want stale (2h old, threshold 1h)")
 	}
 	if m.Clusters[1].Stale != false {
-		t.Errorf("cluster b should be fresh")
+		t.Errorf("cluster b is stale, want fresh")
 	}
 
 	rows := map[string]Row{}
@@ -239,18 +239,18 @@ func TestBuild(t *testing.T) {
 		t.Errorf("openshift leader = %q, want 4.14.9", ocp.Leader)
 	}
 	if ocp.Cells["b"].State != StateLeader {
-		t.Errorf("b openshift should be leader, got %s", ocp.Cells["b"].State)
+		t.Errorf("b openshift is %s, want leader", ocp.Cells["b"].State)
 	}
 	if ocp.Cells["a"].State != StateBehind || ocp.Cells["a"].GapKind != "minor" {
-		t.Errorf("a openshift should be behind/minor, got %s/%s", ocp.Cells["a"].State, ocp.Cells["a"].GapKind)
+		t.Errorf("a openshift is %s/%s, want behind/minor", ocp.Cells["a"].State, ocp.Cells["a"].GapKind)
 	}
 
 	px := rows["portworx-csi"]
 	if px.Cells["b"].State != StateUnknown {
-		t.Errorf("b portworx should be unknown (unparseable), got %s", px.Cells["b"].State)
+		t.Errorf("b portworx is %s, want unknown (unparseable)", px.Cells["b"].State)
 	}
 	if px.Cells["a"].State != StateNotInstalled {
-		t.Errorf("a portworx should be not_installed, got %s", px.Cells["a"].State)
+		t.Errorf("a portworx is %s, want not_installed", px.Cells["a"].State)
 	}
 }
 
@@ -289,6 +289,6 @@ func TestBuildLiftsConsoleBannerIntoTheHeader(t *testing.T) {
 		t.Errorf("cluster a header = %+v, want the banner text and colours", a)
 	}
 	if b.Label != "" {
-		t.Errorf("cluster b has no banner, header should fall back to its name, got label %q", b.Label)
+		t.Errorf("cluster b has no banner, so the header keeps its name, got label %q", b.Label)
 	}
 }

@@ -1,6 +1,6 @@
 // Package extract pulls version information from a cluster. A generic OLM path
-// covers all installed operators; hand-written extractors handle special cases
-// (OpenShift release, node fleet, and CSI driver versions buried in vendor CRs).
+// covers all installed operators. Hand-written extractors handle special cases:
+// OpenShift release, node fleet, and CSI driver versions buried in vendor CRs.
 package extract
 
 import (
@@ -16,7 +16,7 @@ import (
 	"github.com/croz-ltd/periscope/internal/model"
 )
 
-// Clients bundles the per-cluster clients an extractor may use.
+// Clients bundles the per-cluster clients an extractor can use.
 type Clients struct {
 	Typed   kubernetes.Interface
 	Dynamic dynamic.Interface

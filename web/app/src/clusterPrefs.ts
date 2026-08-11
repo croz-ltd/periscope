@@ -25,7 +25,7 @@ export function saveHiddenClusters(names: string[]): void {
     if (names.length === 0) localStorage.removeItem(KEY)
     else localStorage.setItem(KEY, JSON.stringify(names))
   } catch {
-    // Private-mode browsers can refuse to store; the session still works.
+    // Private-mode browsers can refuse to store. The session still works.
   }
 }
 

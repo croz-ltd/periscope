@@ -49,7 +49,7 @@ func (OpenShift) Extract(ctx context.Context, c *Clients) ([]model.Component, er
 }
 
 // updateStatus turns the ClusterVersion's own upgrade view into rows: what the
-// cluster could move to, and whether it is allowed to move at all.
+// cluster can move to, and whether it is allowed to move at all.
 //
 // The cluster has already asked the update service on its own channel, so this
 // needs no egress from the hub and no knowledge of Cincinnati here. It answers

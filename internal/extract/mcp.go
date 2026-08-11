@@ -37,7 +37,7 @@ func (MachineConfigPools) Extract(ctx context.Context, c *Clients) ([]model.Comp
 	var out []model.Component
 	for _, item := range list.Items {
 		name := item.GetName()
-		// spec.maxUnavailable is an IntOrString; default is 1 when unset.
+		// spec.maxUnavailable is an IntOrString. It defaults to 1 when unset.
 		maxUnavail := "1"
 		if v, ok, _ := unstructured.NestedFieldNoCopy(item.Object, "spec", "maxUnavailable"); ok && v != nil {
 			maxUnavail = fmt.Sprintf("%v", v)

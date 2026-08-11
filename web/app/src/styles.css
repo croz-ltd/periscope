@@ -340,11 +340,11 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 
 /* ------------------------------------------------------------------ */
 /* Keep drift cells legible under PatternFly's native themes. The cell    */
-/* backgrounds are explicit colors, so they survive felt/glass; we add    */
-/* crisp borders + bold under high-contrast/glass for extra definition.   */
+/* backgrounds are explicit colors, so they survive felt and glass. Crisp  */
+/* borders and bold add definition under high-contrast and glass.          */
 /* ------------------------------------------------------------------ */
-/* High contrast wants crisp borders; glass does not (the outline looks wrong
-   over the translucent surface), so only bolden cells under glass. */
+/* High contrast wants crisp borders. Glass does not, because the outline looks
+   wrong over the translucent surface, so glass only boldens the cells. */
 .pf-v6-theme-high-contrast .cc-cell {
   border: 1px solid currentColor;
   font-weight: 700;
@@ -359,8 +359,8 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 .pf-v6-theme-high-contrast .cc-swatch {
   border: 1px solid currentColor;
 }
-/* Glass surfaces are translucent; give the group header a translucent-safe
-   backdrop so the section labels stay readable over the page texture. */
+/* Glass surfaces are translucent. The group header gets a translucent-safe
+   backdrop, so the section labels stay readable over the page texture. */
 .pf-v6-theme-glass .cc-group-header {
   background: rgba(127, 127, 127, 0.25);
   color: inherit;
@@ -426,7 +426,7 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   cursor: default;
 }
 /* A day nothing happened on is still a day: readable, just not shouting, and
-   not offering a click that would open an empty feed. */
+   not offering a click that opens an empty feed. */
 .cc-cal-quiet {
   color: var(--pf-t--global--text--color--subtle);
 }
@@ -556,7 +556,7 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   font-weight: var(--pf-t--global--font--weight--body--bold);
 }
 /* The icon carries the kind, so only it is coloured: a feed of coloured
-   rows would read as severity, and most of these are routine. */
+   rows read as severity, and most of these are routine. */
 .cc-chg-updated .cc-feed-icon { color: #06c; }
 .cc-chg-added .cc-feed-icon { color: #3e8635; }
 .cc-chg-removed .cc-feed-icon { color: #c9190b; }

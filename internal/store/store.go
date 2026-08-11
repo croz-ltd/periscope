@@ -18,10 +18,10 @@ import (
 //
 //   - busy_timeout makes a connection wait for a lock instead of failing the
 //     statement outright with SQLITE_BUSY. It covers contention this process
-//     cannot serialise itself, e.g. `periscope report` reading the same file
+//     cannot serialise itself, for example `periscope report` reading the same file
 //     while `periscope serve` writes.
 //   - journal_mode=WAL lets readers (the dashboard, the API) run while a
-//     scrape writes; the default rollback journal makes them lock each other
+//     scrape writes. The default rollback journal makes them lock each other
 //     out. Filesystems without shared-memory support silently keep the old
 //     mode, which is a slowdown, not a failure.
 //   - synchronous=NORMAL is the usual companion to WAL: durable across a
@@ -68,7 +68,7 @@ func Open(path string) (*Store, error) {
 //
 // It runs in the background because on a fleet with months of history this is
 // tens of seconds of work against the database, and doing it before the server
-// starts would race the pod's liveness probe into a restart loop. Nothing is
+// starts races the pod's liveness probe into a restart loop. Nothing is
 // lost by waiting: readers keep seeing the feed that is already recorded until
 // the rebuild commits, and then it swaps over in one step. A failure leaves the
 // version marker alone, so the next start tries again.

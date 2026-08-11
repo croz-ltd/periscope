@@ -2,8 +2,8 @@ package model
 
 import "time"
 
-// Change kinds. Component-level kinds carry a component key; cluster-level ones
-// describe the cluster itself.
+// Change kinds. Component-level kinds carry a component key. Cluster-level
+// kinds describe the cluster itself.
 const (
 	ChangeAdded       = "added"       // component appeared on this cluster
 	ChangeRemoved     = "removed"     // component disappeared from this cluster

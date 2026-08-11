@@ -3,7 +3,7 @@
 #   statistics: groups for the Statistics page (counts)
 #   hidden:     keys removed from both pages
 # (Component keys are listed on the app's "Docs" page.) Groups render in the
-# order listed; a key may appear in multiple groups; unmatched keys are skipped
+# order listed; a key can appear in multiple groups; unmatched keys are skipped
 # and leftovers fall into an "Ungrouped" section on their default page. Delete
 # this ConfigMap to use the built-in grouping.
 apiVersion: v1

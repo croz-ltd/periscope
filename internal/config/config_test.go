@@ -60,7 +60,7 @@ func TestBuildExtractorsKeepsHandWrittenExtractors(t *testing.T) {
 	}
 	// The file replaces the CR-field set, so the default it did not mention is gone.
 	if keys["dell-csi"] {
-		t.Error("dell-csi should be replaced by the config file, not kept")
+		t.Error("dell-csi kept, want it replaced by the config file")
 	}
 }
 
@@ -70,6 +70,6 @@ func TestBuildExtractorsRejectsIncompleteSpec(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := BuildExtractors(path); err == nil {
-		t.Error("a CR extractor without key/resource should be rejected")
+		t.Error("no error for a CR extractor without key or resource")
 	}
 }

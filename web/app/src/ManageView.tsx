@@ -59,8 +59,8 @@ export function ManageViewModal({
       <ModalHeader title="Manage view" labelId="cc-manage-view-title" />
       <ModalBody>
         <Content component="p">Selected clusters will appear in the matrix.</Content>
-        {/* Hiding the leader would otherwise look like the whole fleet fell
-            behind, so say plainly that the comparison is unchanged. */}
+        {/* Hiding the leader otherwise looks like the whole fleet fell behind,
+            so the text states that the comparison is unchanged. */}
         <Alert
           variant="info"
           isInline

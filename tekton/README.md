@@ -25,7 +25,7 @@ Everything is parameterized, so nothing here is specific to any one environment:
 
 - The **OpenShift Pipelines** operator installed (provides the `pipeline` SA +
   `pipelines-scc`, and for triggers the `github` ClusterInterceptor).
-- A CI namespace, e.g. `periscope-ci`.
+- A CI namespace, for example `periscope-ci`.
 
 ## One-time setup
 
@@ -39,7 +39,7 @@ oc create secret docker-registry periscope-registry-push \
   --docker-password='<token>' \
   -n periscope-ci
 
-# If you clone from a private fork, give the `pipeline` SA git read access, e.g. a
+# If you clone from a private fork, give the `pipeline` SA git read access, for example a
 # basic-auth token secret annotated for the git host, linked to the SA:
 #   oc annotate secret <git-secret> 'tekton.dev/git-0=https://github.com'
 #   oc secrets link pipeline <git-secret> -n periscope-ci
@@ -87,5 +87,5 @@ Pushes build and push `:edge`. For GitLab instead of GitHub, swap the intercepto
   required.
 - Base images come from `--build-arg` params, so an air-gapped cluster can point them
   at internal mirrors without touching the `Dockerfile`.
-- Adjust `BUILDER_IMAGE` in `tasks.yaml` if `registry.redhat.io/rhel8/buildah` isn't
+- Adjust `BUILDER_IMAGE` in `tasks.yaml` if `registry.redhat.io/rhel8/buildah` is not
   available to you.

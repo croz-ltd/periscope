@@ -35,8 +35,8 @@ export function MatrixTable({
 }) {
   const { rows } = matrix
 
-  // The backend now defines sections via matrix.groups; a key may appear in
-  // several groups (rendered under each). Look rows up by key, in group order.
+  // The backend defines sections via matrix.groups. A key can appear in several
+  // groups, rendered under each, so look rows up by key in group order.
   const byKey = new Map<string, Row>()
   for (const r of rows) byKey.set(r.key, r)
 

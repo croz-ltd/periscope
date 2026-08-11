@@ -4,10 +4,10 @@ import "testing"
 
 func TestParse(t *testing.T) {
 	cases := []struct {
-		in                  string
-		ok                  bool
-		maj, min, pat       int
-		pre                 string
+		in            string
+		ok            bool
+		maj, min, pat int
+		pre           string
 	}{
 		{"4.14.9", true, 4, 14, 9, ""},
 		{"v2.13.1", true, 2, 13, 1, ""},

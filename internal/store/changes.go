@@ -15,13 +15,13 @@ import (
 // The baseline is carried forward rather than taken from a single snapshot.
 // Extractors share one deadline and run in order, so a slow cluster produces a
 // snapshot that is "successful" but stops partway down the list: everything the
-// later extractors would have read is simply missing. Treating that as the
+// later extractors did not read is missing. Treating that as the
 // state of the cluster claims a dozen operators were uninstalled and then
 // reinstalled a scrape later. What a degraded scrape did not read is filled in
 // from the last scrape that did read it, up to the most recent clean one, which
 // by definition read everything.
 type history struct {
-	last        model.Snapshot                // most recent, may be a failed scrape
+	last        model.Snapshot                // most recent, can be a failed scrape
 	baseline    map[[2]string]model.Component // effective state before this scrape
 	hasLast     bool
 	hasBaseline bool
@@ -117,7 +117,7 @@ func diff(h history, next model.Snapshot) []model.Change {
 }
 
 // indexComponents keys components by key and namespace: one operator installed
-// in two namespaces is two facts, and would otherwise flap as a single row.
+// in two namespaces is two facts, and they otherwise flap as a single row.
 func indexComponents(comps []model.Component) map[[2]string]model.Component {
 	out := make(map[[2]string]model.Component, len(comps))
 	for _, c := range comps {
@@ -220,8 +220,8 @@ func insertChanges(e execer, changes []model.Change) error {
 }
 
 // backfillWindow bounds how far back a rebuild walks. It reads every snapshot in
-// the window, so a database with years of history would spend startup
-// recovering changes nobody is going to scroll back to.
+// the window, so a database with years of history spends startup recovering
+// changes nobody scrolls back to.
 const backfillWindow = 90 * 24 * time.Hour
 
 // changesLogicVersion identifies how the feed was derived. The feed is not
@@ -264,8 +264,8 @@ func (s *Store) rebuildChanges(now time.Time) (written int, ran bool, err error)
 	defer tx.Rollback()
 
 	// Re-derive exactly the range that gets replayed. Deleting the whole table
-	// would drop everything older than the window, since the snapshots needed to
-	// regenerate those events are no longer being read.
+	// drops everything older than the window, because the snapshots that
+	// regenerate those events are no longer read.
 	from := now.Add(-backfillWindow)
 	if _, err := tx.Exec(`DELETE FROM changes WHERE ts >= ?`, from.Unix()); err != nil {
 		return 0, false, err
@@ -290,8 +290,8 @@ func (s *Store) rebuildChanges(now time.Time) (written int, ran bool, err error)
 //
 // Snapshots and their components are read in one ordered pass rather than a
 // query per snapshot: a fleet scraped every ten minutes for ninety days is
-// hundreds of thousands of snapshots, and a round trip each would turn startup
-// into minutes of work while the liveness probe watches.
+// hundreds of thousands of snapshots, and a round trip each turns startup into
+// minutes of work while the liveness probe watches.
 func (s *Store) replayHistory(tx execer, from time.Time) (int, error) {
 	rows, err := s.db.Query(`
 SELECT s.id, s.cluster, s.ts, s.ok, COALESCE(s.error,''),
@@ -406,8 +406,8 @@ func (q ChangeQuery) where() (string, []any) {
 //
 // Counters are excluded here rather than by the caller, because the limit has
 // to apply to what is actually shown. A day with thousands of counter updates
-// would otherwise fill the limit with them and hand back a page that looks
-// empty once they are filtered out.
+// otherwise fills the limit with them and hands back a page that looks empty
+// once they are filtered out.
 func (s *Store) Changes(q ChangeQuery) ([]model.Change, error) {
 	where, args := q.where()
 	sql := `SELECT cluster, ts, kind, COALESCE(comp_key,''), COALESCE(name,''),
@@ -454,8 +454,8 @@ func (s *Store) CountCounters(q ChangeQuery) (int, error) {
 
 // ChangeDay is one calendar day that has changes, so the calendar can mark it.
 // Counters are reported separately from the total because they move on nearly
-// every scrape: a calendar that weighed them the same would mark every day and
-// promise changes the feed then hides.
+// every scrape: a calendar that weighs them the same marks every day and
+// promises changes the feed then hides.
 type ChangeDay struct {
 	Date     string `json:"date"`     // YYYY-MM-DD, in the location the query was made with
 	Count    int    `json:"count"`    // all changes that day

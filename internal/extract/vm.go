@@ -66,7 +66,7 @@ func (VirtualMachines) Extract(ctx context.Context, c *Clients) ([]model.Compone
 			Version: strconv.Itoa(count), Extra: ex,
 		}
 	}
-	// Everything that isn't Running or Stopped (Starting, Paused, Migrating,
+	// Everything that is not Running or Stopped (Starting, Paused, Migrating,
 	// Provisioning, Terminating, Unknown, ...).
 	other := len(list.Items) - byStatus["Running"] - byStatus["Stopped"]
 	return []model.Component{
@@ -104,8 +104,8 @@ func (VMSnapshots) Extract(ctx context.Context, c *Clients) ([]model.Component, 
 	out := []model.Component{virtInfo("vmsnapshot-total", "VM snapshots", len(snaps.Items))}
 
 	// A VM snapshot can span several disks on different storage classes, so a
-	// per-class breakdown of VM snapshots would overlap (a multi-disk snapshot
-	// belongs to several classes) and not sum to the total. Instead we count the
+	// per-class breakdown of VM snapshots overlaps (a multi-disk snapshot belongs
+	// to several classes) and does not sum to the total. Instead we count the
 	// individual volume snapshots (one per backed disk) per class: these
 	// partition cleanly and sum to the "Snapshot volumes" total.
 	if contents, err := c.Dynamic.Resource(vmSnapshotContentGVR).List(ctx, metav1.ListOptions{}); err == nil {

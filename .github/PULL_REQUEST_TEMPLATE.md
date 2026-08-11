@@ -1,4 +1,4 @@
-<!-- Keep the subject line in Conventional Commits form, e.g. feat(extract): ... -->
+<!-- Keep the subject line in Conventional Commits form, for example feat(extract): ... -->
 
 ## What
 

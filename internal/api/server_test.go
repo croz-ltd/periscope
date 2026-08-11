@@ -49,10 +49,10 @@ func TestServerEndpoints(t *testing.T) {
 		t.Errorf("leader = %q, want 4.14.9", row.Leader)
 	}
 	if row.Cells["a"].State != drift.StateLeader {
-		t.Errorf("a should be leader, got %s", row.Cells["a"].State)
+		t.Errorf("a is %s, want leader", row.Cells["a"].State)
 	}
 	if row.Cells["b"].State != drift.StateBehind {
-		t.Errorf("b should be behind, got %s", row.Cells["b"].State)
+		t.Errorf("b is %s, want behind", row.Cells["b"].State)
 	}
 
 	// Embedded UI serves at /.
@@ -68,7 +68,7 @@ func TestServerEndpoints(t *testing.T) {
 		t.Errorf("csv header missing: %.80q", body)
 	}
 
-	// /api/changes serves the feed; both clusters have just joined.
+	// /api/changes serves the feed. Both clusters just joined.
 	var feed struct {
 		Changes []model.Change `json:"changes"`
 	}
@@ -130,7 +130,7 @@ func getJSON(t *testing.T, url string, v any) {
 }
 
 // Time travel rebuilds the matrix from what each cluster last reported at that
-// moment, so a cluster that had not been scraped yet is simply not there.
+// moment, so a cluster not yet scraped is not there.
 func TestMatrixTimeTravel(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -177,7 +177,7 @@ func TestMatrixTimeTravel(t *testing.T) {
 	var now drift.Matrix
 	getJSON(t, ts.URL+"/api/matrix", &now)
 	if len(now.Clusters) != 2 {
-		t.Errorf("live matrix should have both clusters, got %d", len(now.Clusters))
+		t.Errorf("live matrix has %d clusters, want both", len(now.Clusters))
 	}
 	if now.At != nil {
 		t.Error("the live matrix must not claim to be history")

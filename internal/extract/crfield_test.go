@@ -39,13 +39,13 @@ func TestCRFieldExtractorSkipsAbsentCRD(t *testing.T) {
 
 	comps, err := testExtractor().Extract(context.Background(), &Clients{Typed: typed, Dynamic: dyn})
 	if err != nil {
-		t.Fatalf("absent CRD should not error, got %v", err)
+		t.Fatalf("absent CRD returned an error: %v", err)
 	}
 	if len(comps) != 0 {
-		t.Errorf("absent CRD should yield no components, got %d", len(comps))
+		t.Errorf("absent CRD returned %d components, want 0", len(comps))
 	}
 	if listed {
-		t.Error("absent CRD should not be listed at all")
+		t.Error("absent CRD was listed, want no call at all")
 	}
 }
 
@@ -93,7 +93,7 @@ func TestCRFieldExtractorReportsRealErrors(t *testing.T) {
 	})
 
 	if _, err := testExtractor().Extract(context.Background(), &Clients{Typed: typed, Dynamic: dyn}); err == nil {
-		t.Error("forbidden on an installed CRD should be reported")
+		t.Error("forbidden on an installed CRD was swallowed, want an error")
 	}
 }
 
@@ -109,7 +109,7 @@ func TestHasResourceCachesDiscovery(t *testing.T) {
 	c := &Clients{Typed: typed}
 	for range 3 {
 		if c.HasResource(testGVR) {
-			t.Fatal("resource should not be served")
+			t.Fatal("resource is served, want absent")
 		}
 	}
 	if calls != 1 {

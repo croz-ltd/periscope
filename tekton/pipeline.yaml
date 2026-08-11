@@ -14,7 +14,7 @@ spec:
     - name: image
       description: >-
         Image repository to build and push, without a tag. Set this to your own
-        registry, e.g. registry.example.com/platform/periscope.
+        registry, for example registry.example.com/platform/periscope.
       default: docker.io/crozltd/periscope
     - name: image-tag
       description: >-

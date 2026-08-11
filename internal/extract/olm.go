@@ -52,8 +52,8 @@ func (OLM) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
 		}
 	}
 
-	// OLM copies each CSV into every watched namespace; copies carry the
-	// "olm.copiedFrom" label and CSV objects are large (embedded install strategy
+	// OLM copies each CSV into every watched namespace. Copies carry the
+	// "olm.copiedFrom" label, and CSV objects are large (embedded install strategy
 	// + icons). Excluding copies keeps us to one object per actual install and
 	// avoids listing thousands of duplicates (which OOMs the pod on real clusters).
 	list, err := c.Dynamic.Resource(csvGVR).List(ctx, metav1.ListOptions{LabelSelector: "!olm.copiedFrom"})

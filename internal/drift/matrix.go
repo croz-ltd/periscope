@@ -79,7 +79,7 @@ type ClusterInfo struct {
 }
 
 // Group is an ordered matrix section: a title and the row keys under it. The
-// same key may appear in multiple groups.
+// same key can appear in multiple groups.
 type Group struct {
 	Title string   `json:"title"`
 	Keys  []string `json:"keys"`
@@ -117,7 +117,7 @@ type Matrix struct {
 	Warning  string        `json:"warning,omitempty"`
 	// At is set only when viewing history. It is a pointer because omitempty
 	// does not apply to a time.Time, and a zero time serialised into the live
-	// matrix would tell every client it was looking at the year 1.
+	// matrix tells every client it is looking at the year 1.
 	At *time.Time `json:"at,omitempty"`
 }
 
@@ -440,8 +440,8 @@ func buildExpiryRow(row *Row, insts []instance, now time.Time) {
 	}
 }
 
-// mode returns the most frequent value; ties broken by lexically smallest for
-// deterministic output.
+// mode returns the most frequent value. Ties break toward the lexically
+// smallest value, for deterministic output.
 func mode(counts map[string]int) string {
 	best, bestN := "", -1
 	keys := make([]string, 0, len(counts))

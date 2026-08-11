@@ -24,8 +24,8 @@ var levels = map[string]slog.Level{
 	"error": slog.LevelError,
 }
 
-// Formats accepted by Setup. Text reads well in a terminal; json is what a log
-// collector on the cluster wants.
+// Formats accepted by Setup. Text reads well in a terminal. A log collector on
+// the cluster wants json.
 const (
 	FormatText = "text"
 	FormatJSON = "json"
@@ -79,7 +79,7 @@ func setup(w io.Writer, level, format string) (slog.Level, error) {
 
 // readableDurations renders durations as "10m0s" rather than as a count of
 // nanoseconds. The text handler does this already; JSON does not, and
-// "interval": 600000000000 is not something anyone should have to convert in
+// "interval": 600000000000 is not something anyone wants to convert in
 // their head while reading a log.
 func readableDurations(_ []string, a slog.Attr) slog.Attr {
 	if a.Value.Kind() == slog.KindDuration {
@@ -92,8 +92,8 @@ func readableDurations(_ []string, a slog.Attr) slog.Attr {
 //
 // Call it inside a function, never in a package-level variable: it binds to
 // whatever the default logger is at that moment, and package variables are
-// initialised before Setup has chosen a level, which would silently pin those
-// loggers to the unconfigured default.
+// initialised before Setup chooses a level, which silently pins those loggers
+// to the unconfigured default.
 func For(component string) *slog.Logger {
 	return slog.Default().With("component", component)
 }

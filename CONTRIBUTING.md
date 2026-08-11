@@ -96,15 +96,15 @@ A few rules that are easy to break and hard to notice:
 1. Use a stable component key. The key is the matrix row identity, so it must not
    change between versions of the component being extracted.
 2. Return no component when the thing is not installed, never a zero version. Absent
-   components are excluded from the drift baseline, and a zero version would make an
+   components are excluded from the drift baseline, and a zero version makes an
    uninstalled component look like the most outdated one in the fleet.
-3. Don't guess a version. If the value does not parse, return it as the raw string.
+3. Never guess a version. If the value does not parse, return it as the raw string.
    `internal/version` marks unparseable values neutral instead of comparing them
    lexically.
 4. Use the dynamic client for vendor CRs so no generated types are needed, and gate
    the call on `c.HasResource(gvr)`. Listing a resource whose CRD is absent comes
-   back Forbidden, not 404, because a read-only account has no rule for it, and that
-   would put a scrape error on every cluster not running that vendor.
+   back Forbidden, not 404, because a read-only account has no rule for it. Without
+   that gate, every cluster not running the vendor carries a scrape error.
 5. If the version is just a nested field in a CR, prefer the config-driven extractor.
    `extract.NewCRFieldExtractor(...)` covers that case and lets users override the
    field path through `config/extractors.yaml` without rebuilding.
@@ -142,7 +142,7 @@ Image publishing needs two repository secrets, `DOCKERHUB_USERNAME` and
 is skipped rather than failed. The image name can be overridden with the `IMAGE_NAME`
 repository variable.
 
-If you would rather build on a cluster than in a hosted runner,
+To build on a cluster instead of a hosted runner,
 [`tekton/`](tekton/README.md) has a self-contained OpenShift Pipelines pipeline
 (git-clone plus buildah) that builds the same `Dockerfile` and pushes to a registry of
 your choice.
@@ -170,7 +170,7 @@ need no release.
 
 ## Reporting security issues
 
-Please don't open a public issue for those. See [SECURITY.md](SECURITY.md).
+Never open a public issue for those. See [SECURITY.md](SECURITY.md).
 
 ## License
 

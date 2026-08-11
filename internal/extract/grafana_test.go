@@ -100,7 +100,7 @@ func TestGrafanaCollapsesInstancesToTheOldest(t *testing.T) {
 }
 
 // A version nobody stated must not win over one that was, or a cluster running a
-// pinned Grafana next to a defaulted one would compare as unknown.
+// pinned Grafana next to a defaulted one compares as unknown.
 func TestGrafanaPrefersAStatedVersion(t *testing.T) {
 	c := grafanaCluster(
 		grafanaCR("team-b", "unpinned", nil, nil),
@@ -115,7 +115,7 @@ func TestGrafanaPrefersAStatedVersion(t *testing.T) {
 		t.Fatalf("got %+v, want 13.1.3", comps)
 	}
 	if comps[0].Extra["team-b/unpinned"] != "(operator default)" {
-		t.Errorf("unpinned instance should be labelled, got %v", comps[0].Extra)
+		t.Errorf("unpinned instance not labelled, got %v", comps[0].Extra)
 	}
 }
 
@@ -128,10 +128,10 @@ func TestGrafanaSkipsAbsentCRD(t *testing.T) {
 
 	comps, err := Grafana{}.Extract(context.Background(), &Clients{Typed: typed, Dynamic: dyn})
 	if err != nil {
-		t.Fatalf("absent CRD should not error, got %v", err)
+		t.Fatalf("absent CRD returned an error: %v", err)
 	}
 	if len(comps) != 0 {
-		t.Errorf("absent CRD should yield no components, got %d", len(comps))
+		t.Errorf("absent CRD returned %d components, want 0", len(comps))
 	}
 }
 
@@ -143,6 +143,6 @@ func TestGrafanaSkipsWhenNoInstance(t *testing.T) {
 		t.Fatalf("extract: %v", err)
 	}
 	if len(comps) != 0 {
-		t.Errorf("no instances should yield no components, got %d", len(comps))
+		t.Errorf("no instances returned %d components, want 0", len(comps))
 	}
 }

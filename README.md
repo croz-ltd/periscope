@@ -9,7 +9,7 @@ Periscope shows version and configuration drift across a fleet of OpenShift
 clusters in one view.
 
 Once you run more than a handful of clusters, "which cluster is behind on what?"
-becomes hard to answer. The console shows one cluster at a time, `oc` loops don't
+becomes hard to answer. The console shows one cluster at a time, `oc` loops do not
 scale, and some of the versions that matter most are not in any single view: the CSI
 driver version buried inside a Portworx or Dell custom resource, the kubelet on a
 straggler node, the API server certificate that expires in three weeks.
@@ -28,14 +28,14 @@ against the synthetic fleet described in
 
 ## Contents
 
-- [What it shows](#what-it-shows) — the matrix, drift, upgrade readiness, history
-- [How it works](#how-it-works) — the pull model in one diagram
-- [Getting started](#getting-started) — deploy, join clusters, first-run checks
-- [Configuration](#configuration) — grouping the matrix, covering new components
-- [CLI](#cli) — commands, flags, environment variables
-- [API and metrics](#api-and-metrics) — REST endpoints, exports, Prometheus
-- [Logs](#logs) — what each level says
-- [Development](#development) — build, run the UI on mock data
+- [What it shows](#what-it-shows): the matrix, drift, upgrade readiness, history
+- [How it works](#how-it-works): the pull model in one diagram
+- [Getting started](#getting-started): deploy, join clusters, verify the defaults
+- [Configuration](#configuration): grouping the matrix, covering new components
+- [CLI](#cli): commands, flags, environment variables
+- [API and metrics](#api-and-metrics): REST endpoints, exports, Prometheus
+- [Logs](#logs): what each level says
+- [Development](#development): build, run the UI on mock data
 - [Contributing](#contributing) and [License](#license)
 
 ## What it shows
@@ -88,12 +88,12 @@ is intra-fleet drift, so Periscope tells you whether your clusters agree with ea
 other, not whether they match the newest upstream release. A fleet that is uniformly
 outdated shows all green, which is the intended answer.
 
-A component that isn't installed on a cluster renders as "not installed" and is left
+A component that is not installed on a cluster renders as "not installed" and is left
 out of the baseline, so a partial rollout stays visible without being scored as drift.
 
 Version parsing is tolerant: a leading `v` is stripped and build metadata ignored. If
-a value still doesn't parse, the cell renders neutral grey with the raw string shown,
-because a lexical comparison of something that isn't a version is worse than no
+a value still does not parse, the cell renders neutral grey with the raw string shown,
+because a lexical comparison of something that is not a version is worse than no
 comparison at all.
 
 When a scrape fails or times out, the last good snapshot is kept and the cluster gets
@@ -105,20 +105,20 @@ current data.
 Being behind the fleet only matters if there is somewhere to go, so Periscope also
 reports what each cluster can do about it:
 
-- **Update available** — the newest release the cluster is being offered. The cluster
-  has already asked the update service on its own channel, so this is read from its
-  ClusterVersion and needs no egress from the hub.
-- **Upgrade blocked** — an `Upgradeable=False` condition, with the reason and message.
+- **Update available**: the newest release the cluster is offered. The cluster asks the
+  update service on its own channel, so Periscope reads this from its ClusterVersion and
+  needs no egress from the hub.
+- **Upgrade blocked**: an `Upgradeable=False` condition, with the reason and message.
   This is the difference between a cluster that is behind and one that is stuck.
-- **Update in progress** — set while an upgrade is running, which explains a version
-  that disagrees with the rest of the fleet for the next hour.
-- **Operator updates pending** and **InstallPlans awaiting approval** — updates OLM
-  has resolved but not applied. On manual approval these sit unnoticed for months,
-  and they are the usual reason a cluster quietly falls behind.
+- **Update in progress**: set while an upgrade runs. It explains a version that
+  disagrees with the rest of the fleet for the next hour.
+- **Operator updates pending** and **InstallPlans awaiting approval**: updates OLM
+  resolved but did not apply. On manual approval these sit unnoticed for months, and
+  they are the usual reason a cluster falls behind.
 
 ### Changes and time travel
 
-Every scrape has always been kept, so the **Changes** page reads that history back
+Periscope keeps every scrape, so the **Changes** page reads that history back
 as an audit log: what appeared, what was upgraded, what was uninstalled, and when a
 cluster stopped answering. A scrape that found the fleet exactly as it was records
 nothing, so the feed holds events rather than heartbeats.
@@ -133,23 +133,21 @@ operator upgrades, an installed operator, and a cluster that stopped answering a
 recovered](docs/screenshot-changes.png)
 
 Two silences are deliberate, because a feed nobody trusts is a feed nobody reads.
-An unreachable cluster reports nothing, so its components are not filed as removed
-and re-added around every outage; changes are measured against the last *successful*
-scrape, so an upgrade that happened during an outage is still reported when the
-cluster comes back. And a scrape with a partial error cannot tell "uninstalled" from
+An unreachable cluster reports nothing, so its components are not filed as removed and
+re-added around every outage. Periscope measures changes against the last *successful*
+scrape, so an upgrade during an outage is still reported when the cluster comes back. And a scrape with a partial error cannot tell "uninstalled" from
 "could not read", so removals wait for a clean scrape.
 
 Counters that move on nearly every scrape (VM totals, snapshot volumes) are recorded
 but hidden behind the **Include counters** switch, and the calendar counts them the
-same way the feed does. A day's colour is how much really changed; a day whose only
-news was counters moving gets a dot instead, so it does not read as empty and does
-not read as busy either. Turning counters on folds them into the colour, because then
+same way the feed does. A day's colour is how much really changed. A day whose only
+news was counters moving gets a dot instead, so it reads as neither empty nor busy. Turning counters on folds them into the colour, because then
 they are what you came to look at.
 
 The feed is derived from the snapshot history rather than being source data, so a
 correction to how changes are detected also has to reach the events already
-recorded. Each release stamps the logic it used; when that changes, the last 90
-days are re-derived from stored history on the next start. The rebuild runs in the
+recorded. Each release stamps the logic it used. When that logic changes, the next
+start re-derives the last 90 days from stored history. The rebuild runs in the
 background (tens of seconds on a fleet with months of history) and swaps in when it
 commits, so the pod serves throughout and nothing is half-replaced.
 
@@ -229,12 +227,12 @@ for linux/amd64 only, matching the clusters they run on, so on an arm64 machine
 (Apple silicon) add `--platform linux/amd64` to the command above and expect
 emulation. Building locally with `make image` gives you a native image instead.
 
-### Before running against a real fleet
+### Verify before you run against a real fleet
 
 Verify the Portworx and Dell CR field paths. The defaults in
 `internal/extract/crfield.go` (`status.version`, `spec.driver.configVersion`) are
 best-effort. Confirm them against your clusters with
-`oc get storagecluster,containerstoragemodule -o yaml` and override them via
+`oc get storagecluster,containerstoragemodule -o yaml`, then override them with
 `--config` rather than patching the code.
 
 Watch extractor errors rather than empty cells. The reader SA binds OpenShift's
@@ -265,7 +263,7 @@ anything left over collected into "Ungrouped"; a page you leave out keeps the bu
 grouping. Component keys are listed on the UI's **Docs** page, and changes are picked
 up on the next matrix load.
 
-### Covering a component Periscope doesn't know
+### Covering a component Periscope does not know
 
 Adding coverage is usually a small change. If the version you need is a nested field
 in a custom resource, no code is required, just declare it in the extractor config and
@@ -346,8 +344,8 @@ periscope_cluster_stale{cluster}                             # 1 when the snapsh
 Everything logs through `log/slog`, tagged with the subsystem that produced it
 (`component=scrape`, `cluster`, `store`, `api`, `extract`), so a fleet of thirty
 clusters can be read by filtering rather than by grepping prose. The chart sets
-`LOG_FORMAT=json` so OpenShift's log collector indexes the fields; a terminal is
-better served by `text`.
+`LOG_FORMAT=json` so OpenShift's log collector indexes the fields. For a terminal, use
+`text`.
 
 **info** is what a healthy hub says, and is meant to stay readable: one line per
 scrape cycle with how many clusters were degraded or unreachable, one per cluster
@@ -371,8 +369,8 @@ level=WARN msg="cluster scraped" component=scrape cluster=erls-p components=42 \
 ```
 
 That pair is what a scrape timing out mid-list looks like, which is worth
-recognising: the components the failed extractors would have read are missing from
-that snapshot, and the matrix shows them as not installed until the next good scrape.
+recognising: the components those extractors did not read are missing from that
+snapshot, and the matrix shows them as not installed until the next good scrape.
 
 ## Development
 

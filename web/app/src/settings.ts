@@ -65,7 +65,7 @@ export function applyTheme(t: ThemeStyle): void {
   root().classList.toggle(FELT_CLASS, t === 'felt')
 }
 export function applyContrast(c: Contrast): void {
-  // System follows the OS "prefers-contrast: more" query; only one class at a time.
+  // System follows the OS "prefers-contrast: more" query. Only one class at a time.
   const wantHighContrast = c === 'high-contrast' || (c === 'system' && contrastMql.matches)
   root().classList.toggle(HC_CLASS, wantHighContrast)
   root().classList.toggle(GLASS_CLASS, c === 'glass')

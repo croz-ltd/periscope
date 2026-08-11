@@ -8,7 +8,7 @@
 #   hidden:     keys removed from BOTH pages
 #
 # - Groups render top-to-bottom; entries render in the order listed within each.
-# - The same key may appear in multiple groups.
+# - The same key can appear in multiple groups.
 # - Keys matching no component are skipped; empty groups are hidden.
 # - A page section makes that page authoritative; leftovers for that page land in
 #   an "Ungrouped" section. Omit a section to use built-in grouping for that page.

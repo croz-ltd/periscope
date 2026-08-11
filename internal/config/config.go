@@ -19,7 +19,7 @@ type CRExtractorSpec struct {
 	Group       string   `json:"group"`
 	Version     string   `json:"version"`
 	Resource    string   `json:"resource"`
-	VersionPath []string `json:"versionPath"`        // nested field path, e.g. ["spec","driver","configVersion"]
+	VersionPath []string `json:"versionPath"`        // nested field path, for example ["spec","driver","configVersion"]
 	ImageTag    bool     `json:"imageTag,omitempty"` // take the tag after the last ':' of the field value
 }
 

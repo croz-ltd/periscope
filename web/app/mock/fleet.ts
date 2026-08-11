@@ -206,8 +206,8 @@ const OPERATORS: [key: string, name: string, leader: string, behind: string][] =
   ['web-terminal', 'Web Terminal', '1.11.0', '1.10.1'],
 ]
 
-// Values the change feed refers to. A feed entry that ends on a version the
-// matrix does not show would be a fixture arguing with itself.
+// Values the change feed refers to. A feed entry must not end on a version the
+// matrix does not show, or the fixture argues with itself.
 const OPERATOR_PINS: Record<string, Values> = {
   // The README's screenshot rests on this pair: the newest operator running an
   // older Grafana than the oldest operator does, which is the whole argument for
@@ -533,7 +533,7 @@ function volumes(): { total: Values; ceph: Values; localPath: Values } {
     const out: Values = spread(null)
     for (const n of clusters) {
       // Every bound claim has a volume, plus a few volumes nothing claims, so PV
-      // is never below PVC the way two independent random numbers would allow.
+      // never falls below PVC, which two independent random numbers allow.
       const pvc = between(lo, hi)
       const pair: [number, number] = [pvc, pvc + between(0, 9)]
       counts.get(n)!.push(pair)

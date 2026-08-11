@@ -49,11 +49,11 @@ export interface ClusterInfo {
 
 export interface MatrixGroup {
   title: string
-  keys: string[] // component keys in render order; a key may appear in several groups
+  keys: string[] // component keys in render order; a key can appear in several groups
 }
 
 export interface Page {
-  id: string // e.g. "compare" | "statistics"
+  id: string // for example "compare" | "statistics"
   title: string
   groups: MatrixGroup[]
 }
@@ -62,7 +62,7 @@ export interface Matrix {
   clusters: ClusterInfo[]
   rows: Row[]
   pages: Page[]
-  warning?: string // set when custom grouping was ignored (e.g. bad ConfigMap)
+  warning?: string // set when custom grouping was ignored (for example bad ConfigMap)
   at?: string // set when this is history rather than the live fleet
 }
 
@@ -170,8 +170,8 @@ export interface User {
 }
 
 // fetchUser returns the signed-in user (empty when running without oauth-proxy,
-// or when the endpoint is unavailable). Never throws; an empty user hides the
-// user area entirely.
+// or when the endpoint is unavailable). It never throws. An empty user hides
+// the user area entirely.
 export async function fetchUser(): Promise<User> {
   try {
     const res = await fetch('/api/user', { headers: { Accept: 'application/json' } })

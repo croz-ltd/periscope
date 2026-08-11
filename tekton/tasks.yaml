@@ -1,4 +1,4 @@
-# Self-contained Tasks so the pipeline doesn't depend on which catalog tasks are
+# Self-contained Tasks so the pipeline does not depend on which catalog tasks are
 # installed on the cluster. Apply with: oc apply -f tekton/tasks.yaml -n periscope-ci
 ---
 apiVersion: tekton.dev/v1

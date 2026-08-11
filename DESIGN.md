@@ -84,7 +84,7 @@ as "behind". Partial-rollout drift stays visible.
   nodes, Portworx `storageclusters`, Dell `containerstoragemodules`), and it is a
   deliberate non-default. The shipped join chart binds `cluster-reader`; narrowing it
   means editing `charts/periscope-join/templates/clusterrolebinding.yaml` and accepting
-  that each new extractor may then need an RBAC change.
+  that each new extractor can then need an RBAC change.
 - **Hub RBAC:** namespaced Role to list/watch labeled Secrets; the same reader mode for
   self-scraping the local cluster; `system:auth-delegator` binding for oauth-proxy.
 - **Vendor CRDs covered:** Portworx `core.libopenstorage.org/v1 storageclusters`;
@@ -116,7 +116,7 @@ and a visible error indicator with reason. Report stays useful; freshness is hon
 
 - **K8s access:** `client-go`; build a `rest.Config` per cluster from stored
   `apiURL`+`token`. Typed clientset for core/nodes; dynamic (unstructured) client for
-  CSVs and arbitrary vendor CRs so extractors don't need generated types.
+  CSVs and arbitrary vendor CRs so extractors need no generated types.
 - **Extractor interface:** `Extract(ctx, dynClient) ([]Component, error)` registered by
   key; scheduler runs OLM enumeration + all registered extractors per cluster.
 - **Scheduler:** configurable interval, bounded concurrency across clusters,

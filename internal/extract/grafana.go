@@ -40,12 +40,12 @@ func (Grafana) Extract(ctx context.Context, c *Clients) ([]model.Component, erro
 		return nil, nil // operator installed, no instance declared
 	}
 
-	// One cluster may run several Grafana instances (one per tenant is a common
-	// pattern), and they all have to share one row: keying rows by instance name
-	// would line up only for clusters that happen to name them the same way, and
-	// leave everyone else comparing against "not installed". So the row shows the
-	// oldest instance, because that is the one actually behind the fleet, and the
-	// tooltip lists every instance so the number leads back to a CR.
+	// One cluster can run several Grafana instances (one per tenant is a common
+	// pattern), and they all share one row. Keying rows by instance name lines up
+	// only for clusters that name their instances the same way, and leaves everyone
+	// else comparing against "not installed". So the row shows the oldest instance,
+	// because that is the one behind the fleet, and the tooltip lists every instance
+	// so the number leads back to a CR.
 	detail := make(map[string]string, len(list.Items))
 	var pick, pickNS string
 	for i, item := range list.Items {
@@ -72,8 +72,8 @@ func (Grafana) Extract(ctx context.Context, c *Clients) ([]model.Component, erro
 }
 
 // grafanaVersion reads the version a Grafana CR declares. spec.version is what
-// pins the image; when it is left out the operator installs a default version of
-// its own, which recent operator releases report back in status.version.
+// pins the image. When it is left out, the operator installs a default version
+// of its own, which recent operator releases report back in status.version.
 func grafanaVersion(obj map[string]any) string {
 	if v, _, _ := unstructured.NestedString(obj, "spec", "version"); v != "" {
 		return v
@@ -82,10 +82,10 @@ func grafanaVersion(obj map[string]any) string {
 	return v
 }
 
-// olderVersion reports whether a should be shown in place of b. A parseable
-// version always beats an unparseable or missing one, since an instance that
-// states its version is the fact worth comparing; between two parseable
-// versions the lower one wins.
+// olderVersion reports whether a takes the place of b. A parseable version
+// always beats an unparseable or missing one, because an instance that states
+// its version is the fact worth comparing. Between two parseable versions, the
+// lower one wins.
 func olderVersion(a, b string) bool {
 	pa, pb := version.Parse(a), version.Parse(b)
 	if pa.OK != pb.OK {

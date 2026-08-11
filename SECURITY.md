@@ -7,7 +7,7 @@ the latest release is supported.
 
 ## Reporting a vulnerability
 
-Please don't open a public issue for security problems.
+Never open a public issue for security problems.
 
 Report privately through GitHub's
 [private vulnerability reporting](https://github.com/croz-ltd/periscope/security/advisories/new)
@@ -46,4 +46,4 @@ It is inventory metadata, not workload data.
 
 Vulnerabilities in dependencies (Go modules, npm packages, base images) are handled as
 ordinary upgrades through Dependabot. Open a normal issue or pull request for those,
-unless the vulnerability is exploitable through Periscope in a way that isn't obvious.
+unless the vulnerability is exploitable through Periscope in a way that is not obvious.

@@ -31,7 +31,7 @@ import type { Change, ChangeDay, ChangeKind } from './api'
 import { fetchChangeCalendar, fetchChanges } from './api'
 
 // Local calendar-day key. Days are the unit here, and a day is the reader's
-// day: bucketing by UTC would file a 01:00 CET change under "yesterday".
+// day: bucketing by UTC files a 01:00 CET change under "yesterday".
 function dayKey(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
@@ -108,7 +108,7 @@ function describe(c: Change): React.ReactNode {
 // The calendar has to agree with the feed beside it, so it marks days the same
 // way the feed counts them: the background is how much really changed, and it
 // darkens with the amount, while a dot marks a day whose only news was counters
-// moving. Weighing counters the same would colour in every day and promise
+// moving. Weighing counters the same colours in every day and promises
 // changes the feed then hides. Turning counters on folds them into the
 // background, because then they are what you came to look at.
 function Calendar({
@@ -146,7 +146,7 @@ function Calendar({
     const heat = marked > 0 ? Math.min(4, Math.ceil((marked / busiest) * 4)) : 0
     // The dot exists for one case: a day that looks empty but is not, because
     // all it had was counters. On a day that is already coloured the background
-    // has said it, and with counters folded in it would say it twice.
+    // has said it, and with counters folded in it says it twice.
     const dot = !showCounters && !!entry && entry.counters > 0 && marked === 0
     const classes = [
       'cc-cal-day',

@@ -239,7 +239,7 @@ export default function App() {
       )}
     >
       <DropdownList>
-        {/* Scraping now would not change a view of the past, so time travel
+        {/* Scraping now does not change a view of the past, so time travel
             offers the way back instead. */}
         {at ? (
           <DropdownItem key="now" icon={<SyncAltIcon />} onClick={() => setAt(null)}>
@@ -350,7 +350,7 @@ export default function App() {
             actions={actions}
           />
 
-          {/* Time travel is easy to forget you are in, and every cell would be
+          {/* Time travel is easy to forget you are in, and every cell is
               quietly wrong for today. The banner stays until you leave it. */}
           {at && (
             <Alert
@@ -392,7 +392,7 @@ export default function App() {
             </EmptyState>
           ) : page && page.groups.length > 0 ? (
             <>
-              {/* Statistics cells are plain values, so the drift key would explain nothing. */}
+              {/* Statistics cells are plain values, so the drift key explains nothing. */}
               {pageId === 'compare' && <Legend />}
               <MatrixToolbar
                 query={query}

@@ -41,8 +41,8 @@ export function filterGroups(
   return out
 }
 
-// countComponents counts distinct rows, because a key may be listed under
-// several groups and counting entries would report more components than exist.
+// countComponents counts distinct rows, because a key can be listed under
+// several groups. Counting entries reports more components than exist.
 export function countComponents(groups: MatrixGroup[]): number {
   const seen = new Set<string>()
   for (const g of groups) for (const k of g.keys) seen.add(k)

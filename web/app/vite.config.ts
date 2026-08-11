@@ -18,7 +18,7 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     // In mock mode there is no Go server to proxy to, and leaving the proxy on
-    // would race the mock middleware for /api.
+    // races the mock middleware for /api.
     proxy: mode === 'mock' ? undefined : { '/api': 'http://localhost:8080' },
   },
 }))

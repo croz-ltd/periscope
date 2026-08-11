@@ -31,14 +31,14 @@ func TestParseLevel(t *testing.T) {
 	}
 
 	// A typo must be reported, and the message must say what is accepted:
-	// silently defaulting would leave someone staring at an empty log.
+	// silently defaulting leaves someone staring at an empty log.
 	err := func() error { _, err := ParseLevel("verbose"); return err }()
 	if err == nil {
 		t.Fatal("an unknown level must be rejected")
 	}
 	for _, name := range LevelNames() {
 		if !strings.Contains(err.Error(), name) {
-			t.Errorf("error %q should list the accepted level %q", err, name)
+			t.Errorf("error %q omits the accepted level %q", err, name)
 		}
 	}
 }
@@ -72,12 +72,12 @@ func TestSetupFiltersBelowTheChosenLevel(t *testing.T) {
 	out := buf.String()
 	for _, quiet := range []string{"debug line", "info line"} {
 		if strings.Contains(out, quiet) {
-			t.Errorf("%q should have been filtered out at warn", quiet)
+			t.Errorf("%q logged at warn, want it filtered out", quiet)
 		}
 	}
 	for _, loud := range []string{"warn line", "error line"} {
 		if !strings.Contains(out, loud) {
-			t.Errorf("%q is at or above warn and should have been logged", loud)
+			t.Errorf("%q is at or above warn but was not logged", loud)
 		}
 	}
 }

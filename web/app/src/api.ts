@@ -175,9 +175,35 @@ export interface Timeline {
 export const TIMELINE_DAYS = [1, 2, 5, 7, 14, 30] as const
 export type TimelineDays = (typeof TIMELINE_DAYS)[number]
 
-// fetchTimeline reads the history of several components in one request. `at`
-// bounds the end of the window, so a timeline follows time travel.
+// How many components one timeline request asks for. A fleet with many storage
+// classes has more countable rows than this, so the keys are split across requests
+// and the rows merged, rather than the page failing.
+//
+// It is well under the server's own cap on purpose. Keys are around thirty
+// characters each, and a query built from every row of a large fleet reaches
+// several kilobytes, which a router or a proxy in front of the hub can refuse with
+// a 400 that never reaches the handler. Forty keys keeps the URL near a kilobyte.
+const TIMELINE_KEYS_PER_REQUEST = 40
+
+// fetchTimeline reads the history of several components. `at` bounds the end of
+// the window, so a timeline follows time travel.
 export async function fetchTimeline(
+  keys: string[],
+  days: TimelineDays,
+  at?: string,
+): Promise<Timeline> {
+  const batches: string[][] = []
+  for (let i = 0; i < keys.length; i += TIMELINE_KEYS_PER_REQUEST) {
+    batches.push(keys.slice(i, i + TIMELINE_KEYS_PER_REQUEST))
+  }
+  if (batches.length === 0) batches.push([])
+
+  const parts = await Promise.all(batches.map((batch) => fetchTimelineBatch(batch, days, at)))
+  // Every batch reports the same window, so the first one describes them all.
+  return { ...parts[0], rows: parts.flatMap((part) => part.rows) }
+}
+
+async function fetchTimelineBatch(
   keys: string[],
   days: TimelineDays,
   at?: string,
@@ -185,7 +211,12 @@ export async function fetchTimeline(
   const params = new URLSearchParams({ key: keys.join(','), days: String(days) })
   if (at) params.set('at', at)
   const res = await fetch(`/api/timeline?${params}`, { headers: { Accept: 'application/json' } })
-  if (!res.ok) throw new Error(`GET /api/timeline failed: ${res.status} ${res.statusText}`)
+  if (!res.ok) {
+    // The server says which rule refused, and that message is the whole point of
+    // the error. Throwing the status alone leaves a reader with "400" and nothing.
+    const detail = (await res.text()).trim()
+    throw new Error(detail || `GET /api/timeline failed: ${res.status} ${res.statusText}`)
+  }
   return (await res.json()) as Timeline
 }
 

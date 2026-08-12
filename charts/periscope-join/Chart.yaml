@@ -4,5 +4,5 @@ description: >-
   Creates a read-only ServiceAccount, cluster-scoped RBAC, and a long-lived token
   on an OpenShift cluster so it can be joined to a Periscope hub.
 type: application
-version: 1.5.0
-appVersion: "1.5.0"
+version: 1.5.1
+appVersion: "1.5.1"

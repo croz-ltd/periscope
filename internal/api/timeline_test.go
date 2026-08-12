@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -120,6 +122,30 @@ func TestTimelineRejectsAnUnsupportedWindow(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Errorf("days=%s returned %d, want 200", days, rec.Code)
 		}
+	}
+}
+
+// The cap has to say how far over the request went, because the UI splits a long
+// list into batches and the number is what shows whether that is working.
+func TestTimelineCapsTheKeyCount(t *testing.T) {
+	srv := timelineServer(t)
+	keys := make([]string, maxTimelineKeys+37)
+	for i := range keys {
+		keys[i] = fmt.Sprintf("key-%d", i)
+	}
+	rec, _ := getTimeline(t, srv, "?days=7&key="+strings.Join(keys, ","))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status %d, want 400", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, fmt.Sprintf("%d keys requested", len(keys))) {
+		t.Errorf("the refusal is %q, want it to report how many keys arrived", body)
+	}
+
+	// Exactly the cap is allowed, so a client batch of that size is not refused.
+	rec, _ = getTimeline(t, srv, "?days=7&key="+strings.Join(keys[:maxTimelineKeys], ","))
+	if rec.Code != http.StatusOK {
+		t.Errorf("a request at the cap returned %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 }
 

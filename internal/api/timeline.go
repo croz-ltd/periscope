@@ -77,7 +77,10 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if len(keys) > maxTimelineKeys {
-		http.Error(w, fmt.Sprintf("at most %d keys per request", maxTimelineKeys), http.StatusBadRequest)
+		// Say how many arrived. A cap that only states itself leaves the caller
+		// guessing how far over it went.
+		http.Error(w, fmt.Sprintf("%d keys requested, at most %d per request",
+			len(keys), maxTimelineKeys), http.StatusBadRequest)
 		return
 	}
 
@@ -100,9 +103,12 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, resp)
 }
 
-// maxTimelineKeys bounds one request. The Statistics page asks for every
-// countable row at once, which is a dozen on a large fleet.
-const maxTimelineKeys = 40
+// maxTimelineKeys bounds one request. The Statistics page asks for every countable
+// row at once, and a fleet with many storage classes has more of those than a
+// small one: a cluster contributes a row per class, and the page shows the union.
+// The query spends 2n+3 bind parameters, so this stays far inside SQLite's limit
+// of 999, and the UI splits a longer list across requests rather than failing.
+const maxTimelineKeys = 100
 
 // requestedKeys accepts both repeated key parameters and comma-separated lists,
 // because a URL built by hand tends to use the second form.

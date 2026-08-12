@@ -1,7 +1,15 @@
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table'
-import { ClipboardCopy, Content, EmptyState, EmptyStateBody } from '@patternfly/react-core'
+import {
+  ClipboardCopy,
+  Content,
+  Divider,
+  EmptyState,
+  EmptyStateBody,
+  Title,
+} from '@patternfly/react-core'
 import { CubesIcon } from '@patternfly/react-icons'
 import type { Row } from './api'
+import { AddClusterButton } from './AddCluster'
 
 // Distinct components (unique by key), sorted by display name, the reference of
 // keys to use when writing custom groups.
@@ -13,16 +21,34 @@ function distinctByKey(rows: Row[]): Row[] {
   )
 }
 
-export function Docs({ rows }: { rows: Row[] }) {
+export function Docs({ rows, onAddCluster }: { rows: Row[]; onAddCluster: () => void }) {
   const components = distinctByKey(rows)
 
   return (
     <>
-      <Content component="p" className="cc-prose">
-        These are the component <strong>keys</strong> discovered across your clusters. List them in
-        the <code>periscope-groups</code> ConfigMap (<code>groups.yaml</code>) to build custom
-        matrix groups. Changes are picked up on the next Refresh.
-      </Content>
+      <section className="cc-doc-section">
+        <Title headingLevel="h2" className="cc-doc-title">
+          Add a cluster
+        </Title>
+        <Content component="p" className="cc-prose">
+          A cluster joins by giving this hub a read-only token. The manifests that create it are
+          served by the hub itself, so it takes two commands and no chart. The wizard walks them,
+          filled in with this hub's address, namespace and label.
+        </Content>
+        <AddClusterButton onClick={onAddCluster} />
+      </section>
+
+      <Divider className="cc-doc-divider" />
+
+      <section className="cc-doc-section">
+        <Title headingLevel="h2" className="cc-doc-title">
+          Component reference
+        </Title>
+        <Content component="p" className="cc-prose">
+          These are the component <strong>keys</strong> discovered across your clusters. List them
+          in the <code>periscope-groups</code> ConfigMap (<code>groups.yaml</code>) to build custom
+          matrix groups. Changes are picked up on the next Refresh.
+        </Content>
 
       {components.length === 0 ? (
         <EmptyState titleText="No components yet" headingLevel="h2" icon={CubesIcon}>
@@ -59,6 +85,7 @@ export function Docs({ rows }: { rows: Row[] }) {
           </Tbody>
         </Table>
       )}
+      </section>
     </>
   )
 }

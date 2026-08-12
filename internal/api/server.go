@@ -341,8 +341,26 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 // UI reads it from here rather than carrying its own number, because the web
 // assets are built before the version is known (see the Dockerfile), so the
 // dashboard always shows the version it is actually running.
+// handleVersion reports the running build, plus the two pieces of this hub's own
+// configuration the UI has to quote back: the Docs page prints the commands that
+// register a cluster, and a hub running with non-default flags needs its own
+// namespace and label in them, not the defaults.
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, map[string]string{"version": version.Raw})
+	body := map[string]string{
+		"version":      version.Raw,
+		"namespace":    joinNamespace,
+		"clusterLabel": "periscope.io/cluster=true",
+	}
+	if s.Scheduler != nil && s.Scheduler.Registry != nil {
+		reg := s.Scheduler.Registry
+		if reg.Namespace != "" {
+			body["namespace"] = reg.Namespace
+		}
+		if reg.LabelKey != "" {
+			body["clusterLabel"] = reg.LabelKey + "=" + reg.LabelVal
+		}
+	}
+	writeJSON(w, body)
 }
 
 func firstNonEmpty(vals ...string) string {

@@ -600,3 +600,39 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   --pf-v6-chart-axis--tick--stroke--Color: var(--pf-t--global--border--color--default);
   --pf-v6-chart-axis--grid--stroke--Color: var(--pf-t--global--border--color--default);
 }
+
+/* Docs page sections: a heading each, and room between them. */
+.cc-doc-section {
+  max-width: 72rem;
+}
+.cc-doc-title {
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+.cc-doc-divider {
+  margin-block: var(--pf-t--global--spacer--xl);
+}
+.cc-name-field {
+  max-width: 22rem;
+  margin-block-end: var(--pf-t--global--spacer--lg);
+}
+/* Numbered steps, each holding prose and a command block. */
+.cc-steps {
+  display: grid;
+  gap: var(--pf-t--global--spacer--lg);
+  margin-block-end: var(--pf-t--global--spacer--lg);
+}
+.cc-command {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+  max-width: 62rem;
+}
+.cc-step-note {
+  margin-block-start: var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--body--sm);
+  color: var(--pf-t--global--text--color--subtle);
+}
+
+/* The wizard is the whole modal, so the box carries no padding of its own. */
+.cc-wizard-modal .pf-v6-c-wizard {
+  border-radius: var(--pf-t--global--border--radius--large);
+  overflow: hidden;
+}

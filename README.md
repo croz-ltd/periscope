@@ -246,6 +246,12 @@ the apply, and it reaches the hub only when you copy it across.
 `name` is optional and must be a DNS-1123 label. Without it the instructions show
 `<CLUSTER_NAME>` where the name goes, and the resources carry no cluster label.
 
+The UI carries the same thing: **Docs** opens an **Add a cluster** wizard, which is
+also offered in the empty state of a hub with no clusters yet. It builds both commands
+from this hub's own address, namespace and label, so nothing in them has to be edited by
+hand, and it keeps the two clusters straight: one step runs on the cluster being joined,
+the next on the hub.
+
 The `curl` is there because the route sits behind `oauth-proxy`. To let
 `oc apply -f https://<hub-route>/yaml/new-cluster?name=prod-emea` work on its own,
 install the hub with `--set publicJoinYAML=true`, which adds

@@ -86,11 +86,15 @@ func TestServerEndpoints(t *testing.T) {
 		t.Errorf("calendar = %+v, want one day with both joins", cal.Days)
 	}
 
-	// /api/version reports the version stamped into the binary.
+	// /api/version reports the version stamped into the binary, plus the namespace
+	// and label the Docs page quotes back in the commands that join a cluster.
 	var v map[string]string
 	getJSON(t, ts.URL+"/api/version", &v)
 	if v["version"] != version.Raw {
 		t.Errorf("version = %q, want %q", v["version"], version.Raw)
+	}
+	if v["namespace"] == "" || v["clusterLabel"] == "" {
+		t.Errorf("version payload is %+v, want a namespace and a cluster label", v)
 	}
 }
 

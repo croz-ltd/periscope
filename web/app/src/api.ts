@@ -196,17 +196,44 @@ export async function triggerRefresh(): Promise<void> {
   }
 }
 
-// fetchVersion returns the version stamped into the server binary, or "" when
-// the endpoint is unavailable (older server, or the UI served standalone).
-export async function fetchVersion(): Promise<string> {
+// HubInfo is what the hub says about itself: the running build, and the namespace
+// and label it reads its cluster Secrets from. The Docs page quotes the last two
+// back in the commands that register a cluster.
+export interface HubInfo {
+  version: string
+  namespace: string
+  clusterLabel: string
+}
+
+// The defaults match the charts, and they are what an older server or a UI served
+// on its own falls back to.
+const HUB_DEFAULTS: HubInfo = {
+  version: '',
+  namespace: 'periscope',
+  clusterLabel: 'periscope.io/cluster=true',
+}
+
+// fetchHubInfo never throws. Every field has a usable default, and a Docs page
+// that renders nothing is worse than one quoting the standard namespace.
+export async function fetchHubInfo(): Promise<HubInfo> {
   try {
     const res = await fetch('/api/version', { headers: { Accept: 'application/json' } })
-    if (!res.ok) return ''
-    const body = (await res.json()) as { version?: string }
-    return body.version ?? ''
+    if (!res.ok) return HUB_DEFAULTS
+    const body = (await res.json()) as Partial<HubInfo>
+    return {
+      version: body.version ?? '',
+      namespace: body.namespace || HUB_DEFAULTS.namespace,
+      clusterLabel: body.clusterLabel || HUB_DEFAULTS.clusterLabel,
+    }
   } catch {
-    return ''
+    return HUB_DEFAULTS
   }
+}
+
+// fetchVersion returns the version stamped into the server binary, or "" when the
+// endpoint is unavailable (older server, or the UI served standalone).
+export async function fetchVersion(): Promise<string> {
+  return (await fetchHubInfo()).version
 }
 
 export interface User {

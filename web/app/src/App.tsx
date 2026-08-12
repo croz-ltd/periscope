@@ -36,6 +36,7 @@ import type { StatsView } from './MatrixToolbar'
 import { MatrixToolbar } from './MatrixToolbar'
 import { StatisticsCharts } from './StatisticsCharts'
 import { StatisticsTimeline } from './StatisticsTimeline'
+import { AddClusterButton, AddClusterWizard } from './AddCluster'
 import { ManageViewModal } from './ManageView'
 import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './clusterPrefs'
 import { countComponents, filterGroups, rowsByKey } from './matrixView'
@@ -156,6 +157,7 @@ export default function App() {
   // back on every change (localStorage, never sent to the server).
   const [hidden, setHidden] = useState<string[]>(getHiddenClusters)
   const [manageOpen, setManageOpen] = useState(false)
+  const [addClusterOpen, setAddClusterOpen] = useState(false)
   // Statistics reads as a table or as bar charts. The table stays the default,
   // because it holds every row, and charts only the countable ones.
   const [statsView, setStatsView] = useState<StatsView>('table')
@@ -314,6 +316,11 @@ export default function App() {
 
   return (
     <Page masthead={masthead} sidebar={sidebar}>
+      <AddClusterWizard
+        isOpen={addClusterOpen}
+        onClose={() => setAddClusterOpen(false)}
+        onRefresh={onRefresh}
+      />
       {activeNav === 'about' ? (
         <PageSection>
           <PageHeader title="About" description="What Periscope is and how it collects its data" />
@@ -341,10 +348,10 @@ export default function App() {
       ) : activeNav === 'docs' ? (
         <PageSection>
           <PageHeader
-            title="Component reference"
-            description="Component keys discovered across your clusters"
+            title="Docs"
+            description="How to join a cluster, and the component keys discovered across yours"
           />
-          <Docs rows={matrix?.rows ?? []} />
+          <Docs rows={matrix?.rows ?? []} onAddCluster={() => setAddClusterOpen(true)} />
         </PageSection>
       ) : (
         <PageSection>
@@ -397,8 +404,13 @@ export default function App() {
           ) : !hasClusters ? (
             <EmptyState titleText="No clusters scraped yet" headingLevel="h2" icon={CubesIcon}>
               <EmptyStateBody>
-                Join clusters with a labeled Secret, or wait for the first scrape to complete, then refresh.
+                Join a cluster to compare it, or wait for the first scrape to finish and refresh.
               </EmptyStateBody>
+              <EmptyStateFooter>
+                <EmptyStateActions>
+                  <AddClusterButton onClick={() => setAddClusterOpen(true)} />
+                </EmptyStateActions>
+              </EmptyStateFooter>
             </EmptyState>
           ) : page && page.groups.length > 0 ? (
             <>

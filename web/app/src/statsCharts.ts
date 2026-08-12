@@ -1,4 +1,4 @@
-import type { Cell, ClusterInfo, Row } from './api'
+import type { ClusterInfo, Row, TimelineRow } from './api'
 
 // Turning Statistics rows into chart series.
 //
@@ -30,7 +30,14 @@ export interface RowChart {
 const COUNT = /^\d+$/
 const PAIR = /^(\d+)\s*PVC\s*\/\s*(\d+)\s*PV$/
 
-function countOf(cell: Cell | undefined): number | null {
+// A value plus its detail map: what a matrix cell and a timeline point have in
+// common, and all these rules need.
+interface Valued {
+  version?: string
+  extra?: Record<string, string>
+}
+
+function countOf(cell: Valued | undefined): number | null {
   const raw = cell?.version?.trim()
   if (!raw || !COUNT.test(raw)) return null
   return Number(raw)
@@ -38,7 +45,7 @@ function countOf(cell: Cell | undefined): number | null {
 
 // Volume rows report two numbers in one value. The extractor also puts them in
 // extra, so read that first and fall back to the display string.
-function pairOf(cell: Cell | undefined): [number, number] | null {
+function pairOf(cell: Valued | undefined): [number, number] | null {
   if (cell?.extra) {
     const pvc = cell.extra.pvc
     const pv = cell.extra.pv
@@ -115,4 +122,49 @@ export function chartsFor(keys: string[], byKey: Map<string, Row>, clusters: Clu
     else skipped.push(row.name)
   }
   return { charts, skipped }
+}
+
+// A timeline series ready for a line chart: one line per cluster, oldest point
+// first, and only the clusters whose values are countable.
+export interface LinePoint {
+  t: Date
+  value: number
+}
+
+export interface LineSeries {
+  cluster: string
+  points: LinePoint[]
+}
+
+export interface RowTimeline {
+  key: string
+  title: string
+  unit: string // "" for a plain count, "PVC" when a pair row is drawn on its claims
+  series: LineSeries[]
+}
+
+// timelineFor reads one component's history into lines, dropping the clusters the
+// reader hid and the values no chart can draw. A pair row is drawn on its claims,
+// because eight clusters times two numbers is sixteen lines on one card.
+export function timelineFor(row: TimelineRow, visible: Set<string>): RowTimeline | null {
+  const series: LineSeries[] = []
+  let unit = ''
+  for (const s of row.series) {
+    if (!visible.has(s.cluster)) continue
+    const points: LinePoint[] = []
+    for (const p of s.points) {
+      const pair = pairOf(p)
+      const value = pair ? pair[0] : countOf(p)
+      if (value === null) {
+        points.length = 0
+        break // one unreadable value makes the whole line a guess
+      }
+      if (pair) unit = 'PVC'
+      points.push({ t: new Date(p.t), value })
+    }
+    if (points.length > 0) series.push({ cluster: s.cluster, points })
+  }
+  if (series.length === 0) return null
+  series.sort((a, b) => a.cluster.localeCompare(b.cluster))
+  return { key: row.key, title: row.name, unit, series }
 }

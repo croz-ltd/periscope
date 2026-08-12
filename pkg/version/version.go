@@ -12,7 +12,7 @@ package version
 // Base is the release this source tree carries. Bump it by hand when cutting a
 // release, together with the chart versions and web/app/package.json. The
 // release tag must match it, which CI checks before publishing.
-const Base = "1.2.0"
+const Base = "1.3.0"
 
 // Build is the build metadata, stamped at link time with
 //

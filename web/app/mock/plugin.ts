@@ -1,5 +1,5 @@
 import type { Plugin } from 'vite'
-import { mockCSV, mockCalendar, mockChanges, mockMatrix, mockUser } from './fleet'
+import { mockCSV, mockCalendar, mockChanges, mockMatrix, mockTimeline, mockUser } from './fleet'
 import pkg from '../package.json'
 
 // Serves the mock fleet over the same REST endpoints the Go server exposes, as
@@ -37,6 +37,12 @@ export function mockApi(): Plugin {
             )
           case '/changes/calendar':
             return json(mockCalendar())
+          case '/timeline': {
+            const days = Number(q.get('days') ?? 7)
+            const keys = (q.get('key') ?? '').split(',').filter(Boolean)
+            if (keys.length === 0) return json({ error: 'at least one key is required' }, 400)
+            return json(mockTimeline(keys, days, q.get('at') ?? undefined))
+          }
           case '/export.json':
             return json(mockMatrix(q.get('at') ?? undefined))
           case '/export.csv':

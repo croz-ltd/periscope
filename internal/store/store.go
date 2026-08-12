@@ -136,6 +136,7 @@ CREATE TABLE IF NOT EXISTS meta (
 );
 CREATE INDEX IF NOT EXISTS idx_snap_cluster_ts ON snapshots(cluster, ts DESC);
 CREATE INDEX IF NOT EXISTS idx_comp_snap ON components(snapshot_id);
+CREATE INDEX IF NOT EXISTS idx_comp_key_snap ON components(comp_key, snapshot_id);
 CREATE INDEX IF NOT EXISTS idx_changes_ts ON changes(ts DESC);
 CREATE INDEX IF NOT EXISTS idx_changes_cluster_ts ON changes(cluster, ts DESC);
 `)

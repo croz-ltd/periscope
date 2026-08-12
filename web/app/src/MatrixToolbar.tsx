@@ -10,11 +10,19 @@ import {
   ToolbarItem,
   Tooltip,
 } from '@patternfly/react-core'
-import { ChartBarIcon, ColumnsIcon, EyeSlashIcon, TableIcon } from '@patternfly/react-icons'
+import {
+  ChartBarIcon,
+  ChartLineIcon,
+  ColumnsIcon,
+  EyeSlashIcon,
+  TableIcon,
+} from '@patternfly/react-icons'
+import type { TimelineDays } from './api'
+import { TIMELINE_DAYS } from './api'
 
-// Statistics can be read as a table or as bar charts. Compare has no chart view:
-// its cells are versions and dates, and there is nothing to plot.
-export type StatsView = 'table' | 'charts'
+// Statistics can be read as a table, as bar charts of today, or as lines over a
+// window. Compare has none of them: its cells are versions and dates.
+export type StatsView = 'table' | 'charts' | 'timeline'
 
 // The toolbar above the matrix: find a component in a page that has grown past
 // one screen, and take cluster columns out of one that has grown past one width.
@@ -28,6 +36,8 @@ export function MatrixToolbar({
   onShowAllClusters,
   view,
   onViewChange,
+  days,
+  onDaysChange,
 }: {
   query: string
   onQueryChange: (v: string) => void
@@ -38,6 +48,8 @@ export function MatrixToolbar({
   onShowAllClusters: () => void
   view?: StatsView // omitted on pages that have only one view
   onViewChange?: (v: StatsView) => void
+  days?: TimelineDays
+  onDaysChange?: (d: TimelineDays) => void
 }) {
   return (
     <Toolbar
@@ -86,6 +98,30 @@ export function MatrixToolbar({
                 isSelected={view === 'charts'}
                 onChange={() => onViewChange('charts')}
               />
+              <ToggleGroupItem
+                icon={<ChartLineIcon />}
+                text="Timeline"
+                buttonId="cc-view-timeline"
+                isSelected={view === 'timeline'}
+                onChange={() => onViewChange('timeline')}
+              />
+            </ToggleGroup>
+          </ToolbarItem>
+        )}
+        {/* The window belongs to the timeline and to nothing else, so it appears
+            with it rather than sitting greyed out beside the other views. */}
+        {view === 'timeline' && days && onDaysChange && (
+          <ToolbarItem>
+            <ToggleGroup aria-label="Timeframe">
+              {TIMELINE_DAYS.map((d) => (
+                <ToggleGroupItem
+                  key={d}
+                  text={`${d}d`}
+                  buttonId={`cc-days-${d}`}
+                  isSelected={days === d}
+                  onChange={() => onDaysChange(d)}
+                />
+              ))}
             </ToggleGroup>
           </ToolbarItem>
         )}

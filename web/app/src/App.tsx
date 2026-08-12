@@ -29,12 +29,13 @@ import {
   Title,
 } from '@patternfly/react-core'
 import { ClusterIcon, CubesIcon, SearchIcon, SyncAltIcon, DownloadIcon } from '@patternfly/react-icons'
-import type { Matrix } from './api'
+import type { Matrix, TimelineDays } from './api'
 import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
 import type { StatsView } from './MatrixToolbar'
 import { MatrixToolbar } from './MatrixToolbar'
 import { StatisticsCharts } from './StatisticsCharts'
+import { StatisticsTimeline } from './StatisticsTimeline'
 import { ManageViewModal } from './ManageView'
 import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './clusterPrefs'
 import { countComponents, filterGroups, rowsByKey } from './matrixView'
@@ -158,6 +159,9 @@ export default function App() {
   // Statistics reads as a table or as bar charts. The table stays the default,
   // because it holds every row, and charts only the countable ones.
   const [statsView, setStatsView] = useState<StatsView>('table')
+  // The timeline window. A week reads as a week of work, which is the span most
+  // questions about a fleet are asked over.
+  const [timelineDays, setTimelineDays] = useState<TimelineDays>(7)
 
   const changeHidden = useCallback((names: string[]) => {
     saveHiddenClusters(names)
@@ -410,6 +414,8 @@ export default function App() {
                 onShowAllClusters={() => changeHidden([])}
                 view={pageId === 'statistics' ? statsView : undefined}
                 onViewChange={pageId === 'statistics' ? setStatsView : undefined}
+                days={timelineDays}
+                onDaysChange={setTimelineDays}
               />
               {/* A stored preference can outlive the fleet it was made for, so
                   hiding everything is recoverable rather than a blank table. */}
@@ -442,6 +448,14 @@ export default function App() {
                 </EmptyState>
               ) : pageId === 'statistics' && statsView === 'charts' ? (
                 <StatisticsCharts groups={shownGroups} rows={byKey} clusters={shownClusters} />
+              ) : pageId === 'statistics' && statsView === 'timeline' ? (
+                <StatisticsTimeline
+                  groups={shownGroups}
+                  rows={byKey}
+                  clusters={shownClusters}
+                  days={timelineDays}
+                  at={at}
+                />
               ) : (
                 <div className="cc-table-wrap">
                   <MatrixTable matrix={matrix!} groups={shownGroups} clusters={shownClusters} />

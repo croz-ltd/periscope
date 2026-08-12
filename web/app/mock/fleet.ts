@@ -710,3 +710,101 @@ export function mockCSV(): string {
 }
 
 const csvField = (v: string) => (/[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v)
+
+// Timeline history for the mock fleet.
+//
+// The real endpoint reads it back from stored snapshots. Here it is generated
+// backwards from the value the matrix shows now: counts drift a little, take the
+// odd step when a node pool or a VM batch landed, and a cluster that joined
+// inside the window starts late. That is what the drawing has to cope with, so
+// that is what the fixture provides.
+const JOINED_DAYS_AGO: Record<string, number> = { 'edge-site-02': 11 }
+
+interface MockTimelinePoint {
+  t: string
+  version: string
+  extra?: Record<string, string>
+}
+
+// walkBack produces one cluster's series, oldest first, ending on the value the
+// matrix shows now.
+//
+// A count is a step function, not a wobble: a node pool is added on a Tuesday and
+// the number holds for a fortnight. So the series starts flat at the current
+// value, then a couple of moments are picked where it stepped up, and everything
+// before each of those is lowered. Drifting a little on every boundary produced a
+// sawtooth that no fleet has ever looked like.
+function walkBack(current: number, count: number, drift: number): number[] {
+  const values: number[] = new Array(count).fill(current)
+  const events = Math.floor(rand() * 3) // nothing happened, or one or two things did
+  for (let e = 0; e < events; e++) {
+    const at = 1 + Math.floor(rand() * (count - 1)) // never the oldest boundary
+    const delta = Math.max(1, Math.round(values[at] * drift * (0.5 + rand())))
+    for (let i = 0; i < at; i++) values[i] = Math.max(1, values[i] - delta)
+  }
+  return values
+}
+
+export function mockTimeline(keys: string[], days: number, at?: string): unknown {
+  reseed()
+  const step = { 1: 1, 2: 2, 5: 4, 7: 6, 14: 12, 30: 24 }[days] ?? 6
+  const to = at ? Date.parse(at) : Date.now()
+  const from = to - days * DAY
+  const boundaries: number[] = []
+  for (let t = to; t > from; t -= step * 60 * MINUTE) boundaries.unshift(t)
+
+  const matrix = mockMatrix(at)
+  const byKey = new Map(matrix.rows.map((r) => [r.key, r]))
+
+  const rows = keys.map((key) => {
+    const row = byKey.get(key)
+    const series: { cluster: string; points: MockTimelinePoint[] }[] = []
+    if (!row) return { key, name: key, series }
+
+    for (const cluster of matrix.clusters) {
+      const cell = row.cells[cluster.name]
+      if (!cell || cell.state === 'not_installed' || !cell.version) continue
+
+      const joined = JOINED_DAYS_AGO[cluster.name]
+      const startsAt = joined === undefined ? from : to - joined * DAY
+      const own = boundaries.filter((t) => t >= startsAt)
+      if (own.length === 0) continue
+
+      // A volume row carries its two numbers in extra, and the total row only in
+      // its display value, so read both the way the UI does.
+      const pairText = cell.version.match(/^(\d+)\s*PVC\s*\/\s*(\d+)\s*PV$/)
+      const pvc = cell.extra?.pvc ? Number(cell.extra.pvc) : pairText ? Number(pairText[1]) : null
+      const pv = cell.extra?.pv ? Number(cell.extra.pv) : pairText ? Number(pairText[2]) : null
+      if (pvc !== null && pv !== null) {
+        const claims = walkBack(pvc, own.length, 0.12)
+        const volumes = walkBack(pv, own.length, 0.12)
+        series.push({
+          cluster: cluster.name,
+          points: own.map((t, i) => ({
+            t: new Date(t).toISOString(),
+            version: `${claims[i]} PVC / ${volumes[i]} PV`,
+            extra: { pvc: String(claims[i]), pv: String(volumes[i]) },
+          })),
+        })
+        continue
+      }
+      if (!/^\d+$/.test(cell.version)) continue // a version or a dash has no line
+      const counts = walkBack(Number(cell.version), own.length, 0.3)
+      series.push({
+        cluster: cluster.name,
+        points: own.map((t, i) => ({ t: new Date(t).toISOString(), version: String(counts[i]) })),
+      })
+    }
+    return { key, name: row.name, series }
+  })
+
+  return {
+    from: new Date(from).toISOString(),
+    to: new Date(to).toISOString(),
+    days,
+    step: `${step}h0m0s`,
+    rows,
+    // The fixture always has a month, so only the longest window is short of it.
+    stale: days > 30,
+  }
+}

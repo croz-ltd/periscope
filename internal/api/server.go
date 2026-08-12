@@ -41,6 +41,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/matrix", s.handleMatrix)
 	mux.HandleFunc("/api/changes", s.handleChanges)
 	mux.HandleFunc("/api/changes/calendar", s.handleChangeCalendar)
+	mux.HandleFunc("/api/timeline", s.handleTimeline)
 	mux.HandleFunc("/api/export.json", s.handleExportJSON)
 	mux.HandleFunc("/api/export.csv", s.handleExportCSV)
 	mux.HandleFunc("/api/refresh", s.handleRefresh)

@@ -144,6 +144,51 @@ export async function fetchChangeCalendar(from: Date, to: Date): Promise<ChangeC
   return (await res.json()) as ChangeCalendar
 }
 
+export interface TimelinePoint {
+  t: string // RFC3339
+  version: string
+  extra?: Record<string, string>
+}
+
+export interface TimelineSeries {
+  cluster: string
+  points: TimelinePoint[]
+}
+
+export interface TimelineRow {
+  key: string
+  name: string
+  series: TimelineSeries[]
+}
+
+export interface Timeline {
+  from: string
+  to: string
+  days: number
+  step: string
+  rows: TimelineRow[]
+  stale?: boolean // the window reaches further back than the stored history
+}
+
+// The timeframes the server accepts. The step is chosen with the window, so this
+// is a fixed set rather than a free number of days.
+export const TIMELINE_DAYS = [1, 2, 5, 7, 14, 30] as const
+export type TimelineDays = (typeof TIMELINE_DAYS)[number]
+
+// fetchTimeline reads the history of several components in one request. `at`
+// bounds the end of the window, so a timeline follows time travel.
+export async function fetchTimeline(
+  keys: string[],
+  days: TimelineDays,
+  at?: string,
+): Promise<Timeline> {
+  const params = new URLSearchParams({ key: keys.join(','), days: String(days) })
+  if (at) params.set('at', at)
+  const res = await fetch(`/api/timeline?${params}`, { headers: { Accept: 'application/json' } })
+  if (!res.ok) throw new Error(`GET /api/timeline failed: ${res.status} ${res.statusText}`)
+  return (await res.json()) as Timeline
+}
+
 export async function triggerRefresh(): Promise<void> {
   const res = await fetch('/api/refresh', { method: 'POST' })
   if (!res.ok && res.status !== 202) {

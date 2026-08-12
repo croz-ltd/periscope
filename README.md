@@ -65,6 +65,15 @@ the release a cluster is offered, stay in the table and are named as skipped.
 ![The Statistics page as charts: horizontal bar charts of node counts, PVC and PV
 counts per storage class, and virtual machine counts, one card per row](docs/screenshot-charts.png)
 
+A third view reads the same rows as history. Pick a window of 1, 2, 5, 7, 14 or 30
+days and each card becomes a line per cluster, so a count that moved last Tuesday
+says so. The values come from the stored snapshots, carried forward between them: a
+scrape that found no change still means the number held. A cluster that joined inside
+the window starts its line where it joined rather than at zero.
+
+![The Statistics page as a timeline: step lines per cluster over seven days, for node
+counts and volume counts, with a timeframe picker](docs/screenshot-timeline.png)
+
 Both pages have a component search and a **Manage view** dialog for taking columns out
 of a matrix too wide to read. Both are client-side, and the cluster selection is
 remembered in the browser's `localStorage`, so it is per reader rather than per fleet:
@@ -360,6 +369,7 @@ Flags common to `serve` and `report`:
 | `GET /api/matrix?at=<RFC3339>` | the matrix as it stood at that moment |
 | `GET /api/changes` | the change feed, newest first (`from`, `to`, `cluster`, `limit`) |
 | `GET /api/changes/calendar` | per-day change counts, for marking a calendar |
+| `GET /api/timeline?key=<key>&days=<1,2,5,7,14,30>` | one series per cluster for those components, `at` honoured |
 | `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
 | `POST /api/refresh` | trigger a scrape now |
 | `GET /api/version` | the version stamped into this binary |

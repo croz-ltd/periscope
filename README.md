@@ -209,6 +209,32 @@ oc -n periscope label secret prod-emea periscope.io/order=10
 The hub picks the cluster up on the next scrape. UI authentication is handled by an
 `oauth-proxy` sidecar against OpenShift SSO, so Periscope has no auth code of its own.
 
+### Join a cluster without Helm
+
+The running hub serves the same four resources as the join chart, so a cluster can be
+onboarded with one apply and no chart on the joined side:
+
+```bash
+# on the cluster you want to compare
+oc apply -f <(curl -sH "Authorization: Bearer $(oc whoami -t)" \
+  "https://<hub-route>/yaml/new-cluster?name=prod-emea")
+```
+
+The document opens with the two hub-side commands it leaves for you, filled in with
+the name you passed and with the namespace and label this hub actually watches. It
+creates a read-only ServiceAccount, binds it to `cluster-reader`, and asks for a
+long-lived token. It carries no credential: the token is minted by the cluster after
+the apply, and it reaches the hub only when you copy it across.
+
+`name` is optional and must be a DNS-1123 label. Without it the instructions show
+`<CLUSTER_NAME>` where the name goes, and the resources carry no cluster label.
+
+The `curl` is there because the route sits behind `oauth-proxy`. To let
+`oc apply -f https://<hub-route>/yaml/new-cluster?name=prod-emea` work on its own,
+install the hub with `--set publicJoinYAML=true`, which adds
+`--skip-auth-regex=^/yaml/` to the proxy. Weigh that against what the document
+reveals: no credentials, but the namespace and label this hub reads.
+
 ### Run the container
 
 ```bash
@@ -329,6 +355,7 @@ Flags common to `serve` and `report`:
 | `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
 | `POST /api/refresh` | trigger a scrape now |
 | `GET /api/version` | the version stamped into this binary |
+| `GET /yaml/new-cluster?name=<cluster>` | the join manifests for one cluster, ready for `oc apply -f` |
 | `GET /metrics` | Prometheus text exposition |
 | `GET /healthz` | liveness |
 

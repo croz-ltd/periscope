@@ -8,3 +8,12 @@ logLevel: info
 
 # Log output format: json for the cluster's log collector, text to read by eye.
 logFormat: json
+
+# Serve /yaml/new-cluster without a login, so a cluster can be onboarded with
+# `oc apply -f https://<route>/yaml/new-cluster?name=<cluster>` directly. The
+# document creates a read-only ServiceAccount and RBAC and carries no credential,
+# but it does reveal the namespace and the label this hub watches, so it stays
+# off by default. Leave it false and fetch the document with your own token:
+#   oc apply -f <(curl -sH "Authorization: Bearer $(oc whoami -t)" \
+#     "https://<route>/yaml/new-cluster?name=<cluster>")
+publicJoinYAML: false

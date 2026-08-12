@@ -46,6 +46,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/refresh", s.handleRefresh)
 	mux.HandleFunc("/api/user", s.handleUser)
 	mux.HandleFunc("/api/version", s.handleVersion)
+	mux.HandleFunc("/yaml/new-cluster", s.handleJoinYAML)
 	mux.HandleFunc("/metrics", s.handleMetrics)
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.Handle("/", web.Handler())

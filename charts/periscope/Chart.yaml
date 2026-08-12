@@ -4,5 +4,5 @@ description: >-
   Periscope hub, a single-pane-of-glass dashboard showing version drift
   across multiple OpenShift clusters (releases, operators, and managed CSI drivers).
 type: application
-version: 1.0.1
-appVersion: "1.0.1"
+version: 1.1.0
+appVersion: "1.1.0"

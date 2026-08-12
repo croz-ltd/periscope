@@ -73,6 +73,12 @@ spec:
             - --openshift-service-account=periscope
             - --pass-user-headers=true
             - '--openshift-sar={"namespace":"periscope","resource":"services","verb":"get"}'
+{{- if .Values.publicJoinYAML }}
+            # The join document holds no credential, so it can be fetched without
+            # a login. That is what lets `oc apply -f <route>/yaml/new-cluster`
+            # work directly on a cluster being onboarded.
+            - --skip-auth-regex=^/yaml/
+{{- end }}
           ports:
             - name: public
               containerPort: 8443

@@ -30,7 +30,7 @@ against the synthetic fleet described in
 
 - [What it shows](#what-it-shows): the matrix, drift, upgrade readiness, history
 - [How it works](#how-it-works): the pull model in one diagram
-- [Getting started](#getting-started): deploy, join clusters, verify the defaults
+- [Getting started](#getting-started): deploy the hub, join clusters, verify the defaults
 - [Configuration](#configuration): grouping the matrix, covering new components
 - [CLI](#cli): commands, flags, environment variables
 - [API and metrics](#api-and-metrics): REST endpoints, exports, Prometheus
@@ -200,21 +200,82 @@ reasoning behind these choices and what was left for later.
 
 ## Getting started
 
-### Deploy on OpenShift
+### Deploy the hub
 
 ```bash
-# 1. On the hub: app + oauth-proxy + RBAC + PVC + Route
 helm install periscope charts/periscope --set version=latest
-
-# 2. On every cluster you want to compare (including the hub, if you want it in the
-#    matrix): create the read-only SA, cluster-scoped read RBAC and a long-lived token
-helm install periscope-join charts/periscope-join
 ```
 
-The join chart's `NOTES` then print the two commands that register the cluster on the
-hub. Capture the API URL and token, then create the labeled Secret:
+That installs the app, an `oauth-proxy` sidecar, the RBAC it needs, a PVC and a Route.
+UI authentication goes through the proxy against OpenShift SSO, so Periscope has no auth
+code of its own. The matrix starts empty, because a hub has no clusters until you join
+one.
+
+### Join a cluster from the UI
+
+Open the UI and go to **Docs**, **Add a cluster**. The same wizard is offered in the
+empty state of a hub with no clusters yet, which is where you land on a fresh install.
+
+![The Add a cluster wizard: a cluster name, an import mode select set to "Enter the API
+URL and token for the existing cluster", and the four steps of that
+path](docs/screenshot-add-cluster.png)
+
+The **Import mode** select decides who does the work:
+
+- **Enter the API URL and token for the existing cluster.** The hub does the whole join:
+  it creates the namespace, the read-only ServiceAccount and the `cluster-reader`
+  binding on that cluster, reads the token the cluster mints, stores it, and starts a
+  scrape. It reports each step, and every one of them is idempotent, so re-importing a
+  cluster whose token was rotated replaces the credentials.
+- **Run the commands myself.** The wizard prints the two commands instead, built from
+  this hub's own address, namespace and label, so nothing in them has to be edited by
+  hand. It keeps the two clusters straight, because one command runs on the cluster
+  being joined and the other on the hub.
+
+The token you paste for the first mode needs to create a namespace, a ServiceAccount and
+a ClusterRoleBinding, so in practice a cluster-admin token. It is used for those calls
+and dropped: never written to the store, never logged, never returned. What the hub
+keeps is the read-only token, which is the one every scrape uses. The provisioning runs
+with that pasted token and never with the hub's own credentials, so the app holds no
+privilege you do not.
+
+Storing the credentials is the one thing Periscope writes, and it needs `create` and
+`update` on secrets in its own namespace. `allowClusterImport` grants that and defaults
+to on. Turn it off to keep the hub read-only, and the wizard offers the manual mode
+alone, because the UI asks the hub what it can do rather than finding out halfway
+through:
 
 ```bash
+helm upgrade periscope charts/periscope --set allowClusterImport=false
+```
+
+### Join a cluster from the command line
+
+The hub serves the same four resources the wizard applies, so one command onboards a
+cluster with no chart and no UI:
+
+```bash
+# on the cluster you want to compare
+oc apply -f <(curl -sH "Authorization: Bearer $(oc whoami -t)" \
+  "https://<hub-route>/yaml/new-cluster?name=prod-emea")
+```
+
+The document opens with the two hub-side commands it leaves for you, filled in with the
+name you passed and with the namespace and label this hub actually watches. It creates a
+read-only ServiceAccount, binds it to `cluster-reader`, and asks for a long-lived token.
+It carries no credential: the token is minted by the cluster after the apply, and it
+reaches the hub only when you copy it across.
+
+`name` is optional and must be a DNS-1123 label. Without it the instructions show
+`<CLUSTER_NAME>` where the name goes, and the resources carry no cluster label.
+
+For a GitOps install, `charts/periscope-join` creates the same four resources, and its
+`NOTES` print the same two commands:
+
+```bash
+helm install periscope-join charts/periscope-join
+
+# then, on the hub, with the API URL and token that chart's NOTES report
 oc -n periscope create secret generic prod-emea \
   --from-literal=apiURL="$API_URL" --from-literal=token="$TOKEN"
 oc -n periscope label secret prod-emea periscope.io/cluster=true
@@ -223,59 +284,7 @@ oc -n periscope label secret prod-emea periscope.io/cluster=true
 oc -n periscope label secret prod-emea periscope.io/order=10
 ```
 
-The hub picks the cluster up on the next scrape. UI authentication is handled by an
-`oauth-proxy` sidecar against OpenShift SSO, so Periscope has no auth code of its own.
-
-### Join a cluster without Helm
-
-The running hub serves the same four resources as the join chart, so a cluster can be
-onboarded with one apply and no chart on the joined side:
-
-```bash
-# on the cluster you want to compare
-oc apply -f <(curl -sH "Authorization: Bearer $(oc whoami -t)" \
-  "https://<hub-route>/yaml/new-cluster?name=prod-emea")
-```
-
-The document opens with the two hub-side commands it leaves for you, filled in with
-the name you passed and with the namespace and label this hub actually watches. It
-creates a read-only ServiceAccount, binds it to `cluster-reader`, and asks for a
-long-lived token. It carries no credential: the token is minted by the cluster after
-the apply, and it reaches the hub only when you copy it across.
-
-`name` is optional and must be a DNS-1123 label. Without it the instructions show
-`<CLUSTER_NAME>` where the name goes, and the resources carry no cluster label.
-
-The UI carries the same thing: **Docs** opens an **Add a cluster** wizard, which is
-also offered in the empty state of a hub with no clusters yet. It builds both commands
-from this hub's own address, namespace and label, so nothing in them has to be edited by
-hand, and it keeps the two clusters straight: one step runs on the cluster being joined,
-the next on the hub.
-
-### Let the hub join a cluster for you
-
-The wizard's other import mode takes an API URL and a token for the cluster, and does
-the whole join itself: it creates the namespace, the read-only ServiceAccount and the
-`cluster-reader` binding on that cluster, reads the token the cluster mints, stores it
-here, and starts a scrape. Every step is idempotent, so re-importing a cluster whose
-token was rotated replaces the credentials.
-
-The token you paste needs to create a namespace, a ServiceAccount and a
-ClusterRoleBinding, so in practice a cluster-admin token. It is used for those calls
-and dropped: it is never written to the store, never logged, and never returned. What
-the hub keeps is the read-only token, which is the one every scrape uses.
-
-This is the one thing Periscope writes, and it needs `create` and `update` on secrets
-in its own namespace, which `allowClusterImport` grants and which defaults to on. Set
-it to `false` to keep the hub read-only. The wizard then offers the manual mode alone,
-because the UI asks the hub what it can do rather than finding out halfway through:
-
-```bash
-helm upgrade periscope charts/periscope --set allowClusterImport=false
-```
-
-The provisioning on the joined cluster always runs with the token you paste, never with
-the hub's own credentials, so the app never holds a privilege you do not.
+Whichever way you join a cluster, the hub picks it up on the next scrape.
 
 The `curl` is there because the route sits behind `oauth-proxy`. To let
 `oc apply -f https://<hub-route>/yaml/new-cluster?name=prod-emea` work on its own,

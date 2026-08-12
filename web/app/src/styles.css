@@ -11,7 +11,9 @@
   min-height: 4rem;
 }
 html:not(.pf-v6-theme-glass) .pf-v6-c-masthead {
-  --pf-v6-c-masthead--BackgroundColor: var(--pf-t--global--background--color--primary--default);
+  --pf-v6-c-masthead--BackgroundColor: var(
+    --pf-t--global--background--color--primary--default
+  );
   border-block-end: var(--pf-t--global--border--width--divider--default) solid
     var(--pf-t--global--border--color--default);
 }
@@ -52,12 +54,16 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-masthead {
 
 /* Sidebar: flush against the content, divided by a rule. */
 html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
-  --pf-v6-c-page__sidebar--BackgroundColor: var(--pf-t--global--background--color--primary--default);
+  --pf-v6-c-page__sidebar--BackgroundColor: var(
+    --pf-t--global--background--color--primary--default
+  );
   --pf-v6-c-page__sidebar--MarginInlineEnd: 0;
   --pf-v6-c-page__sidebar--BorderInlineEndWidth: var(
     --pf-t--global--border--width--divider--default
   );
-  --pf-v6-c-page__sidebar--BorderInlineEndColor: var(--pf-t--global--border--color--default);
+  --pf-v6-c-page__sidebar--BorderInlineEndColor: var(
+    --pf-t--global--border--color--default
+  );
 }
 
 /* Perspective label above the nav, the console's "Core platform" slot. */
@@ -393,7 +399,8 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 }
 
 .cc-calendar {
-  border: var(--pf-t--global--border--width--divider--default) solid var(--pf-t--global--border--color--default);
+  border: var(--pf-t--global--border--width--divider--default) solid
+    var(--pf-t--global--border--color--default);
   border-radius: var(--pf-t--global--border--radius--small, 3px);
 }
 .cc-cal-grid {
@@ -450,10 +457,22 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   opacity: 0.55;
 }
 /* Four steps of "how much changed", light to dark. */
-.cc-cal-heat-1 { background: #e7f1fa; color: #06c; }
-.cc-cal-heat-2 { background: #bee1f4; color: #004080; }
-.cc-cal-heat-3 { background: #73bcf7; color: #002952; }
-.cc-cal-heat-4 { background: #2b9af3; color: #fff; }
+.cc-cal-heat-1 {
+  background: #e7f1fa;
+  color: #06c;
+}
+.cc-cal-heat-2 {
+  background: #bee1f4;
+  color: #004080;
+}
+.cc-cal-heat-3 {
+  background: #73bcf7;
+  color: #002952;
+}
+.cc-cal-heat-4 {
+  background: #2b9af3;
+  color: #fff;
+}
 .cc-cal-today {
   border-color: var(--pf-t--global--border--color--default);
   font-weight: var(--pf-t--global--font--weight--body--bold);
@@ -507,7 +526,8 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   letter-spacing: 0.04em;
   color: var(--pf-t--global--text--color--subtle);
   padding-bottom: var(--pf-t--global--spacer--xs, 0.25rem);
-  border-bottom: var(--pf-t--global--border--width--divider--default) solid var(--pf-t--global--border--color--default);
+  border-bottom: var(--pf-t--global--border--width--divider--default) solid
+    var(--pf-t--global--border--color--default);
 }
 .cc-feed-count {
   margin-left: auto;
@@ -557,12 +577,24 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 }
 /* The icon carries the kind, so only it is coloured: a feed of coloured
    rows read as severity, and most of these are routine. */
-.cc-chg-updated .cc-feed-icon { color: #06c; }
-.cc-chg-added .cc-feed-icon { color: #3e8635; }
-.cc-chg-removed .cc-feed-icon { color: #c9190b; }
-.cc-chg-joined .cc-feed-icon { color: #06c; }
-.cc-chg-unreachable .cc-feed-icon { color: #c9190b; }
-.cc-chg-recovered .cc-feed-icon { color: #3e8635; }
+.cc-chg-updated .cc-feed-icon {
+  color: #06c;
+}
+.cc-chg-added .cc-feed-icon {
+  color: #3e8635;
+}
+.cc-chg-removed .cc-feed-icon {
+  color: #c9190b;
+}
+.cc-chg-joined .cc-feed-icon {
+  color: #06c;
+}
+.cc-chg-unreachable .cc-feed-icon {
+  color: #c9190b;
+}
+.cc-chg-recovered .cc-feed-icon {
+  color: #3e8635;
+}
 .cc-feed-hidden {
   color: var(--pf-t--global--text--color--subtle);
   font-size: 0.85rem;
@@ -594,11 +626,19 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
    the inline style, and !important on every shape is worse than this. */
 .pf-v6-theme-dark {
   --pf-v6-chart-global--label--Fill: var(--pf-t--global--text--color--regular);
-  --pf-v6-chart-axis--tick-label--Fill: var(--pf-t--global--text--color--subtle);
+  --pf-v6-chart-axis--tick-label--Fill: var(
+    --pf-t--global--text--color--subtle
+  );
   --pf-v6-chart-axis--axis--Fill: var(--pf-t--global--text--color--subtle);
-  --pf-v6-chart-axis--axis--stroke--Color: var(--pf-t--global--border--color--default);
-  --pf-v6-chart-axis--tick--stroke--Color: var(--pf-t--global--border--color--default);
-  --pf-v6-chart-axis--grid--stroke--Color: var(--pf-t--global--border--color--default);
+  --pf-v6-chart-axis--axis--stroke--Color: var(
+    --pf-t--global--border--color--default
+  );
+  --pf-v6-chart-axis--tick--stroke--Color: var(
+    --pf-t--global--border--color--default
+  );
+  --pf-v6-chart-axis--grid--stroke--Color: var(
+    --pf-t--global--border--color--default
+  );
 }
 
 /* Docs page sections: a heading each, and room between them. */
@@ -635,4 +675,14 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 .cc-wizard-modal .pf-v6-c-wizard {
   border-radius: var(--pf-t--global--border--radius--large);
   overflow: hidden;
+}
+
+/* The credentials form inside the wizard, and what the hub reports back. */
+.cc-join-field {
+  max-width: 34rem;
+  margin-block-end: var(--pf-t--global--spacer--md);
+}
+.cc-join-actions {
+  margin-block: var(--pf-t--global--spacer--sm);
+  font-size: var(--pf-t--global--font--size--body--sm);
 }

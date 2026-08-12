@@ -1,5 +1,13 @@
 import type { Plugin } from 'vite'
-import { mockCSV, mockCalendar, mockChanges, mockMatrix, mockTimeline, mockUser } from './fleet'
+import {
+  mockCSV,
+  mockCalendar,
+  mockChanges,
+  mockJoin,
+  mockMatrix,
+  mockTimeline,
+  mockUser,
+} from './fleet'
 import pkg from '../package.json'
 
 // Serves the mock fleet over the same REST endpoints the Go server exposes, as
@@ -20,6 +28,27 @@ export function mockApi(): Plugin {
           res.statusCode = status
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(body))
+        }
+
+        if (url.pathname === '/clusters') {
+          if (req.method !== 'POST') {
+            res.statusCode = 405
+            return res.end()
+          }
+          const chunks: Buffer[] = []
+          req.on('data', (chunk: Buffer) => chunks.push(chunk))
+          req.on('end', () => {
+            let body: Record<string, unknown> = {}
+            try {
+              body = JSON.parse(Buffer.concat(chunks).toString() || '{}')
+            } catch {
+              return json({ error: 'cannot read the request' }, 400)
+            }
+            const result = mockJoin(body as { name?: string; apiURL?: string; caBundle?: string })
+            const failed = (result as { error?: string }).error !== undefined
+            return json(result, failed ? 400 : 201)
+          })
+          return
         }
 
         switch (url.pathname) {
@@ -57,7 +86,12 @@ export function mockApi(): Plugin {
           case '/user':
             return json(mockUser)
           case '/version':
-            return json({ version: `${pkg.version}+mock` })
+            return json({
+              version: `${pkg.version}+mock`,
+              namespace: 'periscope',
+              clusterLabel: 'periscope.io/cluster=true',
+              canJoinClusters: true,
+            })
           default:
             return json({ error: `no mock for ${url.pathname}` }, 404)
         }

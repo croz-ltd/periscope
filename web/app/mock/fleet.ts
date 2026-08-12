@@ -696,6 +696,32 @@ export function mockCalendar(): { days: ChangeDay[]; first: string; last: string
 
 export const mockUser = { user: 'demo', email: 'demo@example.com' }
 
+// The hub says it can join clusters, so the wizard offers both import modes. A
+// mock join reports the same steps the real one does, and changes nothing: the
+// fixture is generated per request and has no cluster to add.
+export function mockJoin(body: { name?: string; apiURL?: string; caBundle?: string }): unknown {
+  const name = (body.name ?? '').trim()
+  if (!/^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/.test(name)) {
+    return { error: 'name must be lower-case letters, digits and dashes' }
+  }
+  return {
+    name,
+    created: true,
+    actions: [
+      'created namespace periscope',
+      'created service account periscope/periscope-reader',
+      'created cluster role binding periscope-reader to cluster-reader',
+      'created token secret periscope/periscope-reader-token',
+      'read the read-only token',
+      `stored the credentials as periscope/${name} on the hub`,
+      'started a scrape',
+    ],
+    warnings: body.caBundle
+      ? undefined
+      : ['TLS verification is off for this cluster, both for this import and for every scrape'],
+  }
+}
+
 // CSV export, matching the column order of internal/api's exporter so the mock
 // does not leave a dead button in the Actions menu.
 export function mockCSV(): string {

@@ -252,6 +252,31 @@ from this hub's own address, namespace and label, so nothing in them has to be e
 hand, and it keeps the two clusters straight: one step runs on the cluster being joined,
 the next on the hub.
 
+### Let the hub join a cluster for you
+
+The wizard's other import mode takes an API URL and a token for the cluster, and does
+the whole join itself: it creates the namespace, the read-only ServiceAccount and the
+`cluster-reader` binding on that cluster, reads the token the cluster mints, stores it
+here, and starts a scrape. Every step is idempotent, so re-importing a cluster whose
+token was rotated replaces the credentials.
+
+The token you paste needs to create a namespace, a ServiceAccount and a
+ClusterRoleBinding, so in practice a cluster-admin token. It is used for those calls
+and dropped: it is never written to the store, never logged, and never returned. What
+the hub keeps is the read-only token, which is the one every scrape uses.
+
+This is the one thing Periscope writes, and it needs `create` and `update` on secrets
+in its own namespace, which `allowClusterImport` grants and which defaults to on. Set
+it to `false` to keep the hub read-only. The wizard then offers the manual mode alone,
+because the UI asks the hub what it can do rather than finding out halfway through:
+
+```bash
+helm upgrade periscope charts/periscope --set allowClusterImport=false
+```
+
+The provisioning on the joined cluster always runs with the token you paste, never with
+the hub's own credentials, so the app never holds a privilege you do not.
+
 The `curl` is there because the route sits behind `oauth-proxy`. To let
 `oc apply -f https://<hub-route>/yaml/new-cluster?name=prod-emea` work on its own,
 install the hub with `--set publicJoinYAML=true`, which adds
@@ -379,6 +404,7 @@ Flags common to `serve` and `report`:
 | `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
 | `POST /api/refresh` | trigger a scrape now |
 | `GET /api/version` | the version stamped into this binary |
+| `POST /api/clusters` | join a cluster from `{name, apiURL, token, caBundle, insecureTLS}` |
 | `GET /yaml/new-cluster?name=<cluster>` | the join manifests for one cluster, ready for `oc apply -f` |
 | `GET /metrics` | Prometheus text exposition |
 | `GET /healthz` | liveness |

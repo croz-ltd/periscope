@@ -203,6 +203,9 @@ export interface HubInfo {
   version: string
   namespace: string
   clusterLabel: string
+  // Whether this hub can join a cluster itself. False means it only serves the
+  // manifests for an operator to apply, so the UI offers that mode alone.
+  canJoinClusters: boolean
 }
 
 // The defaults match the charts, and they are what an older server or a UI served
@@ -211,6 +214,7 @@ const HUB_DEFAULTS: HubInfo = {
   version: '',
   namespace: 'periscope',
   clusterLabel: 'periscope.io/cluster=true',
+  canJoinClusters: false,
 }
 
 // fetchHubInfo never throws. Every field has a usable default, and a Docs page
@@ -224,10 +228,42 @@ export async function fetchHubInfo(): Promise<HubInfo> {
       version: body.version ?? '',
       namespace: body.namespace || HUB_DEFAULTS.namespace,
       clusterLabel: body.clusterLabel || HUB_DEFAULTS.clusterLabel,
+      canJoinClusters: body.canJoinClusters === true,
     }
   } catch {
     return HUB_DEFAULTS
   }
+}
+
+export interface JoinRequest {
+  name: string
+  apiURL: string
+  token: string
+  caBundle?: string
+  insecureTLS?: boolean
+}
+
+export interface JoinResult {
+  name: string
+  created: boolean
+  actions: string[]
+  warnings?: string[]
+}
+
+// joinCluster hands the credentials to the hub, which prepares the target cluster
+// and stores what it needs. The token travels in the body, never in the URL, so it
+// stays out of every request log on the way.
+export async function joinCluster(req: JoinRequest): Promise<JoinResult> {
+  const res = await fetch('/api/clusters', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) {
+    // The server explains what refused, which is the useful half of the message.
+    throw new Error((await res.text()).trim() || `POST /api/clusters failed: ${res.status}`)
+  }
+  return (await res.json()) as JoinResult
 }
 
 // fetchVersion returns the version stamped into the server binary, or "" when the

@@ -88,13 +88,22 @@ func TestServerEndpoints(t *testing.T) {
 
 	// /api/version reports the version stamped into the binary, plus the namespace
 	// and label the Docs page quotes back in the commands that join a cluster.
-	var v map[string]string
-	getJSON(t, ts.URL+"/api/version", &v)
-	if v["version"] != version.Raw {
-		t.Errorf("version = %q, want %q", v["version"], version.Raw)
+	var v struct {
+		Version         string `json:"version"`
+		Namespace       string `json:"namespace"`
+		ClusterLabel    string `json:"clusterLabel"`
+		CanJoinClusters bool   `json:"canJoinClusters"`
 	}
-	if v["namespace"] == "" || v["clusterLabel"] == "" {
+	getJSON(t, ts.URL+"/api/version", &v)
+	if v.Version != version.Raw {
+		t.Errorf("version = %q, want %q", v.Version, version.Raw)
+	}
+	if v.Namespace == "" || v.ClusterLabel == "" {
 		t.Errorf("version payload is %+v, want a namespace and a cluster label", v)
+	}
+	// With no registry there is no hub to write to, so joining must not be offered.
+	if v.CanJoinClusters {
+		t.Error("a server with no registry claims it can join clusters")
 	}
 }
 

@@ -17,3 +17,12 @@ logFormat: json
 #   oc apply -f <(curl -sH "Authorization: Bearer $(oc whoami -t)" \
 #     "https://<route>/yaml/new-cluster?name=<cluster>")
 publicJoinYAML: false
+
+# Let the UI join a cluster from an API URL and a token, which means the hub
+# writes the credential Secret in its own namespace. The provisioning on the
+# joined cluster runs with the token the operator pastes, never with the hub's, so
+# the hub gains nothing beyond create and update on secrets in this one namespace.
+#
+# With this off, the hub stays read-only and the Add a cluster wizard offers only
+# the manual mode: it prints the commands, and an operator runs them.
+allowClusterImport: true

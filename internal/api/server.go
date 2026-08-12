@@ -18,6 +18,7 @@ import (
 
 	"github.com/croz-ltd/periscope/internal/drift"
 	"github.com/croz-ltd/periscope/internal/logging"
+	"github.com/croz-ltd/periscope/internal/provision"
 	"github.com/croz-ltd/periscope/internal/scrape"
 	"github.com/croz-ltd/periscope/internal/store"
 	"github.com/croz-ltd/periscope/pkg/version"
@@ -34,6 +35,9 @@ type Server struct {
 	Store      *store.Store
 	Scheduler  *scrape.Scheduler
 	StaleAfter time.Duration
+	// Provision builds the client used to prepare a cluster being joined. Nil means
+	// the real one; a test supplies a fake cluster.
+	Provision provision.ClientFactory
 }
 
 func (s *Server) Handler() http.Handler {
@@ -45,6 +49,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/export.json", s.handleExportJSON)
 	mux.HandleFunc("/api/export.csv", s.handleExportCSV)
 	mux.HandleFunc("/api/refresh", s.handleRefresh)
+	mux.HandleFunc("/api/clusters", s.handleClusters)
 	mux.HandleFunc("/api/user", s.handleUser)
 	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/yaml/new-cluster", s.handleJoinYAML)
@@ -345,11 +350,14 @@ func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
 // configuration the UI has to quote back: the Docs page prints the commands that
 // register a cluster, and a hub running with non-default flags needs its own
 // namespace and label in them, not the defaults.
-func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
-	body := map[string]string{
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	body := map[string]any{
 		"version":      version.Raw,
 		"namespace":    joinNamespace,
 		"clusterLabel": "periscope.io/cluster=true",
+		// Whether this hub can join a cluster itself, or only serve the manifests
+		// for an operator to apply. The UI offers the choice accordingly.
+		"canJoinClusters": false,
 	}
 	if s.Scheduler != nil && s.Scheduler.Registry != nil {
 		reg := s.Scheduler.Registry
@@ -359,6 +367,7 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 		if reg.LabelKey != "" {
 			body["clusterLabel"] = reg.LabelKey + "=" + reg.LabelVal
 		}
+		body["canJoinClusters"] = reg.CanJoinClusters(r.Context())
 	}
 	writeJSON(w, body)
 }

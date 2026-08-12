@@ -57,6 +57,14 @@ drift, and **Statistics**, for fleet counts and capacity.
 ![The Statistics page: node counts, PV and PVC counts per storage class and virtual
 machine counts per cluster](docs/screenshot-statistics.png)
 
+Statistics also reads as bar charts, one card per row, which answers a different
+question: the table says what the number is on a given cluster, and the chart says
+which clusters carry the fleet. Rows that hold something other than a count, such as
+the release a cluster is offered, stay in the table and are named as skipped.
+
+![The Statistics page as charts: horizontal bar charts of node counts, PVC and PV
+counts per storage class, and virtual machine counts, one card per row](docs/screenshot-charts.png)
+
 Both pages have a component search and a **Manage view** dialog for taking columns out
 of a matrix too wide to read. Both are client-side, and the cluster selection is
 remembered in the browser's `localStorage`, so it is per reader rather than per fleet:

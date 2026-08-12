@@ -32,7 +32,9 @@ import { ClusterIcon, CubesIcon, SearchIcon, SyncAltIcon, DownloadIcon } from '@
 import type { Matrix } from './api'
 import { fetchMatrix, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
+import type { StatsView } from './MatrixToolbar'
 import { MatrixToolbar } from './MatrixToolbar'
+import { StatisticsCharts } from './StatisticsCharts'
 import { ManageViewModal } from './ManageView'
 import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './clusterPrefs'
 import { countComponents, filterGroups, rowsByKey } from './matrixView'
@@ -153,6 +155,9 @@ export default function App() {
   // back on every change (localStorage, never sent to the server).
   const [hidden, setHidden] = useState<string[]>(getHiddenClusters)
   const [manageOpen, setManageOpen] = useState(false)
+  // Statistics reads as a table or as bar charts. The table stays the default,
+  // because it holds every row, and charts only the countable ones.
+  const [statsView, setStatsView] = useState<StatsView>('table')
 
   const changeHidden = useCallback((names: string[]) => {
     saveHiddenClusters(names)
@@ -200,7 +205,8 @@ export default function App() {
   const shownClusters = visibleClusters(allClusters, hidden)
   const hiddenCount = allClusters.length - shownClusters.length
   const pageGroups = page?.groups ?? []
-  const shownGroups = filterGroups(pageGroups, rowsByKey(matrix?.rows ?? []), query)
+  const byKey = rowsByKey(matrix?.rows ?? [])
+  const shownGroups = filterGroups(pageGroups, byKey, query)
   const totalComponents = countComponents(pageGroups)
   const shownComponents = countComponents(shownGroups)
 
@@ -402,6 +408,8 @@ export default function App() {
                 hiddenClusters={hiddenCount}
                 onManageView={() => setManageOpen(true)}
                 onShowAllClusters={() => changeHidden([])}
+                view={pageId === 'statistics' ? statsView : undefined}
+                onViewChange={pageId === 'statistics' ? setStatsView : undefined}
               />
               {/* A stored preference can outlive the fleet it was made for, so
                   hiding everything is recoverable rather than a blank table. */}
@@ -432,6 +440,8 @@ export default function App() {
                     </EmptyStateActions>
                   </EmptyStateFooter>
                 </EmptyState>
+              ) : pageId === 'statistics' && statsView === 'charts' ? (
+                <StatisticsCharts groups={shownGroups} rows={byKey} clusters={shownClusters} />
               ) : (
                 <div className="cc-table-wrap">
                   <MatrixTable matrix={matrix!} groups={shownGroups} clusters={shownClusters} />

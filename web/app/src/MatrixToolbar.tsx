@@ -2,13 +2,19 @@ import {
   Button,
   Label,
   SearchInput,
+  ToggleGroup,
+  ToggleGroupItem,
   Toolbar,
   ToolbarContent,
   ToolbarGroup,
   ToolbarItem,
   Tooltip,
 } from '@patternfly/react-core'
-import { ColumnsIcon, EyeSlashIcon } from '@patternfly/react-icons'
+import { ChartBarIcon, ColumnsIcon, EyeSlashIcon, TableIcon } from '@patternfly/react-icons'
+
+// Statistics can be read as a table or as bar charts. Compare has no chart view:
+// its cells are versions and dates, and there is nothing to plot.
+export type StatsView = 'table' | 'charts'
 
 // The toolbar above the matrix: find a component in a page that has grown past
 // one screen, and take cluster columns out of one that has grown past one width.
@@ -20,6 +26,8 @@ export function MatrixToolbar({
   hiddenClusters,
   onManageView,
   onShowAllClusters,
+  view,
+  onViewChange,
 }: {
   query: string
   onQueryChange: (v: string) => void
@@ -28,6 +36,8 @@ export function MatrixToolbar({
   hiddenClusters: number
   onManageView: () => void
   onShowAllClusters: () => void
+  view?: StatsView // omitted on pages that have only one view
+  onViewChange?: (v: StatsView) => void
 }) {
   return (
     <Toolbar
@@ -59,6 +69,26 @@ export function MatrixToolbar({
             />
           </Tooltip>
         </ToolbarItem>
+        {view && onViewChange && (
+          <ToolbarItem>
+            <ToggleGroup aria-label="Statistics view">
+              <ToggleGroupItem
+                icon={<TableIcon />}
+                text="Table"
+                buttonId="cc-view-table"
+                isSelected={view === 'table'}
+                onChange={() => onViewChange('table')}
+              />
+              <ToggleGroupItem
+                icon={<ChartBarIcon />}
+                text="Charts"
+                buttonId="cc-view-charts"
+                isSelected={view === 'charts'}
+                onChange={() => onViewChange('charts')}
+              />
+            </ToggleGroup>
+          </ToolbarItem>
+        )}
         {/* Columns missing from a comparison must never be a silent state, so the
             count stays on screen with the way back next to it. */}
         {hiddenClusters > 0 && (

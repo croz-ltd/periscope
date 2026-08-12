@@ -567,3 +567,36 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   color: var(--pf-t--global--text--color--subtle);
   font-size: 0.85rem;
 }
+
+/* Statistics as charts: one card per countable row, grouped by section the way
+   the table is. */
+.cc-chart-group {
+  margin-block-end: var(--pf-t--global--spacer--lg);
+}
+.cc-chart-group-head {
+  margin-block-end: var(--pf-t--global--spacer--sm);
+}
+.cc-chart-group-title {
+  font-size: 0.8rem;
+  font-weight: var(--pf-t--global--font--weight--body--bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--pf-t--global--text--color--subtle);
+}
+.cc-chart-total {
+  font-size: var(--pf-t--global--font--size--body--sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--pf-t--global--text--color--subtle);
+}
+/* PatternFly's chart theme writes its colors inline, but each one reads a
+   --pf-v6-chart-* variable with a light-theme fallback. Setting those variables
+   is how a chart follows the dark theme: an override on the SVG element loses to
+   the inline style, and !important on every shape is worse than this. */
+.pf-v6-theme-dark {
+  --pf-v6-chart-global--label--Fill: var(--pf-t--global--text--color--regular);
+  --pf-v6-chart-axis--tick-label--Fill: var(--pf-t--global--text--color--subtle);
+  --pf-v6-chart-axis--axis--Fill: var(--pf-t--global--text--color--subtle);
+  --pf-v6-chart-axis--axis--stroke--Color: var(--pf-t--global--border--color--default);
+  --pf-v6-chart-axis--tick--stroke--Color: var(--pf-t--global--border--color--default);
+  --pf-v6-chart-axis--grid--stroke--Color: var(--pf-t--global--border--color--default);
+}

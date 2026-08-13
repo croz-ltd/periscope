@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Base images are overridable so CI can point them at internal mirrors (Harbor).
-ARG NODE_IMAGE=node:20-alpine
+ARG NODE_IMAGE=node:22-alpine
 ARG GO_IMAGE=golang:1.26
 ARG RUNTIME_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:latest
 

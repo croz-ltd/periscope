@@ -3,9 +3,9 @@ module github.com/croz-ltd/periscope
 go 1.26.4
 
 require (
-	k8s.io/api v0.36.3
-	k8s.io/apimachinery v0.36.3
-	k8s.io/client-go v0.36.3
+	k8s.io/api v0.36.4
+	k8s.io/apimachinery v0.36.4
+	k8s.io/client-go v0.36.4
 	modernc.org/sqlite v1.56.0
 	sigs.k8s.io/yaml v1.6.0
 )

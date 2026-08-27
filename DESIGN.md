@@ -72,8 +72,15 @@ as "behind". Partial-rollout drift stays visible.
 
 ## Access & security (resolved)
 
-- **UI auth:** oauth-proxy sidecar → OpenShift SSO + RBAC check. Read-only app, no
-  custom auth code.
+- **UI auth:** oauth-proxy sidecar → OpenShift SSO + RBAC check (`get` on services in
+  the hub namespace). No custom auth code for reading.
+- **Admin API (`/api/admin`):** the proxy's review settles a session, not a path, so it
+  cannot gate one endpoint harder than the rest. The proxy forwards the reader's token
+  (`--pass-access-token`) and the app answers its own SubjectAccessReview for `create`
+  on services in the hub namespace, per request. No token means the pod's own rights
+  answer, and those do not include it, so going round the proxy does not go round the
+  check. Purging is further limited to clusters whose join Secret is already gone: the
+  configuration owns what exists, and the admin API only clears up after it.
 - **Remote creds:** per-cluster read-only ServiceAccount tokens, stored as labeled
   Secrets on the hub. Least-privilege, revocable per cluster.
 - **Reader RBAC mode (default `clusterReader`):** the read SA on each cluster binds to
@@ -95,6 +102,10 @@ as "behind". Partial-rollout drift stays visible.
 
 On scrape failure/timeout: keep last-good snapshot, show a `stale since HH:MM` badge
 and a visible error indicator with reason. Report stays useful; freshness is honest.
+
+Removing a cluster from the fleet keeps its history, for the same reason: a cluster
+away for an afternoon comes back with its past intact. The stale column that leaves
+behind is cleared deliberately, through the admin API, and never by the scrape.
 
 ## Delivery (resolved)
 

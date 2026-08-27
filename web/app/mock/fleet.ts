@@ -53,6 +53,9 @@ interface MockCluster {
   bgColor?: string
   staleMinutes?: number
   error?: string
+  // Absent means joined. False means the fleet no longer includes this cluster,
+  // so only its stored history is left.
+  joined?: boolean
 }
 
 const PROD = { color: '#ffffff', bgColor: '#0066cc' }
@@ -72,14 +75,36 @@ const CLUSTERS: MockCluster[] = [
   { name: 'dev-eu-central', label: 'DEV', ...DEV },
   { name: 'edge-site-01', error: 'clusterserviceversions.operators.coreos.com is forbidden' },
   { name: 'edge-site-02' },
+  // Decommissioned: history on the hub, no credential Secret left. It is the
+  // one the Purge stale data action offers, and the fleet needs one for the
+  // dialog to show anything.
+  { name: 'retired-eu-west', staleMinutes: 60 * 24 * 9, joined: false },
 ]
 
 const names = CLUSTERS.map((c) => c.name)
 const prod = names.filter((n) => n.startsWith('prod'))
 const edge = names.filter((n) => n.startsWith('edge'))
 
+// Purging is the one thing the mock cannot answer the same way every time: a
+// dialog that removes a cluster and then still lists it teaches the wrong
+// thing. The set lives for as long as the dev server does.
+const purged = new Set<string>()
+
+// How much history the fixture pretends to hold for a cluster, derived from its
+// name rather than drawn from the shared generator, so the listing and the
+// purge result quote the same numbers.
+function heldCounts(name: string): { snapshots: number; components: number; changes: number } {
+  const r = rng([...name].reduce((a, ch) => a * 31 + ch.charCodeAt(0), SEED) | 0)
+  const snapshots = 200 + Math.floor(r() * 6000)
+  return {
+    snapshots,
+    components: snapshots * (18 + Math.floor(r() * 20)),
+    changes: 2 + Math.floor(r() * 80),
+  }
+}
+
 function clusters(now: number): ClusterInfo[] {
-  return CLUSTERS.map((c, i) => ({
+  return CLUSTERS.filter((c) => !purged.has(c.name)).map((c, i) => ({
     name: c.name,
     time: new Date(now - (c.staleMinutes ?? between(1, 6)) * MINUTE).toISOString(),
     ok: !c.error,
@@ -695,6 +720,43 @@ export function mockCalendar(): { days: ChangeDay[]; first: string; last: string
 }
 
 export const mockUser = { user: 'demo', email: 'demo@example.com' }
+
+// The admin API listing: what the database holds per cluster, and whether the
+// fleet still includes it. The mock reader always passes the access review, so
+// the Purge action is there to try.
+export function mockStoredClusters(): unknown {
+  const now = Date.now()
+  return {
+    clusters: CLUSTERS.filter((c) => !purged.has(c.name)).map((c) => {
+      const { snapshots, changes } = heldCounts(c.name)
+      return {
+        name: c.name,
+        first: new Date(now - 45 * DAY).toISOString(),
+        last: new Date(now - (c.staleMinutes ?? 3) * MINUTE).toISOString(),
+        snapshots,
+        changes,
+        joined: c.joined !== false,
+      }
+    }),
+  }
+}
+
+export function mockPurge(names: string[]): unknown {
+  const known = new Map(CLUSTERS.map((c) => [c.name, c]))
+  const out: { purged: unknown[]; refused: unknown[] } = { purged: [], refused: [] }
+  for (const name of names) {
+    const c = known.get(name)
+    if (!c || purged.has(name)) {
+      out.refused.push({ cluster: name, reason: 'no stored data' })
+    } else if (c.joined !== false) {
+      out.refused.push({ cluster: name, reason: 'still joined: delete its Secret on the hub first' })
+    } else {
+      purged.add(name)
+      out.purged.push({ cluster: name, ...heldCounts(name) })
+    }
+  }
+  return out
+}
 
 // The hub says it can join clusters, so the wizard offers both import modes. A
 // mock join reports the same steps the real one does, and changes nothing: the

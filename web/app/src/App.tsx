@@ -28,9 +28,9 @@ import {
   Spinner,
   Title,
 } from '@patternfly/react-core'
-import { ClusterIcon, CubesIcon, SearchIcon, SyncAltIcon, DownloadIcon } from '@patternfly/react-icons'
+import { ClusterIcon, CubesIcon, SearchIcon, SyncAltIcon, DownloadIcon, TrashIcon } from '@patternfly/react-icons'
 import type { Matrix, TimelineDays } from './api'
-import { fetchMatrix, triggerRefresh } from './api'
+import { fetchMatrix, fetchStoredClusters, triggerRefresh } from './api'
 import { MatrixTable } from './MatrixTable'
 import type { StatsView } from './MatrixToolbar'
 import { MatrixToolbar } from './MatrixToolbar'
@@ -38,6 +38,7 @@ import { StatisticsCharts } from './StatisticsCharts'
 import { StatisticsTimeline } from './StatisticsTimeline'
 import { AddClusterButton, AddClusterWizard } from './AddCluster'
 import { ManageViewModal } from './ManageView'
+import { PurgeClustersModal } from './PurgeClusters'
 import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './clusterPrefs'
 import { countComponents, filterGroups, rowsByKey } from './matrixView'
 import { AppMasthead } from './AppMasthead'
@@ -158,6 +159,11 @@ export default function App() {
   const [hidden, setHidden] = useState<string[]>(getHiddenClusters)
   const [manageOpen, setManageOpen] = useState(false)
   const [addClusterOpen, setAddClusterOpen] = useState(false)
+  const [purgeOpen, setPurgeOpen] = useState(false)
+  // How many clusters have history but no credential Secret left, and null
+  // while the answer is unknown: either the admin API refused this reader, or
+  // it has not been asked yet. The Purge action appears only for a number.
+  const [staleCount, setStaleCount] = useState<number | null>(null)
   // Statistics reads as a table or as bar charts. The table stays the default,
   // because it holds every row, and charts only the countable ones.
   const [statsView, setStatsView] = useState<StatsView>('table')
@@ -185,6 +191,18 @@ export default function App() {
   useEffect(() => {
     void load()
   }, [load])
+
+  // Ask the admin API what it holds. A reader without elevated access gets
+  // null back, which is how the Purge action stays out of their Actions menu
+  // instead of being offered and then refused.
+  const countStale = useCallback(async () => {
+    const stored = await fetchStoredClusters()
+    setStaleCount(stored === null ? null : stored.filter((c) => !c.joined).length)
+  }, [])
+
+  useEffect(() => {
+    void countStale()
+  }, [countStale])
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true)
@@ -262,6 +280,13 @@ export default function App() {
             Refresh
           </DropdownItem>
         )}
+        {/* Only for a reader who may administer the fleet, and only when
+            there is something to purge. */}
+        {staleCount !== null && staleCount > 0 && (
+          <DropdownItem key="purge" icon={<TrashIcon />} onClick={() => setPurgeOpen(true)}>
+            Purge stale data ({staleCount})
+          </DropdownItem>
+        )}
         <Divider component="li" />
         <DropdownItem key="csv" icon={<DownloadIcon />} component="a" href={exportHref('csv')}>
           Export CSV
@@ -320,6 +345,14 @@ export default function App() {
         isOpen={addClusterOpen}
         onClose={() => setAddClusterOpen(false)}
         onRefresh={onRefresh}
+      />
+      <PurgeClustersModal
+        isOpen={purgeOpen}
+        onClose={() => setPurgeOpen(false)}
+        onPurged={() => {
+          void load()
+          void countStale()
+        }}
       />
       {activeNav === 'about' ? (
         <PageSection>

@@ -72,7 +72,16 @@ spec:
             - --cookie-secret-file=/etc/oauth/session/session_secret
             - --openshift-service-account=periscope
             - --pass-user-headers=true
+            # Reading the dashboard needs get on services in this namespace.
             - '--openshift-sar={"namespace":"periscope","resource":"services","verb":"get"}'
+            # Forward the reader's own token as X-Forwarded-Access-Token, for a
+            # signed-in browser session and for a client that presented a token
+            # itself. It is the only way the app can ask what the reader may do
+            # rather than what this pod may do, which is how /api/admin decides
+            # who may purge stale cluster data. The proxy's own SAR cannot answer
+            # that: it is checked once per session, not per request path.
+            - --pass-access-token=true
+            - --pass-user-bearer-token=true
 {{- if .Values.publicJoinYAML }}
             # The join document holds no credential, so it can be fetched without
             # a login. That is what lets `oc apply -f <route>/yaml/new-cluster`

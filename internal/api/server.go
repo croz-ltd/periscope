@@ -51,6 +51,10 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/refresh", s.handleRefresh)
 	mux.HandleFunc("/api/clusters", s.handleClusters)
 	mux.HandleFunc("/api/user", s.handleUser)
+	// Everything under /api/admin destroys data and checks an elevated right of
+	// its own on every request. See admin.go.
+	mux.HandleFunc("/api/admin/clusters", s.handleAdminClusters)
+	mux.HandleFunc("/api/admin/purge", s.handleAdminPurge)
 	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/yaml/new-cluster", s.handleJoinYAML)
 	mux.HandleFunc("/metrics", s.handleMetrics)

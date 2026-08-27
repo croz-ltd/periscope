@@ -324,6 +324,14 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   color: var(--pf-t--global--text--color--status--warning--default);
 }
 
+/* The purge dialog reads the fleet when it opens, so it holds the modal's
+   height while it waits rather than snapping open at nothing. */
+.cc-purge-loading {
+  display: flex;
+  justify-content: center;
+  padding-block: var(--pf-t--global--spacer--xl);
+}
+
 /* Masthead control labels */
 .cc-ctl-label {
   margin-right: 0.4rem;

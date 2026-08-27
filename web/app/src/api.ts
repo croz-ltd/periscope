@@ -320,3 +320,64 @@ export async function fetchUser(): Promise<User> {
     return { user: '', email: '' }
   }
 }
+
+// StoredCluster is one cluster the hub still holds history for. `joined` says
+// whether the fleet configuration still includes it: only the others can be
+// purged, and the rest of the row is what purging would remove.
+export interface StoredCluster {
+  name: string
+  first: string
+  last: string
+  snapshots: number
+  changes: number
+  joined: boolean
+}
+
+// fetchStoredClusters asks the admin API what the database holds. It returns
+// null when this reader may not administer the fleet, which is the whole
+// availability check: the endpoint answers 403 for an ordinary reader and 503
+// on a hub that cannot make the access review, and either way the UI leaves
+// purging out rather than offering an action that would only fail.
+export async function fetchStoredClusters(): Promise<StoredCluster[] | null> {
+  try {
+    const res = await fetch('/api/admin/clusters', { headers: { Accept: 'application/json' } })
+    if (!res.ok) return null
+    const body = (await res.json()) as { clusters?: StoredCluster[] }
+    return body.clusters ?? []
+  } catch {
+    return null
+  }
+}
+
+export interface Purged {
+  cluster: string
+  snapshots: number
+  components: number
+  changes: number
+}
+
+export interface Refusal {
+  cluster: string
+  reason: string
+}
+
+export interface PurgeResult {
+  purged: Purged[]
+  refused?: Refusal[]
+}
+
+// purgeClusters removes the stored history of the named clusters. The server
+// refuses any cluster the fleet still includes, and names it in `refused`
+// rather than failing the whole request, so purging four of five clusters
+// still reports the four.
+export async function purgeClusters(names: string[]): Promise<PurgeResult> {
+  const res = await fetch('/api/admin/purge', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ clusters: names }),
+  })
+  if (!res.ok) {
+    throw new Error((await res.text()).trim() || `POST /api/admin/purge failed: ${res.status}`)
+  }
+  return (await res.json()) as PurgeResult
+}

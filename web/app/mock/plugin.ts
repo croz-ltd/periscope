@@ -5,6 +5,8 @@ import {
   mockChanges,
   mockJoin,
   mockMatrix,
+  mockPurge,
+  mockStoredClusters,
   mockTimeline,
   mockUser,
 } from './fleet'
@@ -28,6 +30,26 @@ export function mockApi(): Plugin {
           res.statusCode = status
           res.setHeader('Content-Type', 'application/json')
           res.end(JSON.stringify(body))
+        }
+
+        if (url.pathname === '/admin/purge') {
+          if (req.method !== 'POST') {
+            res.statusCode = 405
+            return res.end()
+          }
+          const chunks: Buffer[] = []
+          req.on('data', (chunk: Buffer) => chunks.push(chunk))
+          req.on('end', () => {
+            let body: { clusters?: string[] } = {}
+            try {
+              body = JSON.parse(Buffer.concat(chunks).toString() || '{}')
+            } catch {
+              return json({ error: 'cannot read the request' }, 400)
+            }
+            if (!body.clusters?.length) return json({ error: 'name at least one cluster' }, 400)
+            return json(mockPurge(body.clusters))
+          })
+          return
         }
 
         if (url.pathname === '/clusters') {
@@ -83,6 +105,10 @@ export function mockApi(): Plugin {
             // does keeps the Refresh action honest instead of erroring.
             res.statusCode = 202
             return res.end()
+          case '/admin/clusters':
+            // The mock reader always passes the elevated access review, so the
+            // Purge action is reachable without a cluster to check it against.
+            return json(mockStoredClusters())
           case '/user':
             return json(mockUser)
           case '/version':

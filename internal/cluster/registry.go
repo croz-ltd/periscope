@@ -7,6 +7,7 @@ package cluster
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -43,7 +44,16 @@ type Registry struct {
 	LabelKey  string
 	LabelVal  string
 
+	// AsUser builds a hub client that acts as the bearer of a token, so an
+	// access review can ask what the signed-in reader may do rather than what
+	// this pod may do. Nil means the real one, built from the hub's own
+	// connection settings with the token swapped in; a test supplies a fake.
+	AsUser func(token string) (kubernetes.Interface, error)
+
 	hub kubernetes.Interface
+	// cfg is how the hub itself connects, kept so AsUser can reuse the host and
+	// the CA and change only the credential.
+	cfg *rest.Config
 }
 
 // NewRegistry builds a registry. The hub client uses in-cluster credentials
@@ -58,7 +68,7 @@ func NewRegistry(namespace, labelKey, labelVal string) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Registry{Namespace: namespace, LabelKey: labelKey, LabelVal: labelVal, hub: cs}, nil
+	return &Registry{Namespace: namespace, LabelKey: labelKey, LabelVal: labelVal, hub: cs, cfg: cfg}, nil
 }
 
 // NewRegistryWithClient builds a registry around a client the caller supplies. It
@@ -143,19 +153,88 @@ func (r *Registry) SaveCluster(ctx context.Context, name, apiURL, token string, 
 // UI asks before offering to do it, because a hub whose Role was narrowed to
 // read-only can still serve the manifests for an operator to apply by hand.
 func (r *Registry) CanJoinClusters(ctx context.Context) bool {
+	return r.allowed(ctx, r.hub, "create", "secrets")
+}
+
+// CanAdminister reports whether the bearer of token may use the admin API.
+//
+// The right asked for is create on services in the hub namespace. Reading the
+// dashboard already needs get on services, which is the check the oauth-proxy
+// sidecar makes, and every reader passes it. Creating one is a right only
+// somebody who administers the namespace holds, which is the line the admin API
+// wants: purging history is not undoable, and a reader should not be able to do
+// it by knowing the URL.
+//
+// An empty token asks with the hub's own credentials instead. In the cluster
+// that answers no, because the hub's Role covers secrets and configmaps and
+// nothing else, so a request that arrives without the proxy in front of it is
+// refused. Off-cluster it answers with the developer's own kubeconfig rights,
+// which is what makes the admin API usable in local development.
+func (r *Registry) CanAdminister(ctx context.Context, token string) bool {
+	client, err := r.clientFor(token)
+	if err != nil {
+		logging.For("cluster").Warn("cannot review the caller's access, refusing", "error", err)
+		return false
+	}
+	return r.allowed(ctx, client, "create", "services")
+}
+
+// clientFor returns a hub client acting as the bearer of token, or the hub's
+// own client when the token is empty.
+func (r *Registry) clientFor(token string) (kubernetes.Interface, error) {
+	if token == "" {
+		return r.hub, nil
+	}
+	if r.AsUser != nil {
+		return r.AsUser(token)
+	}
+	if r.cfg == nil {
+		return nil, errors.New("this hub was built without connection settings, so it cannot act on a token")
+	}
+	// Copy the host and the CA, and drop every other credential the hub has, so
+	// the review is answered for the caller alone.
+	cfg := rest.AnonymousClientConfig(r.cfg)
+	cfg.BearerToken = token
+	return kubernetes.NewForConfig(cfg)
+}
+
+// allowed answers one SelfSubjectAccessReview in the hub namespace. A review
+// that cannot be made is a no: an access check that fails open is not a check.
+func (r *Registry) allowed(ctx context.Context, client kubernetes.Interface, verb, resource string) bool {
 	review := &authv1.SelfSubjectAccessReview{
 		Spec: authv1.SelfSubjectAccessReviewSpec{
 			ResourceAttributes: &authv1.ResourceAttributes{
-				Namespace: r.Namespace, Verb: "create", Resource: "secrets", Version: "v1",
+				Namespace: r.Namespace, Verb: verb, Resource: resource, Version: "v1",
 			},
 		},
 	}
-	res, err := r.hub.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, review, metav1.CreateOptions{})
+	res, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, review, metav1.CreateOptions{})
 	if err != nil {
-		logging.For("cluster").Debug("cannot review my own access, assuming no", "error", err)
+		logging.For("cluster").Debug("cannot review access, assuming no",
+			"verb", verb, "resource", resource, "error", err)
 		return false
 	}
 	return res.Status.Allowed
+}
+
+// JoinedNames returns the name of every cluster Secret carrying the join label
+// in the hub namespace, whether its credentials are complete or not.
+//
+// Discover skips a Secret it cannot scrape from, which is right for scraping and
+// wrong here: a join written half way still means somebody joined that cluster,
+// and purging its history because the token is missing would delete the data of
+// a cluster that is about to come back.
+func (r *Registry) JoinedNames(ctx context.Context) ([]string, error) {
+	sel := fmt.Sprintf("%s=%s", r.LabelKey, r.LabelVal)
+	secrets, err := r.hub.CoreV1().Secrets(r.Namespace).List(ctx, metav1.ListOptions{LabelSelector: sel})
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(secrets.Items))
+	for _, s := range secrets.Items {
+		names = append(names, s.Name)
+	}
+	return names, nil
 }
 
 func hubConfig() (*rest.Config, error) {

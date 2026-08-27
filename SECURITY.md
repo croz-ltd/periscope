@@ -38,8 +38,24 @@ operator CRDs from returning `forbidden`. The trade-off is deliberate and docume
 editing `charts/periscope-join/templates/clusterrolebinding.yaml`.
 
 UI authentication is delegated to an `oauth-proxy` sidecar doing OpenShift SSO plus an
-RBAC access review, so Periscope contains no authentication code of its own. The API
-behind the proxy is read-only apart from `POST /api/refresh`, which triggers a scrape.
+RBAC access review, so Periscope contains no authentication code of its own. Reading
+the dashboard needs `get` on services in the hub namespace, which is the review the
+proxy makes.
+
+Three endpoints do more than read. `POST /api/refresh` triggers a scrape.
+`POST /api/clusters` writes a cluster's credential Secret in the hub namespace, and
+only when the chart is installed with `allowClusterImport` on; the work on the joined
+cluster runs with the token the operator pastes, never with the hub's.
+`POST /api/admin/purge` deletes stored history.
+
+The proxy's access review settles a session, not a path, so it cannot express "this
+one endpoint needs more". `/api/admin` therefore makes its own check: the proxy is
+configured to forward the reader's token, and the app answers a SubjectAccessReview for
+`create` on services in the hub namespace with that token before doing anything. A
+request that arrives without a token is reviewed with the pod's own rights, which cover
+secrets and configmaps and nothing else, so bypassing the proxy does not bypass the
+check. A purge is further limited to clusters whose credential Secret is already gone,
+so it cannot be aimed at a cluster the fleet still includes.
 
 The SQLite database on the PVC holds cluster names, component keys and version strings.
 It is inventory metadata, not workload data.

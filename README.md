@@ -30,7 +30,7 @@ against the synthetic fleet described in
 
 - [What it shows](#what-it-shows): the matrix, drift, upgrade readiness, history
 - [How it works](#how-it-works): the pull model in one diagram
-- [Getting started](#getting-started): deploy the hub, join clusters, verify the defaults
+- [Getting started](#getting-started): deploy the hub, join clusters, remove them, verify the defaults
 - [Configuration](#configuration): grouping the matrix, covering new components
 - [CLI](#cli): commands, flags, environment variables
 - [API and metrics](#api-and-metrics): REST endpoints, exports, Prometheus
@@ -292,6 +292,37 @@ install the hub with `--set publicJoinYAML=true`, which adds
 `--skip-auth-regex=^/yaml/` to the proxy. Weigh that against what the document
 reveals: no credentials, but the namespace and label this hub reads.
 
+### Remove a cluster, and purge what it left behind
+
+A cluster leaves the fleet when its credential Secret goes:
+
+```bash
+oc -n periscope delete secret prod-emea
+```
+
+Nothing scrapes it after that, but the history stays. That is deliberate, because a
+cluster taken out for an afternoon should come back with its past intact, and the
+Changes page and the timeline still answer questions about it. The cost is a column in
+the matrix that is greyed out as stale and never recovers.
+
+**Actions -> Purge stale data** removes it. The dialog lists every cluster the database
+holds history for that no longer has a Secret, with how much would go, and takes the
+ones you tick. It is not undoable: rejoining the cluster starts its history again from
+the next scrape.
+
+Two things gate the action. The reader must be able to `create` services in the hub
+namespace, which is a right an administrator of that namespace holds and an ordinary
+reader does not, and it is checked on every request rather than once at login. And a
+cluster that still has its Secret cannot be purged at all, by the UI or by the API: the
+configuration decides which clusters exist, and purging only clears up after it.
+
+Readers without that right never see the action, because
+[`GET /api/admin/clusters`](#api-and-metrics) answers them `403` and the UI reads the
+status code. For that to work the hub must be behind the `oauth-proxy` the chart
+installs, which forwards the reader's own token. A hub reached directly, with no proxy
+and no token, is answered with the pod's own rights, and those do not include creating
+a Service.
+
 ### Run the container
 
 ```bash
@@ -414,9 +445,15 @@ Flags common to `serve` and `report`:
 | `POST /api/refresh` | trigger a scrape now |
 | `GET /api/version` | the version stamped into this binary |
 | `POST /api/clusters` | join a cluster from `{name, apiURL, token, caBundle, insecureTLS}` |
+| `GET /api/admin/clusters` | what the database holds per cluster, and whether the fleet still includes it |
+| `POST /api/admin/purge` | remove the stored history of `{clusters: [...]}`, refusing any that are still joined |
 | `GET /yaml/new-cluster?name=<cluster>` | the join manifests for one cluster, ready for `oc apply -f` |
 | `GET /metrics` | Prometheus text exposition |
 | `GET /healthz` | liveness |
+
+Everything under `/api/admin` needs `create` on services in the hub namespace and
+answers `403` without it. See
+[Remove a cluster](#remove-a-cluster-and-purge-what-it-left-behind).
 
 Two gauges are exported, both suitable for alerting:
 

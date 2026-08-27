@@ -153,7 +153,8 @@ func (r *Registry) SaveCluster(ctx context.Context, name, apiURL, token string, 
 // UI asks before offering to do it, because a hub whose Role was narrowed to
 // read-only can still serve the manifests for an operator to apply by hand.
 func (r *Registry) CanJoinClusters(ctx context.Context) bool {
-	return r.allowed(ctx, r.hub, "create", "secrets")
+	ok, _ := r.allowed(ctx, r.hub, "create", "secrets")
+	return ok
 }
 
 // CanAdminister reports whether the bearer of token may use the admin API.
@@ -170,11 +171,14 @@ func (r *Registry) CanJoinClusters(ctx context.Context) bool {
 // nothing else, so a request that arrives without the proxy in front of it is
 // refused. Off-cluster it answers with the developer's own kubeconfig rights,
 // which is what makes the admin API usable in local development.
-func (r *Registry) CanAdminister(ctx context.Context, token string) bool {
+// The error is returned rather than swallowed because the two ways this says no
+// need different fixes, and a bare 403 cannot tell them apart: an error means
+// the review never happened (an expired or rubbish token, an unreachable API),
+// while a nil error with false means the review happened and the answer was no.
+func (r *Registry) CanAdminister(ctx context.Context, token string) (bool, error) {
 	client, err := r.clientFor(token)
 	if err != nil {
-		logging.For("cluster").Warn("cannot review the caller's access, refusing", "error", err)
-		return false
+		return false, err
 	}
 	return r.allowed(ctx, client, "create", "services")
 }
@@ -200,7 +204,8 @@ func (r *Registry) clientFor(token string) (kubernetes.Interface, error) {
 
 // allowed answers one SelfSubjectAccessReview in the hub namespace. A review
 // that cannot be made is a no: an access check that fails open is not a check.
-func (r *Registry) allowed(ctx context.Context, client kubernetes.Interface, verb, resource string) bool {
+// The error says why it could not be made, so a refusal can be explained.
+func (r *Registry) allowed(ctx context.Context, client kubernetes.Interface, verb, resource string) (bool, error) {
 	review := &authv1.SelfSubjectAccessReview{
 		Spec: authv1.SelfSubjectAccessReviewSpec{
 			ResourceAttributes: &authv1.ResourceAttributes{
@@ -212,9 +217,9 @@ func (r *Registry) allowed(ctx context.Context, client kubernetes.Interface, ver
 	if err != nil {
 		logging.For("cluster").Debug("cannot review access, assuming no",
 			"verb", verb, "resource", resource, "error", err)
-		return false
+		return false, err
 	}
-	return res.Status.Allowed
+	return res.Status.Allowed, nil
 }
 
 // JoinedNames returns the name of every cluster Secret carrying the join label

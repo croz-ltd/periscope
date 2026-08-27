@@ -65,18 +65,55 @@ func callerToken(r *http.Request) string {
 // admitAdmin answers the request itself and returns false when the caller may
 // not use the admin API. The UI reads the status code alone: 403 means do not
 // offer purging to this reader, 503 means this hub cannot offer it at all.
+//
+// An operator needs more than the code. Three unrelated failures all end in 403
+// (no token arrived, the token is not one the API server accepts, the review
+// happened and said no) and they have three different fixes, so each says which
+// it is in the body and in a log line at warn.
 func (s *Server) admitAdmin(w http.ResponseWriter, r *http.Request) bool {
+	log := logging.For("api")
 	if s.Scheduler == nil || s.Scheduler.Registry == nil {
 		http.Error(w, "this server has no cluster registry, so it cannot check administrative access",
 			http.StatusServiceUnavailable)
 		return false
 	}
-	if !s.Scheduler.Registry.CanAdminister(r.Context(), callerToken(r)) {
-		http.Error(w, "the admin API needs create on services in the hub namespace",
-			http.StatusForbidden)
-		return false
+	reg := s.Scheduler.Registry
+	token := callerToken(r)
+	user := firstNonEmpty(
+		r.Header.Get("X-Forwarded-Preferred-Username"),
+		r.Header.Get("X-Forwarded-User"),
+		r.Header.Get("X-Forwarded-Email"),
+	)
+
+	ok, err := reg.CanAdminister(r.Context(), token)
+	if ok {
+		log.Debug("admin request allowed", "path", r.URL.Path, "user", user)
+		return true
 	}
-	return true
+
+	switch {
+	case token == "":
+		// The common one, and the only one that is not about the caller at all:
+		// the sidecar is not forwarding the token, so the review was answered
+		// with this pod's own rights instead of the reader's.
+		log.Warn("refused an admin request that carried no token",
+			"path", r.URL.Path, "user", user, "signedIn", user != "")
+		http.Error(w, "no token reached this server, so it cannot tell who is asking. "+
+			"Its oauth-proxy sidecar needs --pass-access-token and --pass-user-bearer-token: "+
+			"re-apply the periscope chart. Reaching this server directly, past the proxy, "+
+			"lands here too.", http.StatusForbidden)
+	case err != nil:
+		log.Warn("refused an admin request: the access review could not be made",
+			"path", r.URL.Path, "user", user, "error", err)
+		http.Error(w, "the access review for this token could not be made, so the request "+
+			"is refused: "+err.Error(), http.StatusForbidden)
+	default:
+		log.Warn("refused an admin request: the access review said no",
+			"path", r.URL.Path, "user", user, "namespace", reg.Namespace)
+		http.Error(w, "the admin API needs create on services in namespace "+reg.Namespace+
+			", and the review for this token came back denied", http.StatusForbidden)
+	}
+	return false
 }
 
 // handleAdminClusters serves what the database holds per cluster, and whether

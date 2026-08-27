@@ -323,9 +323,14 @@ status code.
 **If the action is missing for you, that endpoint is what to check:**
 
 ```bash
-curl -so /dev/null -w '%{http_code}\n' \
-  -H "Authorization: Bearer $(oc whoami -t)" "https://<hub-route>/api/admin/clusters"
+curl -sS -H "Authorization: Bearer $(oc whoami -t)" "https://<hub-route>/api/admin/clusters"
 ```
+
+Read the body, not just the code. A `403` has three unrelated causes and the message
+names which one it is: no token reached the app, the token could not be reviewed, or the
+review came back denied. The same line is logged at `warn`, so
+`oc -n periscope logs deploy/periscope -c periscope | grep 'refused an admin request'`
+answers it for a request made from the browser.
 
 - `200` and the action is in the menu. It opens a dialog that says so when there is
   nothing to purge, so an empty result is not the same as a missing action.

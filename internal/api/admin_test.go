@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -94,13 +95,50 @@ func TestAdminAPIRefusesAnOrdinaryReader(t *testing.T) {
 }
 
 // A request with no token at all is the one that arrives when the proxy is not
-// in front of the server. In the cluster the hub's own rights answer it, and
-// they do not include creating a Service.
-func TestAdminAPIRefusesARequestWithNoToken(t *testing.T) {
-	rec := adminRequest(t, adminServer(t), http.MethodGet, "/api/admin/clusters", "", "")
-	if rec.Code != http.StatusForbidden {
-		t.Errorf("status = %d, want 403", rec.Code)
-	}
+// forwarding it, or is not there. In the cluster the hub's own rights answer it,
+// and they do not include creating a Service.
+//
+// The three ways a refusal happens share one status code and need three
+// different fixes, so each must say which it is: a bare 403 sends an operator
+// looking at RBAC when the sidecar is the problem.
+func TestRefusalSaysWhichFailureItWas(t *testing.T) {
+	t.Run("no token reached the server", func(t *testing.T) {
+		rec := adminRequest(t, adminServer(t), http.MethodGet, "/api/admin/clusters", "", "")
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "pass-access-token") {
+			t.Errorf("body = %q, want it to name the sidecar flag that is missing", rec.Body.String())
+		}
+	})
+
+	t.Run("the review said no", func(t *testing.T) {
+		rec := adminRequest(t, adminServer(t), http.MethodGet, "/api/admin/clusters", "", "a-readers-token")
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403", rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "create on services in namespace "+hubNS) {
+			t.Errorf("body = %q, want it to name the right and the namespace", body)
+		}
+		if strings.Contains(body, "pass-access-token") {
+			t.Errorf("body = %q, must not blame the sidecar when a token did arrive", body)
+		}
+	})
+
+	t.Run("the review could not be made", func(t *testing.T) {
+		srv := adminServer(t)
+		srv.Scheduler.Registry.AsUser = func(string) (kubernetes.Interface, error) {
+			return nil, errors.New("the API server refused the token")
+		}
+		rec := adminRequest(t, srv, http.MethodGet, "/api/admin/clusters", "", adminToken)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("status = %d, want 403", rec.Code)
+		}
+		if !strings.Contains(rec.Body.String(), "the API server refused the token") {
+			t.Errorf("body = %q, want it to carry the reason the review failed", rec.Body.String())
+		}
+	})
 }
 
 func TestAdminClustersMarksWhatIsStillJoined(t *testing.T) {

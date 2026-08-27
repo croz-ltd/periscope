@@ -329,10 +329,16 @@ curl -so /dev/null -w '%{http_code}\n' \
 
 - `200` and the action is in the menu. It opens a dialog that says so when there is
   nothing to purge, so an empty result is not the same as a missing action.
-- `403` and you do not hold `create` on services in the hub namespace, **or** the proxy
-  is not forwarding your token. Upgrading the app image is not enough for this feature:
-  the chart adds `--pass-access-token` to the `oauth-proxy` sidecar, so re-apply
-  `charts/periscope` (or add the flag by hand) after upgrading.
+- `403` from a browser means you do not hold `create` on services in the hub namespace.
+  Check with `oc auth can-i create services -n periscope`, and grant it with
+  `oc -n periscope policy add-role-to-user admin <user>` (the built-in `admin` and
+  `edit` roles both include it).
+- `403` from `curl` usually means something else, and RBAC will not fix it: the proxy
+  builds a bearer-token authenticator only when `--openshift-delegate-urls` is set, and
+  refuses every `Authorization: Bearer` request otherwise. Upgrading the app image is
+  not enough for this feature. Re-apply `charts/periscope` after upgrading: it adds
+  that flag plus `--pass-access-token` and `--pass-user-bearer-token` to the sidecar.
+  Test in the browser first, since a session is gated differently from a token.
 - `503` and the hub cannot reach a cluster registry, so it cannot tell an administrator
   from a reader and refuses to guess.
 

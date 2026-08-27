@@ -49,7 +49,10 @@ cluster runs with the token the operator pastes, never with the hub's.
 `POST /api/admin/purge` deletes stored history.
 
 The proxy's access review settles a session, not a path, so it cannot express "this
-one endpoint needs more". `/api/admin` therefore makes its own check: the proxy is
+one endpoint needs more". Its per-path `--openshift-delegate-urls` does not either: the
+proxy consults those only for requests carrying a bearer token, and a signed-in browser
+is settled by the session review instead. The chart sets both to the same read check,
+one for sessions and one for tokens. `/api/admin` therefore makes its own check: the proxy is
 configured to forward the reader's token, and the app answers a SubjectAccessReview for
 `create` on services in the hub namespace with that token before doing anything. A
 request that arrives without a token is reviewed with the pod's own rights, which cover

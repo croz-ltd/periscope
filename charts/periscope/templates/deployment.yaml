@@ -73,7 +73,20 @@ spec:
             - --openshift-service-account=periscope
             - --pass-user-headers=true
             # Reading the dashboard needs get on services in this namespace.
+            # This one gates a signed-in browser session.
             - '--openshift-sar={"namespace":"periscope","resource":"services","verb":"get"}'
+            # The same check for a client that presents a bearer token instead of
+            # signing in, which is how the API and the exports are reached from a
+            # script. It has to be spelled out separately: the proxy only builds
+            # a token authenticator at all when a delegate URL is configured, so
+            # without this every `Authorization: Bearer` request is refused with
+            # a 403 before it reaches the app, whatever the caller may do.
+            #
+            # The elevated check for /api/admin is deliberately not expressed
+            # here. Delegate URLs are consulted only for token requests, so a
+            # per-path rule would leave a browser session ungated. The app makes
+            # that check itself, on every request. See admin.go.
+            - '--openshift-delegate-urls={"/":{"namespace":"periscope","resource":"services","verb":"get"}}'
             # Forward the reader's own token as X-Forwarded-Access-Token, for a
             # signed-in browser session and for a client that presented a token
             # itself. It is the only way the app can ask what the reader may do

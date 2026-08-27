@@ -74,8 +74,12 @@ as "behind". Partial-rollout drift stays visible.
 
 - **UI auth:** oauth-proxy sidecar → OpenShift SSO + RBAC check (`get` on services in
   the hub namespace). No custom auth code for reading.
-- **Admin API (`/api/admin`):** the proxy's review settles a session, not a path, so it
-  cannot gate one endpoint harder than the rest. The proxy forwards the reader's token
+- **Proxy checks are per session, not per path:** `--openshift-sar` gates a signed-in
+  browser session; `--openshift-delegate-urls` is consulted only for bearer-token
+  requests, and the proxy builds no token authenticator at all without it, refusing
+  every token. The chart sets both to the same read check (`get` services).
+- **Admin API (`/api/admin`):** neither proxy flag can gate one endpoint harder than
+  the rest for a browser. The proxy forwards the reader's token
   (`--pass-access-token`) and the app answers its own SubjectAccessReview for `create`
   on services in the hub namespace, per request. No token means the pod's own rights
   answer, and those do not include it, so going round the proxy does not go round the

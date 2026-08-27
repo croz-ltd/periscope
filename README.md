@@ -318,10 +318,26 @@ configuration decides which clusters exist, and purging only clears up after it.
 
 Readers without that right never see the action, because
 [`GET /api/admin/clusters`](#api-and-metrics) answers them `403` and the UI reads the
-status code. For that to work the hub must be behind the `oauth-proxy` the chart
-installs, which forwards the reader's own token. A hub reached directly, with no proxy
-and no token, is answered with the pod's own rights, and those do not include creating
-a Service.
+status code.
+
+**If the action is missing for you, that endpoint is what to check:**
+
+```bash
+curl -so /dev/null -w '%{http_code}\n' \
+  -H "Authorization: Bearer $(oc whoami -t)" "https://<hub-route>/api/admin/clusters"
+```
+
+- `200` and the action is in the menu. It opens a dialog that says so when there is
+  nothing to purge, so an empty result is not the same as a missing action.
+- `403` and you do not hold `create` on services in the hub namespace, **or** the proxy
+  is not forwarding your token. Upgrading the app image is not enough for this feature:
+  the chart adds `--pass-access-token` to the `oauth-proxy` sidecar, so re-apply
+  `charts/periscope` (or add the flag by hand) after upgrading.
+- `503` and the hub cannot reach a cluster registry, so it cannot tell an administrator
+  from a reader and refuses to guess.
+
+A hub reached directly, with no proxy and no token, is answered with the pod's own
+rights, and those do not include creating a Service.
 
 ### Run the container
 

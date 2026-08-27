@@ -280,11 +280,13 @@ export default function App() {
             Refresh
           </DropdownItem>
         )}
-        {/* Only for a reader who may administer the fleet, and only when
-            there is something to purge. */}
-        {staleCount !== null && staleCount > 0 && (
+        {/* Only for a reader who may administer the fleet. It stays in the
+            menu when there is nothing to purge, because an action that
+            disappears for two different reasons cannot be told apart from a
+            missing permission: the dialog says which it is. */}
+        {staleCount !== null && (
           <DropdownItem key="purge" icon={<TrashIcon />} onClick={() => setPurgeOpen(true)}>
-            Purge stale data ({staleCount})
+            {staleCount > 0 ? `Purge stale data (${staleCount})` : 'Purge stale data'}
           </DropdownItem>
         )}
         <Divider component="li" />

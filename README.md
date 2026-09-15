@@ -175,6 +175,14 @@ colours head that column, so the matrix labels clusters the way their own operat
 already label them in the OpenShift console. The joined name stays in the tooltip and
 in exports, metrics and the API. Clusters without one keep their joined name.
 
+Each column head is also a link. Periscope reads the cluster's web console address
+from its `Console` config object (the same address `oc whoami --show-console`
+reports), so clicking the header opens that cluster's console in a new tab: see the
+drift, then open the cluster that has it. Reading the address from the cluster rather
+than deriving it from the API URL keeps custom console routes and non-default `apps`
+domains working. A cluster installed without the console capability reports no
+address, and its header stays plain text.
+
 ## How it works
 
 ```

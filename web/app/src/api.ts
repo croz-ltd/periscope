@@ -45,6 +45,7 @@ export interface ClusterInfo {
   label?: string // console banner text, shown instead of name
   color?: string
   bgColor?: string
+  console?: string // web console URL, so the column header links to the cluster
 }
 
 export interface MatrixGroup {

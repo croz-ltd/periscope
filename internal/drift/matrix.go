@@ -65,7 +65,8 @@ type Row struct {
 // ClusterInfo is a column header: which clusters exist and how fresh each is.
 // Label and its colours come from the cluster's own console banner when it has
 // one, so a column is headed the way its operators already label it in the
-// OpenShift console (see extract.ConsoleBanner).
+// OpenShift console (see extract.ConsoleBanner), and Console is where that
+// header leads when clicked (see extract.ConsoleURL).
 type ClusterInfo struct {
 	Name    string    `json:"name"`
 	Time    time.Time `json:"time"`
@@ -76,6 +77,7 @@ type ClusterInfo struct {
 	Label   string    `json:"label,omitempty"`   // banner text, shown instead of Name
 	Color   string    `json:"color,omitempty"`   // banner foreground colour
 	BgColor string    `json:"bgColor,omitempty"` // banner background colour
+	Console string    `json:"console,omitempty"` // web console URL, so the header links to the cluster
 }
 
 // Group is an ordered matrix section: a title and the row keys under it. The
@@ -132,10 +134,18 @@ type instance struct {
 	comp    model.Component
 }
 
-// bannerOf finds a snapshot's console banner component, if the cluster has one.
-func bannerOf(s model.Snapshot) (model.Component, bool) {
+// columnKeys are the component keys that describe a column rather than compare
+// anything across columns. Build lifts each into the header and keeps it out of
+// the rows.
+var columnKeys = map[string]bool{
+	model.KeyClusterBanner:  true,
+	model.KeyClusterConsole: true,
+}
+
+// componentOf finds a snapshot's component with the given key, if it has one.
+func componentOf(s model.Snapshot, key string) (model.Component, bool) {
 	for _, c := range s.Components {
-		if c.Key == model.KeyClusterBanner {
+		if c.Key == key {
 			return c, true
 		}
 	}
@@ -152,8 +162,11 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg 
 	for _, s := range snaps {
 		stale := staleAfter > 0 && now.Sub(s.Time) > staleAfter
 		info := ClusterInfo{Name: s.Cluster, Time: s.Time, OK: s.OK, Error: s.Error, Stale: stale, Order: s.Order}
-		if banner, ok := bannerOf(s); ok {
+		if banner, ok := componentOf(s, model.KeyClusterBanner); ok {
 			info.Label, info.Color, info.BgColor = banner.Version, banner.Extra["color"], banner.Extra["backgroundColor"]
+		}
+		if console, ok := componentOf(s, model.KeyClusterConsole); ok {
+			info.Console = console.Version
 		}
 		m.Clusters = append(m.Clusters, info)
 		clusterNames = append(clusterNames, s.Cluster)
@@ -170,7 +183,7 @@ func Build(snaps []model.Snapshot, now time.Time, staleAfter time.Duration, cfg 
 	meta := map[string]model.Component{}
 	for _, s := range snaps {
 		for _, c := range s.Components {
-			if c.Key == model.KeyClusterBanner {
+			if columnKeys[c.Key] {
 				continue // describes the column, already lifted into its header
 			}
 			byKey[c.Key] = append(byKey[c.Key], instance{cluster: s.Cluster, comp: c})

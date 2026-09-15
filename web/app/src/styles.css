@@ -384,6 +384,19 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 /* Cluster banner: a column headed the way the cluster's own console   */
 /* banner heads it, so the colours come from the cluster, not from us. */
 /* ------------------------------------------------------------------ */
+/* A column head that leads somewhere. The link inherits the header's colour so
+   an unbannered cluster does not turn blue, and the banner keeps its own
+   colours: the underline on hover is the whole affordance. */
+.cc-console-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.cc-console-link:hover,
+.cc-console-link:focus-visible {
+  text-decoration: underline;
+}
+
 .cc-cluster-banner {
   display: inline-block;
   padding: 0.1rem 0.4rem;

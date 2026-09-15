@@ -188,3 +188,59 @@ func TestConsoleBannerAbsentIsSilent(t *testing.T) {
 		t.Errorf("want nothing, got %+v", comps)
 	}
 }
+
+// The console URL is what the column header links to, so the extractor has to
+// read the address the cluster publishes for itself.
+func TestConsoleURLIsRead(t *testing.T) {
+	console := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "config.openshift.io/v1",
+		"kind":       "Console",
+		"metadata":   map[string]any{"name": consoleConfigName},
+		"status":     map[string]any{"consoleURL": "https://console-openshift-console.apps.prod.example.com"},
+	}}
+
+	comps, err := ConsoleURL{}.Extract(context.Background(), consoleClients(console))
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if len(comps) != 1 {
+		t.Fatalf("want the console URL, got %d components", len(comps))
+	}
+	c := comps[0]
+	if c.Key != model.KeyClusterConsole {
+		t.Errorf("key = %q, must be the well-known console key so the matrix lifts it into the header", c.Key)
+	}
+	if c.Version != "https://console-openshift-console.apps.prod.example.com" {
+		t.Errorf("url = %q", c.Version)
+	}
+}
+
+// A cluster installed without the console capability reports no URL. Its column
+// simply does not link anywhere, which is not a scrape failure.
+func TestConsoleURLEmptyIsSilent(t *testing.T) {
+	console := &unstructured.Unstructured{Object: map[string]any{
+		"apiVersion": "config.openshift.io/v1",
+		"kind":       "Console",
+		"metadata":   map[string]any{"name": consoleConfigName},
+		"status":     map[string]any{"consoleURL": ""},
+	}}
+
+	comps, err := ConsoleURL{}.Extract(context.Background(), consoleClients(console))
+	if err != nil {
+		t.Fatalf("empty console URL must not error: %v", err)
+	}
+	if len(comps) != 0 {
+		t.Errorf("want nothing, got %+v", comps)
+	}
+}
+
+func consoleClients(objs ...runtime.Object) *Clients {
+	typed := k8sfake.NewClientset()
+	typed.Resources = []*metav1.APIResourceList{{
+		GroupVersion: consoleConfigGVR.GroupVersion().String(),
+		APIResources: []metav1.APIResource{{Name: consoleConfigGVR.Resource, Kind: "Console"}},
+	}}
+	dyn := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{consoleConfigGVR: "ConsoleList"}, objs...)
+	return &Clients{Typed: typed, Dynamic: dyn}
+}

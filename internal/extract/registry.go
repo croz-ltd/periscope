@@ -95,6 +95,7 @@ func Default() []Extractor {
 	return []Extractor{
 		OpenShift{},
 		ConsoleBanner{},
+		ConsoleURL{},
 		DefaultStorageClass{},
 		StorageVolumes{},
 		Certificates{},

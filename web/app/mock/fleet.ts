@@ -51,6 +51,9 @@ interface MockCluster {
   label?: string
   color?: string
   bgColor?: string
+  // Absent means the cluster reported no console URL, so its column head does
+  // not link anywhere. One cluster is left without one on purpose.
+  console?: string
   staleMinutes?: number
   error?: string
   // Absent means joined. False means the fleet no longer includes this cluster,
@@ -66,14 +69,27 @@ const DEV = { color: '#ffffff', bgColor: '#3d7317' }
 // and two edge sites, plus the hub itself joined like any other cluster. One is
 // stale and one is answering with an extractor error, because a fleet view that
 // only ever shows the happy path teaches nothing about reading it.
+const consoleFor = (host: string) => `https://console-openshift-console.apps.${host}.example.com`
 const CLUSTERS: MockCluster[] = [
-  { name: 'hub-eu-central' },
-  { name: 'prod-eu-central', label: 'PROD EU', ...PROD },
-  { name: 'prod-eu-west', label: 'PROD EU', ...PROD },
-  { name: 'prod-us-east', label: 'PROD US', ...PROD },
-  { name: 'stage-eu-central', label: 'STAGE', ...STAGE, staleMinutes: 96 },
-  { name: 'dev-eu-central', label: 'DEV', ...DEV },
-  { name: 'edge-site-01', error: 'clusterserviceversions.operators.coreos.com is forbidden' },
+  { name: 'hub-eu-central', console: consoleFor('hub-eu-central') },
+  { name: 'prod-eu-central', label: 'PROD EU', ...PROD, console: consoleFor('prod-eu-central') },
+  { name: 'prod-eu-west', label: 'PROD EU', ...PROD, console: consoleFor('prod-eu-west') },
+  { name: 'prod-us-east', label: 'PROD US', ...PROD, console: consoleFor('prod-us-east') },
+  {
+    name: 'stage-eu-central',
+    label: 'STAGE',
+    ...STAGE,
+    staleMinutes: 96,
+    console: consoleFor('stage-eu-central'),
+  },
+  { name: 'dev-eu-central', label: 'DEV', ...DEV, console: consoleFor('dev-eu-central') },
+  {
+    name: 'edge-site-01',
+    error: 'clusterserviceversions.operators.coreos.com is forbidden',
+    console: consoleFor('edge-site-01'),
+  },
+  // No console URL: installed without the console capability, so the header
+  // stays plain text.
   { name: 'edge-site-02' },
   // Decommissioned: history on the hub, no credential Secret left. It is the
   // one the Purge stale data action offers, and the fleet needs one for the
@@ -112,6 +128,7 @@ function clusters(now: number): ClusterInfo[] {
     order: i * 10,
     ...(c.error ? { error: c.error } : {}),
     ...(c.label ? { label: c.label, color: c.color, bgColor: c.bgColor } : {}),
+    ...(c.console ? { console: c.console } : {}),
   }))
 }
 

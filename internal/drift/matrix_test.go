@@ -292,3 +292,42 @@ func TestBuildLiftsConsoleBannerIntoTheHeader(t *testing.T) {
 		t.Errorf("cluster b has no banner, so the header keeps its name, got label %q", b.Label)
 	}
 }
+
+// The console URL describes the column too: it is what the header links to, so
+// it must reach ClusterInfo and must not become a row.
+func TestBuildLiftsConsoleURLIntoTheHeader(t *testing.T) {
+	now := time.Now()
+	snaps := []model.Snapshot{
+		{Cluster: "a", Time: now, OK: true, Components: []model.Component{
+			{Key: "openshift", Name: "OpenShift", Compare: model.CompareVersion, Version: "4.14.9"},
+			{Key: model.KeyClusterConsole, Name: "Web console", Compare: model.CompareInfo,
+				Version: "https://console-openshift-console.apps.a.example.com"},
+		}},
+		{Cluster: "b", Time: now, OK: true, Components: []model.Component{
+			{Key: "openshift", Name: "OpenShift", Compare: model.CompareVersion, Version: "4.14.9"},
+		}},
+	}
+
+	m := Build(snaps, now, time.Hour, nil)
+
+	for _, r := range m.Rows {
+		if r.Key == model.KeyClusterConsole {
+			t.Fatal("the console URL must not be a matrix row")
+		}
+	}
+	var a, b ClusterInfo
+	for _, c := range m.Clusters {
+		switch c.Name {
+		case "a":
+			a = c
+		case "b":
+			b = c
+		}
+	}
+	if a.Console != "https://console-openshift-console.apps.a.example.com" {
+		t.Errorf("cluster a console = %q, want the URL it reported", a.Console)
+	}
+	if b.Console != "" {
+		t.Errorf("cluster b reported no console, so its header links nowhere, got %q", b.Console)
+	}
+}

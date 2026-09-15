@@ -64,3 +64,53 @@ func (ConsoleBanner) Extract(ctx context.Context, c *Clients) ([]model.Component
 		},
 	}}, nil
 }
+
+// ConsoleURL reads the cluster's own web console address from the
+// Console config object, the same place `oc whoami --show-console` reads.
+//
+// The hub already knows every cluster's API endpoint, but the API endpoint is
+// not somewhere a person can click to. Carrying the console URL turns each
+// matrix column into a way in: see the drift, open the cluster that has it.
+// Reading it from the cluster rather than deriving it from the API URL keeps
+// custom console routes and non-default apps domains working.
+type ConsoleURL struct{}
+
+func (ConsoleURL) Key() string { return "console-url" }
+
+var consoleConfigGVR = schema.GroupVersionResource{
+	Group: "config.openshift.io", Version: "v1", Resource: "consoles",
+}
+
+// consoleConfigName is the singleton Console config object every OpenShift
+// cluster carries.
+const consoleConfigName = "cluster"
+
+func (ConsoleURL) Extract(ctx context.Context, c *Clients) ([]model.Component, error) {
+	if !c.HasResource(consoleConfigGVR) {
+		return nil, nil // not an OpenShift cluster
+	}
+	obj, err := c.Dynamic.Resource(consoleConfigGVR).Get(ctx, consoleConfigName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	// Empty while the console operator is still rolling out, and permanently so
+	// on a cluster installed without the console capability. Neither is an
+	// error: the column simply stays unlinked.
+	url, _, _ := unstructured.NestedString(obj.Object, "status", "consoleURL")
+	if strings.TrimSpace(url) == "" {
+		return nil, nil
+	}
+
+	return []model.Component{{
+		Key:     model.KeyClusterConsole,
+		Name:    "Web console",
+		Group:   model.GroupOpenShift,
+		Compare: model.CompareInfo,
+		Kind:    "openshift",
+		Version: strings.TrimSpace(url),
+	}}, nil
+}

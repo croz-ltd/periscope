@@ -34,6 +34,11 @@ const (
 // drift.Build lifts it into the column header instead of making it a row.
 const KeyClusterBanner = "cluster-banner"
 
+// KeyClusterConsole is the component key carrying a cluster's web console URL.
+// Like the banner it describes the column, and drift.Build lifts it into the
+// header so the column title links straight to that cluster's console.
+const KeyClusterConsole = "cluster-console"
+
 // Component is one comparable fact found on a cluster: a version, a config
 // value, or a certificate expiry.
 type Component struct {

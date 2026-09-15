@@ -7,18 +7,42 @@ import { cellClass, cellText, cellTooltip } from './cells'
 // A cluster that publishes a console banner is headed the way its own operators
 // label it, colours and all. The joined name stays in the tooltip, because it is
 // what the Secret, the exports and the metrics still call it.
+//
+// When the cluster reported a console URL the header is also the way in: click
+// it and that cluster's OpenShift console opens in a new tab, so reading drift
+// and acting on it are one step apart. The new tab is deliberate, because the
+// matrix is the thing you come back to after looking.
 function ClusterName({ cluster }: { cluster: ClusterInfo }) {
-  if (!cluster.label) return <span>{cluster.name}</span>
-  return (
-    <Tooltip content={cluster.name}>
-      <span
-        className="cc-cluster-banner"
-        style={{ background: cluster.bgColor || undefined, color: cluster.color || undefined }}
-      >
-        {cluster.label}
-      </span>
-    </Tooltip>
+  const name = cluster.label ? (
+    <span
+      className="cc-cluster-banner"
+      style={{ background: cluster.bgColor || undefined, color: cluster.color || undefined }}
+    >
+      {cluster.label}
+    </span>
+  ) : (
+    <span>{cluster.name}</span>
   )
+
+  const head = cluster.console ? (
+    <a
+      className="cc-console-link"
+      href={cluster.console}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`Open the ${cluster.name} console in a new tab`}
+    >
+      {name}
+    </a>
+  ) : (
+    name
+  )
+
+  const tip = [cluster.label ? cluster.name : '', cluster.console ? 'Open the console in a new tab' : '']
+    .filter(Boolean)
+    .join('\n')
+  if (!tip) return head
+  return <Tooltip content={<div className="cc-tip">{tip}</div>}>{head}</Tooltip>
 }
 
 // clusters is passed in rather than read from the matrix, because the reader can

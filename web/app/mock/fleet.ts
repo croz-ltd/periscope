@@ -801,15 +801,25 @@ export function mockJoin(body: { name?: string; apiURL?: string; caBundle?: stri
   }
 }
 
-// CSV export, matching the column order of internal/api's exporter so the mock
-// does not leave a dead button in the Actions menu.
-export function mockCSV(): string {
+// CSV export, with the columns and the narrowing of internal/api's exporter, so
+// the mock does not leave a dead item in the Actions menu.
+export function mockCSV(page?: string, clusters: string[] = []): string {
   const m = mockMatrix()
-  const head = ['component', 'key', 'group', 'compare', 'reference', ...m.clusters.map((c) => c.name)]
+  const cols = clusters.length > 0 ? m.clusters.filter((c) => clusters.includes(c.name)) : m.clusters
+  const view = page ? m.pages.find((p) => p.id === page) : undefined
+  const rows = view
+    ? view.groups.flatMap((g) =>
+        g.keys.flatMap((k) => m.rows.filter((r) => r.key === k)),
+      )
+    : m.rows
+  const head = ['component', 'kind', 'leader', ...cols.map((c) => c.name)]
   const lines = [head.join(',')]
-  for (const r of m.rows) {
-    const cells = m.clusters.map((c) => r.cells[c.name]?.version ?? '')
-    lines.push([r.name, r.key, r.group, r.compare, r.leader, ...cells].map(csvField).join(','))
+  for (const r of rows) {
+    const cells = cols.map((c) => {
+      const cell = r.cells[c.name]
+      return !cell || cell.state === 'not_installed' ? '-' : `${cell.version ?? ''} (${cell.state})`
+    })
+    lines.push([r.name, r.kind, r.leader, ...cells].map(csvField).join(','))
   }
   return lines.join('\n') + '\n'
 }

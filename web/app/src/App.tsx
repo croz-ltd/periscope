@@ -242,10 +242,15 @@ export default function App() {
     />
   )
 
-  // An export follows what is on screen, history included, so a CSV taken while
-  // time travelling is the matrix you were looking at.
-  const exportHref = (format: 'csv' | 'json') =>
-    at ? `/api/export.${format}?at=${encodeURIComponent(at)}` : `/api/export.${format}`
+  // An export follows what is on screen: this page, the columns not hidden, and
+  // the time travelled to. The search is not applied, so a filtered view still
+  // exports every row of the page.
+  const exportHref = (format: 'csv' | 'json') => {
+    const params = new URLSearchParams({ page: pageId })
+    if (hiddenCount > 0) for (const c of shownClusters) params.append('cluster', c.name)
+    if (at) params.set('at', at)
+    return `/api/export.${format}?${params}`
+  }
 
   // One Actions menu per matrix page, the way the console groups page actions.
   // The toggle shows a spinner while a refresh is in flight.
@@ -290,10 +295,10 @@ export default function App() {
           </DropdownItem>
         )}
         <Divider component="li" />
-        <DropdownItem key="csv" icon={<DownloadIcon />} component="a" href={exportHref('csv')}>
+        <DropdownItem key="csv" icon={<DownloadIcon />} to={exportHref('csv')}>
           Export CSV
         </DropdownItem>
-        <DropdownItem key="json" icon={<DownloadIcon />} component="a" href={exportHref('json')}>
+        <DropdownItem key="json" icon={<DownloadIcon />} to={exportHref('json')}>
           Export JSON
         </DropdownItem>
       </DropdownList>

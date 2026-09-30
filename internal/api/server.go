@@ -4,7 +4,6 @@ package api
 
 import (
 	"context"
-	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -184,49 +183,6 @@ func (s *Server) handleMatrix(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, m)
-}
-
-func (s *Server) handleExportJSON(w http.ResponseWriter, r *http.Request) {
-	m, err := s.matrix(r.Context(), parseAt(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Disposition", `attachment; filename="periscope.json"`)
-	writeJSON(w, m)
-}
-
-func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
-	m, err := s.matrix(r.Context(), parseAt(r))
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", `attachment; filename="periscope.csv"`)
-
-	cw := csv.NewWriter(w)
-	defer cw.Flush()
-
-	header := []string{"component", "kind", "leader"}
-	for _, c := range m.Clusters {
-		header = append(header, c.Name)
-	}
-	_ = cw.Write(header)
-
-	for _, row := range m.Rows {
-		rec := []string{row.Name, row.Kind, row.Leader}
-		for _, c := range m.Clusters {
-			cell := row.Cells[c.Name]
-			switch cell.State {
-			case drift.StateNotInstalled:
-				rec = append(rec, "-")
-			default:
-				rec = append(rec, fmt.Sprintf("%s (%s)", cell.Version, cell.State))
-			}
-		}
-		_ = cw.Write(rec)
-	}
 }
 
 // defaultChangeLimit bounds an unfiltered feed request. The feed is read newest

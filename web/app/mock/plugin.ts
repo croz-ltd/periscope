@@ -95,11 +95,12 @@ export function mockApi(): Plugin {
             return json(mockTimeline(keys, days, q.get('at') ?? undefined))
           }
           case '/export.json':
+            res.setHeader('Content-Disposition', 'attachment; filename="periscope-mock.json"')
             return json(mockMatrix(q.get('at') ?? undefined))
           case '/export.csv':
             res.setHeader('Content-Type', 'text/csv')
             res.setHeader('Content-Disposition', 'attachment; filename="periscope-mock.csv"')
-            return res.end(mockCSV())
+            return res.end(mockCSV(q.get('page') ?? undefined, q.getAll('cluster')))
           case '/refresh':
             // A scrape has nothing to do here, but answering the way the server
             // does keeps the Refresh action honest instead of erroring.

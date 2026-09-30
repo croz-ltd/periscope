@@ -476,7 +476,7 @@ Flags common to `serve` and `report`:
 | `GET /api/changes` | the change feed, newest first (`from`, `to`, `cluster`, `limit`) |
 | `GET /api/changes/calendar` | per-day change counts, for marking a calendar |
 | `GET /api/timeline?key=<key>&days=<1,2,5,7,14,30>` | one series per cluster for those components, `at` honoured |
-| `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured |
+| `GET /api/export.csv`, `GET /api/export.json` | current matrix export, `at` honoured; `page=compare\|statistics` keeps one page's rows in its order, and `cluster=<name>` (repeatable) keeps those columns |
 | `POST /api/refresh` | trigger a scrape now |
 | `GET /api/version` | the version stamped into this binary |
 | `POST /api/clusters` | join a cluster from `{name, apiURL, token, caBundle, insecureTLS}` |

@@ -4,7 +4,7 @@ Thanks for your interest. Issues and pull requests are welcome.
 
 ## Development setup
 
-You need Go 1.26+, Node 20+, and optionally Docker or Podman.
+You need Go 1.27+, Node 22+, and optionally Docker or Podman.
 
 ```bash
 git clone https://github.com/croz-ltd/periscope.git

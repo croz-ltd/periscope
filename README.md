@@ -532,7 +532,7 @@ snapshot, and the matrix shows them as not installed until the next good scrape.
 
 ## Development
 
-Requires Go 1.26+ and Node 20+.
+Requires Go 1.27+ and Node 22+.
 
 ```bash
 make web      # build the PatternFly UI into web/dist (embedded by the Go build)

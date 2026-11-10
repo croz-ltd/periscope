@@ -104,6 +104,7 @@ func Default() []Extractor {
 		VMSnapshots{},
 		VMTemplates{},
 		Nodes{},
+		Pods{},
 		MachineConfigPools{},
 		OLM{},
 		Portworx(),

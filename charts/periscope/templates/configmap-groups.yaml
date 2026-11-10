@@ -34,6 +34,11 @@ data:
         keys:
           - node-count
           - storage-total
+      - title: Pods
+        keys:
+          - pod-total
+          - pod-running
+          - pod-crashloop
       - title: Virtual machines
         keys:
           - vm-total

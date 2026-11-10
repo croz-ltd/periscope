@@ -56,6 +56,7 @@ internal/
                             console.go     console banner used to name the column
                             olm.go         OLM operators + pending updates/InstallPlans
                             nodes.go       kubelet versions, node counts
+                            pods.go        pod counts: total, running, crash-looping
                             mcp.go         MachineConfigPools
                             storage.go     default StorageClass
                             volumes.go     PV/PVC counts per storage class

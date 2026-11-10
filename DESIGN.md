@@ -92,7 +92,7 @@ as "behind". Partial-rollout drift stays visible.
   so new operator CRDs never 403 and adding an extractor needs no RBAC change. The
   trade-off is broad read on every joined cluster. The hardened alternative is a curated
   least-privilege ClusterRole (ClusterVersion/ClusterOperators, CSVs/Subscriptions,
-  nodes, Portworx `storageclusters`, Dell `containerstoragemodules`), and it is a
+  nodes, pods, Portworx `storageclusters`, Dell `containerstoragemodules`), and it is a
   deliberate non-default. The shipped join chart binds `cluster-reader`; narrowing it
   means editing `charts/periscope-join/templates/clusterrolebinding.yaml` and accepting
   that each new extractor can then need an RBAC change.

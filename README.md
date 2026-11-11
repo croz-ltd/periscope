@@ -586,6 +586,11 @@ from `/api/version`.
 [CONTRIBUTING.md](CONTRIBUTING.md) has the repository layout, how to add an extractor,
 the CI workflows and how a release is cut.
 
+[`docs/okf/`](docs/okf/) holds the same documentation as an
+[Open Knowledge Format](https://github.com/GoogleCloudPlatform/knowledge-catalog/blob/main/okf/SPEC.md)
+bundle: small linked markdown concepts with YAML frontmatter, for agents and
+knowledge catalogs.
+
 ## Contributing
 
 Issues and pull requests are welcome, see [CONTRIBUTING.md](CONTRIBUTING.md). Security

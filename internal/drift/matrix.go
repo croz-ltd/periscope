@@ -125,7 +125,7 @@ type Matrix struct {
 
 // builtinGroupOrder is the fixed section order used when no custom grouping is set.
 var builtinGroupOrder = []string{
-	model.GroupOpenShift, model.GroupNode, model.GroupWorkloads, model.GroupMCP, model.GroupStorage,
+	model.GroupOpenShift, model.GroupNode, model.GroupCapacity, model.GroupWorkloads, model.GroupMCP, model.GroupStorage,
 	model.GroupCert, model.GroupVirt, model.GroupOperators,
 }
 

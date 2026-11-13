@@ -1,10 +1,10 @@
 ---
 type: Reference
 title: Component keys
-description: Every matrix row Periscope 1.9.0 produces, with its key, group, page and source on the cluster.
+description: Every matrix row Periscope 1.10.0 produces, with its key, group, page and source on the cluster.
 tags: [components, keys, extractors, matrix]
 status: stable
-app_version: "1.9.0"
+app_version: "1.10.0"
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
 sources:
   - id: extract
@@ -38,6 +38,18 @@ sources:
 | `openshift-updating` | Update in progress | OpenShift | ClusterVersion: an update that runs now |
 | `node-count` | Total nodes | Node | Nodes |
 | `node-kubelet` | Kubelet | Node | Nodes: kubelet versions |
+| `cpu-capacity` | CPU cores: total | Capacity | Nodes: sum of `status.capacity.cpu`. The tooltip shows allocatable, the system reservation and the sum per role. |
+| `cpu-requested` | CPU cores: used (requested) | Capacity | CPU requests of the unfinished pods placed on a node |
+| `cpu-free` | CPU cores: free | Capacity | Sum of `status.allocatable.cpu` minus the requests |
+| `mem-capacity` | Memory GiB: total | Capacity | Nodes: sum of `status.capacity.memory`. The tooltip is the same as for CPU. |
+| `mem-requested` | Memory GiB: used (requested) | Capacity | Memory requests of the unfinished pods placed on a node |
+| `mem-free` | Memory GiB: free | Capacity | Sum of `status.allocatable.memory` minus the requests |
+| `vm-vcpu-total` | VM vCPUs: total | Capacity | Allocatable cores of the VM nodes times `vmiCPUAllocationRatio` (default 10) |
+| `vm-vcpu-used` | VM vCPUs: used (requested) | Capacity | Requested cores on the VM nodes times the ratio |
+| `vm-vcpu-free` | VM vCPUs: free | Capacity | Total minus used |
+| `vm-memory-total` | VM memory GiB: total | Capacity | Allocatable memory of the VM nodes times `memoryOvercommitPercentage` / 100 (default 100) |
+| `vm-memory-used` | VM memory GiB: used (requested) | Capacity | Requested memory on the VM nodes times the percentage |
+| `vm-memory-free` | VM memory GiB: free | Capacity | Total minus used |
 | `pod-total` | Pods total | Workloads | Pods in all namespaces. The tooltip shows the count per phase. |
 | `pod-running` | Pods running | Workloads | Pods in phase Running |
 | `pod-crashloop` | Pods crash-looping | Workloads | Pods with a container (init containers too) in CrashLoopBackOff |
@@ -71,6 +83,13 @@ sources:
 # Notes
 
 * The OpenShift Virtualization version itself is an operator row, from OLM.
+* The capacity rows count requests, not live usage. The scheduler places pods and VMs by
+  requests, so free is what a new workload can still get. The values are whole cores and
+  whole GiB, and the tooltip carries the exact values.
+* A VM node has the label `kubevirt.io/schedulable=true` and is not cordoned. The `vm-*`
+  capacity rows show only when the HyperConverged CR exists.
+* Free capacity is a cluster sum. A VM fits only when one node has enough free CPU and
+  memory, and live migration and node failure need spare room too.
 * Rows for a component that a cluster does not run show "not installed" on
   that cluster.
 * Info rows (pod, VM and volume counts, settings) count as counters. The Changes page hides them unless

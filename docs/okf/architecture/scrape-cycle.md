@@ -33,8 +33,8 @@ sources:
 
 # Extractors
 
-An extractor reads one part of a cluster and returns matrix rows. Version 1.9.0
-runs 17 of them:[^registry]
+An extractor reads one part of a cluster and returns matrix rows. Version 1.10.0
+runs 18 of them:[^registry]
 
 | Extractor | Reads |
 |---|---|
@@ -50,6 +50,7 @@ runs 17 of them:[^registry]
 | VM templates | The number of VM templates |
 | Nodes | Node count and kubelet versions |
 | Pods | Pod counts in all namespaces: total, running, crash-looping |
+| Capacity | CPU and memory of all nodes, and the VM vCPU and VM memory view: total, used (requests), free |
 | MachineConfigPools | The state of each pool |
 | OLM | Every installed operator, plus pending updates and InstallPlans that wait for approval |
 | Portworx | The Portworx operator and CSI driver version from the StorageCluster CR |

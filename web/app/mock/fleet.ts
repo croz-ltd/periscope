@@ -430,6 +430,7 @@ function rowSpecs(): RowSpec[] {
 
   // Counts and inventory: informational, so they land on the Statistics page.
   const storage = volumes()
+  specs.push(...capacityRows())
   specs.push(
     {
       key: 'node-count',
@@ -657,11 +658,134 @@ function volumes(): { total: Values; ceph: Values; localPath: Values } {
   return { total, ceph, localPath }
 }
 
+// Capacity rows, built from one node mix per cluster so total, used and free
+// add up the way the capacity extractor adds them: free is allocatable minus
+// the pod requests, and the VM rows multiply the VM nodes by the HyperConverged
+// ratios. Only the clusters that run VMs get the VM rows.
+interface NodeMix {
+  masters: number
+  workers: number
+  workerCores: number
+  workerGiB: number
+  usedShare: number // part of allocatable the pods request
+  vmRatio?: number // vmiCPUAllocationRatio, when the cluster runs VMs
+  vmOvercommit?: number // memoryOvercommitPercentage
+}
+
+const NODE_MIX: Record<string, NodeMix> = {
+  'hub-eu-central': { masters: 3, workers: 3, workerCores: 16, workerGiB: 64, usedShare: 0.58 },
+  'prod-eu-central': { masters: 3, workers: 21, workerCores: 64, workerGiB: 512, usedShare: 0.71, vmRatio: 10, vmOvercommit: 100 },
+  'prod-eu-west': { masters: 3, workers: 18, workerCores: 64, workerGiB: 512, usedShare: 0.66, vmRatio: 10, vmOvercommit: 100 },
+  'prod-us-east': { masters: 3, workers: 15, workerCores: 48, workerGiB: 384, usedShare: 0.62, vmRatio: 8, vmOvercommit: 125 },
+  'stage-eu-central': { masters: 3, workers: 6, workerCores: 32, workerGiB: 256, usedShare: 0.44, vmRatio: 10, vmOvercommit: 150 },
+  'dev-eu-central': { masters: 3, workers: 3, workerCores: 16, workerGiB: 64, usedShare: 0.81 },
+  'edge-site-01': { masters: 3, workers: 0, workerCores: 0, workerGiB: 0, usedShare: 0.52 },
+  'edge-site-02': { masters: 3, workers: 0, workerCores: 0, workerGiB: 0, usedShare: 0.47 },
+}
+
+function capacityRows(): RowSpec[] {
+  const MASTER_CORES = 8
+  const MASTER_GIB = 32
+  const keys = [
+    ['cpu-capacity', 'CPU cores: total'],
+    ['cpu-requested', 'CPU cores: used (requested)'],
+    ['cpu-free', 'CPU cores: free'],
+    ['mem-capacity', 'Memory GiB: total'],
+    ['mem-requested', 'Memory GiB: used (requested)'],
+    ['mem-free', 'Memory GiB: free'],
+    ['vm-vcpu-total', 'VM vCPUs: total'],
+    ['vm-vcpu-used', 'VM vCPUs: used (requested)'],
+    ['vm-vcpu-free', 'VM vCPUs: free'],
+    ['vm-memory-total', 'VM memory GiB: total'],
+    ['vm-memory-used', 'VM memory GiB: used (requested)'],
+    ['vm-memory-free', 'VM memory GiB: free'],
+  ] as const
+  const values: Record<string, Values> = {}
+  const extra: Record<string, Record<string, Record<string, string>>> = {}
+  for (const [key] of keys) {
+    values[key] = spread(null)
+    extra[key] = {}
+  }
+  const set = (key: string, cluster: string, value: number, ex?: Record<string, string>) => {
+    values[key][cluster] = String(Math.round(value))
+    if (ex) extra[key][cluster] = ex
+  }
+
+  for (const [cluster, m] of Object.entries(NODE_MIX)) {
+    const cores = m.masters * MASTER_CORES + m.workers * m.workerCores
+    const gib = m.masters * MASTER_GIB + m.workers * m.workerGiB
+    // Each node keeps back about half a core and 4 GiB for the system.
+    const nodes = m.masters + m.workers
+    const allocCores = cores - nodes * 0.5
+    const allocGiB = gib - nodes * 4
+    const usedCores = allocCores * m.usedShare
+    const usedGiB = allocGiB * m.usedShare
+    const roles = (unit: string, master: number, worker: number) => {
+      const out: Record<string, string> = { 'role master': `${m.masters * master} ${unit}` }
+      if (m.workers > 0) out['role worker'] = `${m.workers * worker} ${unit}`
+      return out
+    }
+    set('cpu-capacity', cluster, cores, {
+      allocatable: `${allocCores} cores`,
+      reserved: `${nodes * 0.5} cores`,
+      ...roles('cores', MASTER_CORES, m.workerCores),
+    })
+    set('cpu-requested', cluster, usedCores, { exact: `${usedCores.toFixed(2)} cores`, 'of allocatable': `${Math.round(m.usedShare * 100)} %` })
+    set('cpu-free', cluster, allocCores - usedCores)
+    set('mem-capacity', cluster, gib, {
+      allocatable: `${allocGiB.toFixed(1)} GiB`,
+      reserved: `${(nodes * 4).toFixed(1)} GiB`,
+      ...roles('GiB', MASTER_GIB, m.workerGiB),
+    })
+    set('mem-requested', cluster, usedGiB, { exact: `${usedGiB.toFixed(1)} GiB`, 'of allocatable': `${Math.round(m.usedShare * 100)} %` })
+    set('mem-free', cluster, allocGiB - usedGiB)
+
+    if (m.vmRatio === undefined || m.vmOvercommit === undefined) continue
+    const vmCores = m.workers * (m.workerCores - 0.5)
+    const vmGiB = m.workers * (m.workerGiB - 4)
+    // Masters carry a share of the requests, so the VM nodes carry a bit less.
+    const vmUsedCores = vmCores * (m.usedShare - 0.05)
+    const vmUsedGiB = vmGiB * (m.usedShare - 0.05)
+    const vcpuTotal = Math.floor(vmCores * m.vmRatio)
+    const vcpuUsed = Math.floor(vmUsedCores * m.vmRatio)
+    const memTotal = (vmGiB * m.vmOvercommit) / 100
+    const memUsed = (vmUsedGiB * m.vmOvercommit) / 100
+    set('vm-vcpu-total', cluster, vcpuTotal, {
+      'VM nodes': String(m.workers),
+      'allocatable cores': `${vmCores} cores`,
+      'allocation ratio': `${m.vmRatio}:1`,
+    })
+    set('vm-vcpu-used', cluster, vcpuUsed, {
+      'requested cores': `${vmUsedCores.toFixed(2)} cores`,
+      'of total': `${Math.round((vcpuUsed / vcpuTotal) * 100)} %`,
+    })
+    set('vm-vcpu-free', cluster, vcpuTotal - vcpuUsed)
+    set('vm-memory-total', cluster, memTotal, {
+      'VM nodes': String(m.workers),
+      'allocatable memory': `${vmGiB.toFixed(1)} GiB`,
+      'memory overcommit': `${m.vmOvercommit} %`,
+    })
+    set('vm-memory-used', cluster, memUsed, { exact: `${memUsed.toFixed(1)} GiB`, 'of total': `${Math.round((memUsed / memTotal) * 100)} %` })
+    set('vm-memory-free', cluster, memTotal - memUsed, { exact: `${(memTotal - memUsed).toFixed(1)} GiB` })
+  }
+
+  return keys.map(([key, name]) => ({
+    key,
+    name,
+    kind: 'capacity',
+    group: 'Capacity',
+    compare: 'info' as const,
+    values: values[key],
+    extra: extra[key],
+  }))
+}
+
 // Page assembly mirrors internal/drift: info rows go to Statistics, everything
 // else to Compare, sections keep the built-in order, rows sort by name.
 const GROUP_ORDER = [
   'OpenShift',
   'Node',
+  'Capacity',
   'Workloads',
   'MachineConfigPools',
   'Storage',

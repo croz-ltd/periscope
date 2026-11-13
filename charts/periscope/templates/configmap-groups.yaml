@@ -34,6 +34,18 @@ data:
         keys:
           - node-count
           - storage-total
+          - cpu-capacity
+          - cpu-requested
+          - cpu-free
+          - mem-capacity
+          - mem-requested
+          - mem-free
+          - vm-vcpu-total
+          - vm-vcpu-used
+          - vm-vcpu-free
+          - vm-memory-total
+          - vm-memory-used
+          - vm-memory-free
       - title: Pods
         keys:
           - pod-total

@@ -45,6 +45,7 @@ Per cluster, in one matrix:
 | | |
 |---|---|
 | Platform | OpenShift release and channel, node kubelet versions, MachineConfigPool state |
+| Capacity | CPU cores and memory summed over all nodes: total, used (pod requests) and free. With OpenShift Virtualization also VM vCPUs and VM memory, from the allocation ratio and memory overcommit |
 | Workloads | pod counts across all namespaces: total, running and crash-looping |
 | Operators | every OLM-installed operator, keyed by stable package name (auto-discovered, no configuration) |
 | Storage | default StorageClass, PV/PVC counts per storage class, Portworx and Dell CSI operator and managed driver versions |

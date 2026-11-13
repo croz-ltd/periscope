@@ -57,6 +57,7 @@ internal/
                             olm.go         OLM operators + pending updates/InstallPlans
                             nodes.go       kubelet versions, node counts
                             pods.go        pod counts: total, running, crash-looping
+                            capacity.go    CPU, memory and VM vCPU totals: total, used, free
                             mcp.go         MachineConfigPools
                             storage.go     default StorageClass
                             volumes.go     PV/PVC counts per storage class

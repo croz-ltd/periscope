@@ -5,7 +5,7 @@ description: A single Go binary that shows version and configuration drift acros
 resource: https://github.com/croz-ltd/periscope
 tags: [openshift, fleet, drift, inventory, overview]
 status: stable
-app_version: "1.9.0"
+app_version: "1.10.0"
 license: Apache-2.0
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
 sources:
@@ -36,6 +36,7 @@ SQLite database, and serves the result as a comparison matrix.[^readme]
 | Area | What it collects per cluster |
 |---|---|
 | Platform | OpenShift release and channel, node kubelet versions, MachineConfigPool state |
+| Capacity | CPU cores and memory summed over all nodes: total, used (pod requests) and free. With OpenShift Virtualization also VM vCPUs and VM memory, from the allocation ratio and memory overcommit |
 | Workloads | Pod counts across all namespaces: total, running and crash-looping |
 | Operators | Every OLM-installed operator, keyed by package name, found with no configuration |
 | Storage | Default StorageClass, PV and PVC counts per storage class, Portworx and Dell CSI versions |

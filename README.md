@@ -30,7 +30,7 @@ against the synthetic fleet described in
 
 - [What it shows](#what-it-shows): the matrix, drift, upgrade readiness, history
 - [How it works](#how-it-works): the pull model in one diagram
-- [Getting started](#getting-started): deploy the hub, sign-in, MCP for AI assistants, join clusters, remove them
+- [Getting started](#getting-started): deploy the hub, sign-in, MCP for AI assistants, migrating from 1.x, join clusters, remove them
 - [Configuration](#configuration): grouping the matrix, covering new components
 - [CLI](#cli): commands, flags, environment variables
 - [API and metrics](#api-and-metrics): REST endpoints, exports, Prometheus
@@ -255,8 +255,8 @@ for one minute, so a revoked token or a removed role stops working within a minu
 Every read tool takes `at` (RFC3339) to answer about the past. `fleet_totals` does the
 arithmetic on the hub, so "how many vCPUs does the fleet have" comes back exact.
 
-To connect a client, open **user menu, MCP access token** (`https://<hub-route>/mcp/token`)
-in the browser. It issues an OpenShift OAuth token of your own user and shows the
+To connect a client, open **Docs, MCP** in the UI, or **user menu, MCP access token**
+(`https://<hub-route>/mcp/token`) in the browser. It issues an OpenShift OAuth token of your own user and shows the
 command to add it:
 
 ```bash
@@ -274,24 +274,123 @@ redirect. The chart reads the cluster apps domain at install. When it cannot (`h
 template`, Argo CD), set `--set host=<hub-route-host>`. Without it, the page explains how
 to use `oc whoami -t` instead, which works but expires with your login.
 
-### Upgrading from 1.x
+### Migrating from 1.x to 2.x
 
 2.0.0 removes the `oauth-proxy` sidecar. The hub signs readers in itself, with the same
-OpenShift login and the same access rule (`get` on services in the hub namespace).
-Re-apply the chart. Nothing about the data or the joined clusters changes.
+OpenShift login and the same access rule (`get` on services in the hub namespace). The
+data, the joined clusters, the reader roles and the route address do not change.
 
-- The pod has one container, so `oc logs deploy/periscope` needs no `-c periscope`.
-- The hub serves TLS on 8443 with the service-ca certificate. The route stays
-  `reencrypt`.
-- The install creates the cluster-scoped `periscope-mcp` OAuthClient. Set `host` when
-  you render the chart without access to the cluster.
-- Readers sign in again once, because the session cookie is new.
-- To run the binary outside a cluster, pass `--auth=none`. The default is
-  `--auth=openshift`.
+**What changes**
+
+| Area | 1.x | 2.x |
+|---|---|---|
+| Pod | `periscope` and `oauth-proxy` containers | `periscope` only |
+| TLS on 8443 | served by `oauth-proxy` | served by the hub, same service-ca certificate, route stays `reencrypt` |
+| Cluster-scoped objects | `ClusterRoleBinding` to `system:auth-delegator` | the same, plus the `OAuthClient` `periscope-mcp` |
+| Chart values | `version`, `logLevel`, `logFormat`, `publicJoinYAML`, `allowClusterImport` | the same, plus `host` and `mcpTokenDays` |
+| Browser session | `oauth-proxy` cookie | a new cookie, so every reader signs in once again |
+| Logs | `oc logs deploy/periscope -c periscope` | `oc logs deploy/periscope` |
+| Binary outside a cluster | no login | needs `--auth=none` (the default is `--auth=openshift`) |
+
+**Steps with Helm**
+
+1. Find the route host. The MCP OAuth client needs it for its redirect:
+
+   ```bash
+   oc -n periscope get route periscope -o jsonpath='{.spec.host}{"\n"}'
+   ```
+
+2. Upgrade as cluster-admin, because the chart now creates a cluster-scoped
+   `OAuthClient`:
+
+   ```bash
+   helm upgrade periscope charts/periscope --reuse-values \
+     --set version=2.0.1 --set host=<route host from step 1>
+   ```
+
+   `host` is optional with Helm, which reads the cluster apps domain itself. Setting it
+   to the current host is the safe choice: the route keeps the address it has.
+
+3. Check the result (see **Verify** below).
+
+**Steps with Argo CD (or any `helm template` render)**
+
+Argo CD renders the chart without access to the cluster, so the chart cannot look up
+the apps domain or the Secrets it generated before.
+
+1. Set the values in the Application: `version: 2.0.1` and `host: <route host>`.
+   Without `host` the chart creates no `OAuthClient`, and `/mcp/token` only explains
+   `oc whoami -t`.
+2. Allow the new cluster-scoped kind. The AppProject needs it in
+   `clusterResourceWhitelist`, and the Argo CD controller needs RBAC to create it:
+
+   ```yaml
+   clusterResourceWhitelist:
+     - group: oauth.openshift.io
+       kind: OAuthClient
+   ```
+
+3. Keep the generated secrets stable. Each render makes new random values for the
+   session secret and the MCP client secret. Tell Argo CD to leave them as they were
+   created, or every sync rotates them:
+
+   ```yaml
+   spec:
+     ignoreDifferences:
+       - kind: Secret
+         name: periscope-oauth-session
+         jsonPointers: [/data]
+       - kind: Secret
+         name: periscope-mcp-client
+         jsonPointers: [/data]
+       - group: oauth.openshift.io
+         kind: OAuthClient
+         name: periscope-mcp
+         jsonPointers: [/secret]
+     syncPolicy:
+       syncOptions:
+         - RespectIgnoreDifferences=true
+   ```
+
+   The `OAuthClient` secret and the `periscope-mcp-client` Secret are rendered in one
+   template, so they match when they are first created.
+4. Sync. The Deployment rolls to one container.
+
+**Verify**
+
+```bash
+oc -n periscope get pods                       # READY 1/1, not 2/2
+oc -n periscope logs deploy/periscope | grep 'authentication on'
+                                               # mcpClient=periscope-mcp
+oc get oauthclient periscope-mcp               # exists
+curl -sS -o /dev/null -w '%{http_code}\n' https://<route host>/api/matrix
+                                               # 401 without a token
+curl -sS -H "Authorization: Bearer $(oc whoami -t)" -o /dev/null \
+  -w '%{http_code}\n' https://<route host>/api/matrix
+                                               # 200
+```
+
+Then open the route in a browser, sign in, and open **Docs, MCP, Get an MCP token**.
+
+**What needs no change**
+
+- Reader and admin access: still `get` (read) and `create` (purge) on services in the
+  hub namespace.
+- Scripts, exports and Prometheus scrapes that send a bearer token, on the same route
+  or service port 8443.
+- The joined clusters and their Secrets, the database, the grouping ConfigMap.
+- Network: the hub calls the `oauth-openshift` route for the token exchange, as the
+  proxy did before.
+
+**If the login fails** after the upgrade, the hub log names the cause. A TLS error on
+the token exchange means the hub does not trust the certificate of the
+`oauth-openshift` route. Mount the CA and pass it with `--oauth-ca-file`. To go back,
+roll back to 1.10.1 (`helm rollback periscope`, or the previous revision in Argo CD) and
+delete the client with `oc delete oauthclient periscope-mcp`.
 
 ### Join a cluster from the UI
 
-Open the UI and go to **Docs**, **Add a cluster**. The same wizard is offered in the
+Open the UI and go to **Docs, Clusters**, **Add a cluster**. The same wizard is offered in the
 empty state of a hub with no clusters yet, which is where you land on a fresh install.
 
 ![The Add a cluster wizard: a cluster name, an import mode select set to "Enter the API

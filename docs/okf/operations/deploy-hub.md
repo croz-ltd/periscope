@@ -75,9 +75,16 @@ On Apple silicon, add `--platform linux/amd64`.
 
 # Upgrade from 1.x
 
-2.0.0 removes the `oauth-proxy` sidecar. Apply the chart again. The data and the
-joined clusters do not change. Readers sign in again once. The pod now has one
-container, so `oc logs deploy/periscope` needs no `-c periscope`.
+2.0.0 removes the `oauth-proxy` sidecar. The data and the joined clusters do not
+change. Readers sign in again once. The pod now has one container, so
+`oc logs deploy/periscope` needs no `-c periscope`.
+
+* With Helm: upgrade as cluster-admin and set `host` to the current route host.
+* With Argo CD: set `version` and `host`, allow `oauth.openshift.io/OAuthClient`
+  in the AppProject, and add `ignoreDifferences` for the generated secrets.
+
+The full steps, the Argo CD snippets and the checks are in the README section
+[Migrating from 1.x to 2.x](https://github.com/croz-ltd/periscope/blob/master/README.md#migrating-from-1x-to-2x).
 
 # Check before a real fleet
 

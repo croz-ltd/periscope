@@ -707,3 +707,7 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
   margin-block: var(--pf-t--global--spacer--sm);
   font-size: var(--pf-t--global--font--size--body--sm);
 }
+/* A paragraph that follows a command block inside a Docs section. */
+.cc-doc-gap {
+  margin-block-start: var(--pf-t--global--spacer--md);
+}

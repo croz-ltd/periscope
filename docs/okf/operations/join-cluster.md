@@ -43,7 +43,7 @@ The hub reads the new cluster on the next scrape. Click **Refresh** to read it n
 
 # A. UI wizard, import mode
 
-1. Open **Docs**, then **Add a cluster**. A new hub shows the same wizard on its
+1. Open **Docs, Clusters**, then **Add a cluster**. A new hub shows the same wizard on its
    empty page.
 2. Enter the cluster name. It becomes the Secret name and the column name.
    Use a DNS-1123 label, for example `prod-emea`.

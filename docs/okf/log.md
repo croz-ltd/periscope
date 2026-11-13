@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-13 (2.0.1)
+* **Update**: The Docs page of the UI is split into Clusters, Components, MCP and API in [UI views](reference/views.md). [Deploy the hub](operations/deploy-hub.md) points to the full migration steps from 1.x.
+
 ## 2026-11-13 (2.0.0)
 * **Creation**: Added the [MCP server](reference/mcp.md) reference.
 * **Update**: The hub signs readers in itself, the `oauth-proxy` sidecar is gone. Updated [Access and security](architecture/security.md), [REST API](reference/api.md), [Deploy the hub](operations/deploy-hub.md), [Troubleshooting](operations/troubleshooting.md), [CLI flags](configuration/cli-flags.md), [Helm values](configuration/helm-values.md) and [The pull model](architecture/pull-model.md).

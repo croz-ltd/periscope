@@ -43,7 +43,7 @@ import { getHiddenClusters, saveHiddenClusters, visibleClusters } from './cluste
 import { countComponents, filterGroups, rowsByKey } from './matrixView'
 import { AppMasthead } from './AppMasthead'
 import { About } from './About'
-import { Docs } from './Docs'
+import { DOCS_PAGES, DocsAPI, DocsClusters, DocsComponents, DocsMCP, type DocsPage } from './Docs'
 import { Changes } from './Changes'
 
 const LEGEND_GROUPS: { title: string; items: { cls: string; label: string }[] }[] = [
@@ -137,7 +137,26 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   statistics: 'Counts and inventory reported by each cluster',
 }
 
-type NavKey = 'compare' | 'statistics' | 'changes' | 'docs' | 'about'
+type NavKey = 'compare' | 'statistics' | 'changes' | `docs-${DocsPage}` | 'about'
+
+// Each page has a hash route (#/compare, #/docs/mcp), so a page can be linked
+// to and the browser back button works. The hash keeps the routes away from the
+// server, which serves the same index.html for every page.
+const NAV_KEYS: NavKey[] = [
+  'compare',
+  'statistics',
+  'changes',
+  ...DOCS_PAGES.map((p) => `docs-${p.id}` as NavKey),
+  'about',
+]
+
+function navFromHash(): NavKey {
+  const path = window.location.hash.replace(/^#\/?/, '').replace('/', '-')
+  if (path === 'docs') return 'docs-clusters'
+  return NAV_KEYS.includes(path as NavKey) ? (path as NavKey) : 'compare'
+}
+
+const hashOf = (nav: NavKey) => '#/' + nav.replace('-', '/')
 
 export default function App() {
   const [matrix, setMatrix] = useState<Matrix | null>(null)
@@ -145,7 +164,17 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [isSidebarOpen, setSidebarOpen] = useState(true)
-  const [activeNav, setActiveNav] = useState<NavKey>('compare')
+  const [activeNav, setActiveNav] = useState<NavKey>(navFromHash)
+  const [isDocsExpanded, setDocsExpanded] = useState(() => navFromHash().startsWith('docs-'))
+  useEffect(() => {
+    const onHash = () => setActiveNav(navFromHash())
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  useEffect(() => {
+    if (window.location.hash !== hashOf(activeNav)) window.location.hash = hashOf(activeNav)
+    if (activeNav.startsWith('docs-')) setDocsExpanded(true)
+  }, [activeNav])
   const [isClustersExpanded, setClustersExpanded] = useState(true)
   const [actionsOpen, setActionsOpen] = useState(false)
   // Non-null means the matrix pages are showing history rather than the fleet
@@ -334,9 +363,19 @@ export default function App() {
                 Changes
               </NavItem>
             </NavExpandable>
-            <NavItem itemId="docs" isActive={activeNav === 'docs'}>
-              Docs
-            </NavItem>
+            <NavExpandable
+              title="Docs"
+              groupId="docs"
+              isExpanded={isDocsExpanded}
+              onExpand={(_e, expanded) => setDocsExpanded(expanded)}
+              isActive={activeNav.startsWith('docs-')}
+            >
+              {DOCS_PAGES.map((p) => (
+                <NavItem key={p.id} itemId={`docs-${p.id}`} isActive={activeNav === `docs-${p.id}`}>
+                  {p.title}
+                </NavItem>
+              ))}
+            </NavExpandable>
             <NavItem itemId="about" isActive={activeNav === 'about'}>
               About
             </NavItem>
@@ -385,13 +424,32 @@ export default function App() {
             }}
           />
         </PageSection>
-      ) : activeNav === 'docs' ? (
+      ) : activeNav.startsWith('docs-') ? (
         <PageSection>
-          <PageHeader
-            title="Docs"
-            description="How to join a cluster, and the component keys discovered across yours"
-          />
-          <Docs rows={matrix?.rows ?? []} onAddCluster={() => setAddClusterOpen(true)} />
+          {(() => {
+            const page = DOCS_PAGES.find((p) => `docs-${p.id}` === activeNav) ?? DOCS_PAGES[0]
+            return (
+              <PageHeader
+                breadcrumb={
+                  <Breadcrumb className="cc-breadcrumb">
+                    <BreadcrumbItem>Docs</BreadcrumbItem>
+                    <BreadcrumbItem isActive>{page.title}</BreadcrumbItem>
+                  </Breadcrumb>
+                }
+                title={page.title}
+                description={page.description}
+              />
+            )
+          })()}
+          {activeNav === 'docs-components' ? (
+            <DocsComponents rows={matrix?.rows ?? []} />
+          ) : activeNav === 'docs-mcp' ? (
+            <DocsMCP />
+          ) : activeNav === 'docs-api' ? (
+            <DocsAPI />
+          ) : (
+            <DocsClusters onAddCluster={() => setAddClusterOpen(true)} />
+          )}
         </PageSection>
       ) : (
         <PageSection>

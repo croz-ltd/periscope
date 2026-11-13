@@ -56,7 +56,7 @@ const PLACEHOLDER = "<CLUSTER_NAME>";
 
 // CopyableCommand shows a command with the copy button in its corner. A
 // multi-line shell command retyped by hand is a command mistyped by hand.
-function CopyableCommand({
+export function CopyableCommand({
   command,
   label,
 }: {

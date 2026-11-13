@@ -20,7 +20,10 @@ sources:
 | **Statistics**, charts | Which clusters carry the fleet? | One bar chart per row, and a fleet total. Rows that are not counts are listed as skipped. |
 | **Statistics**, timeline | When did a count move? | One line per cluster over 1, 2, 5, 7, 14 or 30 days |
 | **Changes** | What changed, and when? | An audit feed and a calendar. **View the matrix as it was** loads any past day. |
-| **Docs** | Which keys exist, and how do I join a cluster? | The component keys of this fleet and the **Add a cluster** wizard |
+| **Docs, Clusters** | How do I join, remove or purge a cluster? | The **Add a cluster** wizard and the remove and purge commands for this hub |
+| **Docs, Components** | Which keys exist? | The component keys of this fleet, with a filter by text and group |
+| **Docs, MCP** | How do I connect an AI assistant? | The MCP URL of this hub, the token button, client config and the tools |
+| **Docs, API** | How do I script against the hub? | The REST endpoints, access rules and `curl` examples for this hub |
 | **About** | Which build runs? | The version string |
 
 ![The Compare page](../../screenshot.png)

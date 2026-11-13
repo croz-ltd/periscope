@@ -4,7 +4,7 @@ title: MCP server
 description: The MCP tools an AI assistant uses to read the Periscope fleet, how a user gets a token, and how to connect a client.
 tags: [mcp, ai, api, tokens]
 status: stable
-app_version: "2.0.0"
+app_version: "2.0.1"
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-13T11:30:00Z }
 sources:
   - id: readme

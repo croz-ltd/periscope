@@ -25,6 +25,8 @@ import (
 //   - free is the sum of status.allocatable minus used. Allocatable already
 //     leaves out the system reservation of each node, so the reservation is
 //     not subtracted again. total minus allocatable is in the tooltip.
+//   - total masters, total workers and total other split total by node class
+//     (see nodeClass). Each node is in one class, so the three add up to total.
 //
 // When OpenShift Virtualization is installed, the extractor also reports the VM
 // view of the same nodes. It counts only the nodes that can run a VM (label
@@ -79,11 +81,22 @@ func (Capacity) Extract(ctx context.Context, c *Clients) ([]model.Component, err
 
 	var capacity, allocatable, vmAllocatable resources
 	byRole := map[string]resources{}
+	byClass := map[string]*classTotal{}
+	for _, cl := range nodeClasses {
+		byClass[cl.class] = &classTotal{roles: map[string]int{}}
+	}
 	vmNode := map[string]bool{}
 	for i := range nodes.Items {
 		n := &nodes.Items[i]
 		capacity.add(resourcesOf(n.Status.Capacity))
 		allocatable.add(resourcesOf(n.Status.Allocatable))
+		class, roles := nodeClass(n.Labels)
+		ct := byClass[class]
+		ct.add(resourcesOf(n.Status.Capacity))
+		ct.nodes++
+		for _, role := range roles {
+			ct.roles[role]++
+		}
 		for label := range n.Labels {
 			if role, ok := strings.CutPrefix(label, "node-role.kubernetes.io/"); ok && role != "" {
 				r := byRole[role]
@@ -114,14 +127,24 @@ func (Capacity) Extract(ctx context.Context, c *Clients) ([]model.Component, err
 		cpuTotal.Extra["role "+role] = coresText(r.cpu)
 		memTotal.Extra["role "+role] = gibText(r.mem)
 	}
+	var cpuByClass, memByClass []model.Component
+	for _, cl := range nodeClasses {
+		ct := byClass[cl.class]
+		cpuByClass = append(cpuByClass, capacityInfo("cpu-capacity-"+cl.class, "CPU cores: total "+cl.class,
+			cores(ct.cpu), ct.extra(coresText(ct.cpu))))
+		memByClass = append(memByClass, capacityInfo("mem-capacity-"+cl.class, "Memory GiB: total "+cl.class,
+			gibs(ct.mem), ct.extra(gibText(ct.mem))))
+	}
 	cpuFree := nonNegative(allocatable.cpu - requested.cpu)
 	memFree := nonNegative(allocatable.mem - requested.mem)
 	out := []model.Component{
 		cpuTotal,
+		cpuByClass[0], cpuByClass[1], cpuByClass[2],
 		capacityInfo("cpu-requested", "CPU cores: used (requested)", cores(requested.cpu),
 			map[string]string{"exact": coresText(requested.cpu), "of allocatable": percent(requested.cpu, allocatable.cpu)}),
 		capacityInfo("cpu-free", "CPU cores: free", cores(cpuFree), map[string]string{"exact": coresText(cpuFree)}),
 		memTotal,
+		memByClass[0], memByClass[1], memByClass[2],
 		capacityInfo("mem-requested", "Memory GiB: used (requested)", gibs(requested.mem),
 			map[string]string{"exact": gibText(requested.mem), "of allocatable": percent(requested.mem, allocatable.mem)}),
 		capacityInfo("mem-free", "Memory GiB: free", gibs(memFree), map[string]string{"exact": gibText(memFree)}),
@@ -139,6 +162,66 @@ func (Capacity) Extract(ctx context.Context, c *Clients) ([]model.Component, err
 	}
 	ratio, overcommit := virtRatios(hcos.Items[0].Object)
 	return append(out, vmCapacity(vmAllocatable, vmRequested, len(vmNode), ratio, overcommit)...), nil
+}
+
+// nodeClasses splits the nodes into three classes. Each node is in exactly one,
+// so the three totals add up to the cluster total.
+var nodeClasses = []struct{ class string }{{"masters"}, {"workers"}, {"other"}}
+
+// nodeClass puts a node in one class by its node-role labels:
+//
+//   - masters: a master or control-plane role. A compact cluster labels its
+//     nodes master and worker too, and they count here, once.
+//   - workers: the worker role and no other role.
+//   - other: everything else, for example infra or storage nodes, custom
+//     roles, and nodes with no role label.
+//
+// It also returns the roles of the node, for the tooltip.
+func nodeClass(labels map[string]string) (string, []string) {
+	var roles []string
+	master, worker, otherRole := false, false, false
+	for label := range labels {
+		role, ok := strings.CutPrefix(label, "node-role.kubernetes.io/")
+		if !ok || role == "" {
+			continue
+		}
+		roles = append(roles, role)
+		switch role {
+		case "master", "control-plane":
+			master = true
+		case "worker":
+			worker = true
+		default:
+			otherRole = true
+		}
+	}
+	switch {
+	case master:
+		return "masters", roles
+	case worker && !otherRole:
+		return "workers", roles
+	default:
+		if len(roles) == 0 {
+			roles = []string{"(none)"}
+		}
+		return "other", roles
+	}
+}
+
+// classTotal is the capacity of one node class, with its node count and the
+// number of nodes per role.
+type classTotal struct {
+	resources
+	nodes int
+	roles map[string]int
+}
+
+func (ct *classTotal) extra(exact string) map[string]string {
+	ex := map[string]string{"exact": exact, "nodes": strconv.Itoa(ct.nodes)}
+	for role, n := range ct.roles {
+		ex["role "+role] = strconv.Itoa(n) + " nodes"
+	}
+	return ex
 }
 
 // podRequests sums the requests of the pods placed on a node, for the whole

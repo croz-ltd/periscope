@@ -1,10 +1,10 @@
 ---
 type: Reference
 title: Component keys
-description: Every matrix row Periscope 1.10.0 produces, with its key, group, page and source on the cluster.
+description: Every matrix row Periscope 1.10.1 produces, with its key, group, page and source on the cluster.
 tags: [components, keys, extractors, matrix]
 status: stable
-app_version: "1.10.0"
+app_version: "1.10.1"
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
 sources:
   - id: extract
@@ -39,9 +39,15 @@ sources:
 | `node-count` | Total nodes | Node | Nodes |
 | `node-kubelet` | Kubelet | Node | Nodes: kubelet versions |
 | `cpu-capacity` | CPU cores: total | Capacity | Nodes: sum of `status.capacity.cpu`. The tooltip shows allocatable, the system reservation and the sum per role. |
+| `cpu-capacity-masters` | CPU cores: total masters | Capacity | Total of the nodes with a master or control-plane role, compact-cluster nodes included |
+| `cpu-capacity-workers` | CPU cores: total workers | Capacity | Total of the nodes with only the worker role |
+| `cpu-capacity-other` | CPU cores: total other | Capacity | Total of all other nodes: infra, storage, custom roles, no role. The tooltip shows the roles. |
 | `cpu-requested` | CPU cores: used (requested) | Capacity | CPU requests of the unfinished pods placed on a node |
 | `cpu-free` | CPU cores: free | Capacity | Sum of `status.allocatable.cpu` minus the requests |
 | `mem-capacity` | Memory GiB: total | Capacity | Nodes: sum of `status.capacity.memory`. The tooltip is the same as for CPU. |
+| `mem-capacity-masters` | Memory GiB: total masters | Capacity | Same split as for CPU |
+| `mem-capacity-workers` | Memory GiB: total workers | Capacity | Same split as for CPU |
+| `mem-capacity-other` | Memory GiB: total other | Capacity | Same split as for CPU |
 | `mem-requested` | Memory GiB: used (requested) | Capacity | Memory requests of the unfinished pods placed on a node |
 | `mem-free` | Memory GiB: free | Capacity | Sum of `status.allocatable.memory` minus the requests |
 | `vm-vcpu-total` | VM vCPUs: total | Capacity | Allocatable cores of the VM nodes times `vmiCPUAllocationRatio` (default 10) |
@@ -86,6 +92,8 @@ sources:
 * The capacity rows count requests, not live usage. The scheduler places pods and VMs by
   requests, so free is what a new workload can still get. The values are whole cores and
   whole GiB, and the tooltip carries the exact values.
+* Each node is in one class (masters, workers or other), so the three class totals add up
+  to the total. An infra node that keeps the worker label counts as other.
 * A VM node has the label `kubevirt.io/schedulable=true` and is not cordoned. The `vm-*`
   capacity rows show only when the HyperConverged CR exists.
 * Free capacity is a cluster sum. A VM fits only when one node has enough free CPU and

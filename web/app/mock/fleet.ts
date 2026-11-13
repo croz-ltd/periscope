@@ -665,6 +665,7 @@ function volumes(): { total: Values; ceph: Values; localPath: Values } {
 interface NodeMix {
   masters: number
   workers: number
+  infra?: number // infra nodes, which count as other
   workerCores: number
   workerGiB: number
   usedShare: number // part of allocatable the pods request
@@ -674,8 +675,8 @@ interface NodeMix {
 
 const NODE_MIX: Record<string, NodeMix> = {
   'hub-eu-central': { masters: 3, workers: 3, workerCores: 16, workerGiB: 64, usedShare: 0.58 },
-  'prod-eu-central': { masters: 3, workers: 21, workerCores: 64, workerGiB: 512, usedShare: 0.71, vmRatio: 10, vmOvercommit: 100 },
-  'prod-eu-west': { masters: 3, workers: 18, workerCores: 64, workerGiB: 512, usedShare: 0.66, vmRatio: 10, vmOvercommit: 100 },
+  'prod-eu-central': { masters: 3, workers: 18, infra: 3, workerCores: 64, workerGiB: 512, usedShare: 0.71, vmRatio: 10, vmOvercommit: 100 },
+  'prod-eu-west': { masters: 3, workers: 15, infra: 3, workerCores: 64, workerGiB: 512, usedShare: 0.66, vmRatio: 10, vmOvercommit: 100 },
   'prod-us-east': { masters: 3, workers: 15, workerCores: 48, workerGiB: 384, usedShare: 0.62, vmRatio: 8, vmOvercommit: 125 },
   'stage-eu-central': { masters: 3, workers: 6, workerCores: 32, workerGiB: 256, usedShare: 0.44, vmRatio: 10, vmOvercommit: 150 },
   'dev-eu-central': { masters: 3, workers: 3, workerCores: 16, workerGiB: 64, usedShare: 0.81 },
@@ -686,11 +687,19 @@ const NODE_MIX: Record<string, NodeMix> = {
 function capacityRows(): RowSpec[] {
   const MASTER_CORES = 8
   const MASTER_GIB = 32
+  const INFRA_CORES = 16
+  const INFRA_GIB = 64
   const keys = [
     ['cpu-capacity', 'CPU cores: total'],
+    ['cpu-capacity-masters', 'CPU cores: total masters'],
+    ['cpu-capacity-workers', 'CPU cores: total workers'],
+    ['cpu-capacity-other', 'CPU cores: total other'],
     ['cpu-requested', 'CPU cores: used (requested)'],
     ['cpu-free', 'CPU cores: free'],
     ['mem-capacity', 'Memory GiB: total'],
+    ['mem-capacity-masters', 'Memory GiB: total masters'],
+    ['mem-capacity-workers', 'Memory GiB: total workers'],
+    ['mem-capacity-other', 'Memory GiB: total other'],
     ['mem-requested', 'Memory GiB: used (requested)'],
     ['mem-free', 'Memory GiB: free'],
     ['vm-vcpu-total', 'VM vCPUs: total'],
@@ -712,10 +721,11 @@ function capacityRows(): RowSpec[] {
   }
 
   for (const [cluster, m] of Object.entries(NODE_MIX)) {
-    const cores = m.masters * MASTER_CORES + m.workers * m.workerCores
-    const gib = m.masters * MASTER_GIB + m.workers * m.workerGiB
+    const infra = m.infra ?? 0
+    const cores = m.masters * MASTER_CORES + m.workers * m.workerCores + infra * INFRA_CORES
+    const gib = m.masters * MASTER_GIB + m.workers * m.workerGiB + infra * INFRA_GIB
     // Each node keeps back about half a core and 4 GiB for the system.
-    const nodes = m.masters + m.workers
+    const nodes = m.masters + m.workers + infra
     const allocCores = cores - nodes * 0.5
     const allocGiB = gib - nodes * 4
     const usedCores = allocCores * m.usedShare
@@ -723,7 +733,17 @@ function capacityRows(): RowSpec[] {
     const roles = (unit: string, master: number, worker: number) => {
       const out: Record<string, string> = { 'role master': `${m.masters * master} ${unit}` }
       if (m.workers > 0) out['role worker'] = `${m.workers * worker} ${unit}`
+      if (infra > 0) out['role infra'] = `${infra * (unit === 'cores' ? INFRA_CORES : INFRA_GIB)} ${unit}`
       return out
+    }
+    const classes: [string, number, number, number, Record<string, string>][] = [
+      ['masters', m.masters, MASTER_CORES, MASTER_GIB, { 'role master': `${m.masters} nodes` }],
+      ['workers', m.workers, m.workerCores, m.workerGiB, m.workers > 0 ? { 'role worker': `${m.workers} nodes` } : {}],
+      ['other', infra, INFRA_CORES, INFRA_GIB, infra > 0 ? { 'role infra': `${infra} nodes` } : {}],
+    ]
+    for (const [cls, count, perCores, perGiB, roleCounts] of classes) {
+      set(`cpu-capacity-${cls}`, cluster, count * perCores, { exact: `${count * perCores} cores`, nodes: String(count), ...roleCounts })
+      set(`mem-capacity-${cls}`, cluster, count * perGiB, { exact: `${(count * perGiB).toFixed(1)} GiB`, nodes: String(count), ...roleCounts })
     }
     set('cpu-capacity', cluster, cores, {
       allocatable: `${allocCores} cores`,

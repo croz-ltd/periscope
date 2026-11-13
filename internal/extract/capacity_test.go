@@ -180,3 +180,56 @@ func TestCapacityNoNodes(t *testing.T) {
 		t.Errorf("got %v, %v, want no rows", comps, err)
 	}
 }
+
+// Each node lands in one class, so the class totals add up to the total. A
+// compact-cluster node (master and worker) is a master, and an infra node that
+// keeps the worker label is other.
+func TestCapacityTotalsPerNodeClass(t *testing.T) {
+	compact := sizedNode("master-0", "master", "16", "64Gi", "16", "64Gi", false)
+	compact.Labels["node-role.kubernetes.io/worker"] = ""
+	infra := sizedNode("infra-0", "infra", "8", "32Gi", "8", "32Gi", false)
+	infra.Labels["node-role.kubernetes.io/worker"] = ""
+	noRole := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "bare"},
+		Status:     corev1.NodeStatus{Capacity: rl("4", "8Gi"), Allocatable: rl("4", "8Gi")},
+	}
+	objs := []runtime.Object{
+		compact, infra, noRole,
+		sizedNode("cp-1", "control-plane", "16", "64Gi", "16", "64Gi", false),
+		sizedNode("worker-0", "worker", "32", "128Gi", "32", "128Gi", false),
+		sizedNode("worker-1", "worker", "64", "256Gi", "64", "256Gi", false),
+	}
+	comps, err := Capacity{}.Extract(context.Background(), &Clients{Typed: k8sfake.NewClientset(objs...)})
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	got := byKey(comps)
+	want := map[string]string{
+		"cpu-capacity": "140", "cpu-capacity-masters": "32", "cpu-capacity-workers": "96", "cpu-capacity-other": "12",
+		"mem-capacity": "552", "mem-capacity-masters": "128", "mem-capacity-workers": "384", "mem-capacity-other": "40",
+	}
+	for key, w := range want {
+		if got[key].Version != w {
+			t.Errorf("%s = %q, want %q", key, got[key].Version, w)
+		}
+	}
+	other := got["cpu-capacity-other"].Extra
+	if other["nodes"] != "2" || other["role infra"] != "1 nodes" || other["role (none)"] != "1 nodes" {
+		t.Errorf("cpu-capacity-other tooltip = %v", other)
+	}
+	if got["mem-capacity-workers"].Name != "Memory GiB: total workers" {
+		t.Errorf("name = %q", got["mem-capacity-workers"].Name)
+	}
+}
+
+// A cluster with no workers still reports the row, as zero.
+func TestCapacityClassRowsAreAlwaysThere(t *testing.T) {
+	objs := []runtime.Object{sizedNode("master-0", "master", "8", "32Gi", "8", "32Gi", false)}
+	comps, err := Capacity{}.Extract(context.Background(), &Clients{Typed: k8sfake.NewClientset(objs...)})
+	if err != nil {
+		t.Fatalf("extract: %v", err)
+	}
+	if got := byKey(comps)["cpu-capacity-workers"]; got.Version != "0" {
+		t.Errorf("cpu-capacity-workers = %q, want 0", got.Version)
+	}
+}

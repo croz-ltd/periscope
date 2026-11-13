@@ -20,7 +20,7 @@ sources. This bundle restates them as small concepts that link to each other.
 * [Architecture](architecture/) - How the hub pulls from the fleet, stores history and decides drift.
 * [Operations](operations/) - Deploy the hub, join and remove clusters, fix common faults, keep it current.
 * [Configuration](configuration/) - Every knob: CLI flags, Helm values, the cluster Secret, grouping, CR extractors.
-* [Reference](reference/) - Component keys, the REST API, Prometheus metrics and the UI pages.
+* [Reference](reference/) - Component keys, the REST API, the MCP server, Prometheus metrics and the UI pages.
 
 # History
 

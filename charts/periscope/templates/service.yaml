@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: periscope
   annotations:
-    # OpenShift service-ca mints the TLS secret oauth-proxy serves with.
+    # OpenShift service-ca mints the TLS secret the hub serves with.
     service.beta.openshift.io/serving-cert-secret-name: periscope-tls
 spec:
   selector:

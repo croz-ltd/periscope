@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/croz-ltd/periscope/internal/api"
+	"github.com/croz-ltd/periscope/internal/auth"
 	"github.com/croz-ltd/periscope/internal/cluster"
 	"github.com/croz-ltd/periscope/internal/config"
 	"github.com/croz-ltd/periscope/internal/logging"
@@ -98,6 +99,18 @@ func serve(args []string) {
 	timeout := fs.Duration("timeout", 30*time.Second, "per-cluster scrape timeout")
 	concurrency := fs.Int("concurrency", 4, "max clusters scraped in parallel")
 	configPath := fs.String("config", envOr("CONFIG_PATH", ""), "optional extractor config file (see config/extractors.yaml)")
+	authMode := fs.String("auth", envOr("AUTH", "openshift"),
+		"who can read: openshift (OpenShift login and an access check) | none (anyone, local development only)")
+	tlsCert := fs.String("tls-cert", "", "serve HTTPS with this certificate (PEM), reloaded when it changes")
+	tlsKey := fs.String("tls-key", "", "private key of --tls-cert")
+	sessionSecret := fs.String("session-secret-file", "/etc/periscope/session/session_secret",
+		"file with the secret that encrypts the session cookie")
+	loginClient := fs.String("oauth-client-id", "",
+		"OAuth client of the UI login (default: the hub ServiceAccount, system:serviceaccount:<namespace>:periscope)")
+	mcpClient := fs.String("mcp-client-id", "", "OAuthClient that issues MCP tokens on /mcp/token, empty to turn it off")
+	mcpSecret := fs.String("mcp-client-secret-file", "/etc/periscope/mcp-client/secret", "file with the secret of --mcp-client-id")
+	oauthCA := fs.String("oauth-ca-file", "", "extra CA bundle (PEM) to trust for the OAuth server, comma-separated for several")
+	publicJoinYAML := fs.Bool("public-join-yaml", false, "serve /yaml/new-cluster without a login")
 	_ = fs.Parse(args)
 
 	level := c.setupLogging()
@@ -142,7 +155,55 @@ func serve(args []string) {
 	go sched.Run(ctx)
 
 	srv := &api.Server{Store: st, Scheduler: sched, StaleAfter: c.staleAfter}
-	httpSrv := &http.Server{Addr: *addr, Handler: srv.Handler()}
+	var handler http.Handler
+	switch *authMode {
+	case "none":
+		slog.Warn("authentication is off: anyone who reaches this server reads it and can use the admin API " +
+			"with the rights of its own credentials. Use --auth=none for local development only.")
+		handler = srv.Handler()
+	case "openshift":
+		clientID := *loginClient
+		if clientID == "" {
+			clientID = "system:serviceaccount:" + c.namespace + ":periscope"
+		}
+		var cas []string
+		for _, f := range strings.Split(*oauthCA, ",") {
+			if f = strings.TrimSpace(f); f != "" {
+				cas = append(cas, f)
+			}
+		}
+		guard, err := auth.New(auth.Config{
+			Namespace:           c.namespace,
+			SessionSecretFile:   *sessionSecret,
+			LoginClientID:       clientID,
+			MCPClientID:         *mcpClient,
+			MCPClientSecretFile: *mcpSecret,
+			CAFiles:             cas,
+			Public: func(path string) bool {
+				return path == "/healthz" || (*publicJoinYAML && strings.HasPrefix(path, "/yaml/"))
+			},
+		}, reg.RESTConfig())
+		if err != nil {
+			fatal("cannot set up authentication", "error", err)
+		}
+		srv.Access = guard.Reviewer
+		handler = srv.Wrap(guard.Wrap)
+		slog.Info("authentication on", "loginClient", clientID, "mcpClient", *mcpClient,
+			"publicJoinYAML", *publicJoinYAML)
+	default:
+		fatal("unknown --auth mode", "auth", *authMode, "want", "openshift | none")
+	}
+	httpSrv := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 10 * time.Second}
+	if (*tlsCert == "") != (*tlsKey == "") {
+		fatal("--tls-cert and --tls-key go together")
+	}
+	if *tlsCert != "" {
+		certs, err := newCertReloader(*tlsCert, *tlsKey)
+		if err != nil {
+			fatal("cannot load the TLS certificate", "cert", *tlsCert, "error", err)
+		}
+		httpSrv.TLSConfig = certs.tlsConfig()
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -154,8 +215,12 @@ func serve(args []string) {
 		}
 	}()
 
-	slog.Info("listening", "addr", *addr)
-	if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+	slog.Info("listening", "addr", *addr, "tls", httpSrv.TLSConfig != nil)
+	listen := httpSrv.ListenAndServe
+	if httpSrv.TLSConfig != nil {
+		listen = func() error { return httpSrv.ListenAndServeTLS("", "") }
+	}
+	if err := listen(); err != nil && err != http.ErrServerClosed {
 		fatal("http server failed", "addr", *addr, "error", err)
 	}
 	slog.Info("stopped")

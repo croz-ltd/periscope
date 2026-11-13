@@ -4,7 +4,7 @@ title: CLI flags
 description: The commands of the periscope binary, and every flag with its default and environment variable.
 tags: [cli, flags, configuration, environment]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-13T11:30:00Z }
 sources:
   - id: readme
     resource: https://github.com/croz-ltd/periscope/blob/master/README.md#cli
@@ -37,7 +37,15 @@ Flags for `serve` only:
 
 | Flag | Default | Environment | Meaning |
 |---|---|---|---|
-| `--addr` | `:8080` | `LISTEN_ADDR` | HTTP listen address |
+| `--addr` | `:8080` | `LISTEN_ADDR` | Listen address |
+| `--auth` | `openshift` | `AUTH` | `openshift`: OpenShift login and the read check. `none`: no login, for local development only. |
+| `--tls-cert`, `--tls-key` | none | | Serve HTTPS with this certificate. It is read again when it changes. |
+| `--session-secret-file` | `/etc/periscope/session/session_secret` | | Secret that encrypts the session cookie |
+| `--oauth-client-id` | `system:serviceaccount:<namespace>:periscope` | | OAuth client of the browser login. Its secret is the ServiceAccount token. |
+| `--mcp-client-id` | none | | OAuthClient that issues MCP tokens on `/mcp/token` |
+| `--mcp-client-secret-file` | `/etc/periscope/mcp-client/secret` | | Secret of `--mcp-client-id` |
+| `--oauth-ca-file` | none | | Extra CA bundles to trust for the OAuth server, comma-separated |
+| `--public-join-yaml` | `false` | | Serve `/yaml/new-cluster` with no login |
 | `--interval` | `10m` | | How often the whole fleet is scraped |
 | `--timeout` | `30s` | | Deadline for the scrape of one cluster |
 | `--concurrency` | `4` | | Clusters scraped at the same time |
@@ -67,7 +75,7 @@ Each line carries a `component` field (`scrape`, `cluster`, `store`, `api`,
 
 ```bash
 # serve with the current kubeconfig context and a local database
-bin/periscope serve --namespace periscope --db ./periscope.db
+bin/periscope serve --auth=none --namespace periscope --db ./periscope.db
 
 # print the matrix once
 bin/periscope report --db ./periscope.db

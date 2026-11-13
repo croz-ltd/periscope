@@ -28,7 +28,7 @@ image:
 
 # Run locally against your current kubeconfig context.
 run: build
-	./bin/periscope serve --db ./cc.db
+	./bin/periscope serve --auth=none --db ./cc.db
 
 clean:
 	rm -rf bin cc.db web/dist/assets

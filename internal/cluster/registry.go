@@ -242,6 +242,10 @@ func (r *Registry) JoinedNames(ctx context.Context) ([]string, error) {
 	return names, nil
 }
 
+// RESTConfig is how the hub connects to its own cluster, nil for a registry
+// built around a supplied client.
+func (r *Registry) RESTConfig() *rest.Config { return r.cfg }
+
 func hubConfig() (*rest.Config, error) {
 	if cfg, err := rest.InClusterConfig(); err == nil {
 		return cfg, nil

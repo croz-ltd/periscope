@@ -30,7 +30,7 @@ against the synthetic fleet described in
 
 - [What it shows](#what-it-shows): the matrix, drift, upgrade readiness, history
 - [How it works](#how-it-works): the pull model in one diagram
-- [Getting started](#getting-started): deploy the hub, join clusters, remove them, verify the defaults
+- [Getting started](#getting-started): deploy the hub, sign-in, MCP for AI assistants, join clusters, remove them
 - [Configuration](#configuration): grouping the matrix, covering new components
 - [CLI](#cli): commands, flags, environment variables
 - [API and metrics](#api-and-metrics): REST endpoints, exports, Prometheus
@@ -216,10 +216,78 @@ reasoning behind these choices and what was left for later.
 helm install periscope charts/periscope --set version=latest
 ```
 
-That installs the app, an `oauth-proxy` sidecar, the RBAC it needs, a PVC and a Route.
-UI authentication goes through the proxy against OpenShift SSO, so Periscope has no auth
-code of its own. The matrix starts empty, because a hub has no clusters until you join
-one.
+That installs the app, the RBAC it needs, a PVC, a Route and an `OAuthClient` for MCP
+tokens. `OAuthClient` is cluster-scoped, so the install needs cluster-admin. The matrix
+starts empty, because a hub has no clusters until you join one.
+
+### Sign-in and access
+
+Every request needs an OpenShift identity, and that identity needs `get` on services in
+the hub namespace. Grant it with `oc -n periscope policy add-role-to-user view <user>`.
+
+- **In a browser** the hub sends you to the OpenShift login and keeps an encrypted
+  session cookie for up to 24 hours. The hub ServiceAccount is the OAuth client of this
+  login, so it needs no cluster-scoped object.
+- **From a script, Prometheus or an MCP client** send any token the API server accepts
+  as `Authorization: Bearer <token>`: `oc whoami -t`, a ServiceAccount token, or an MCP
+  token from `/mcp/token`.
+
+The hub checks each token with a `TokenReview` and the right with a
+`SubjectAccessReview` (it binds `system:auth-delegator` for both). It reuses each answer
+for one minute, so a revoked token or a removed role stops working within a minute.
+
+### Use Periscope from an AI assistant (MCP)
+
+`/mcp` is an MCP server (Streamable HTTP) with these tools:
+
+| Tool | Answers |
+|---|---|
+| `list_clusters` | the clusters, their last scrape, and whether it worked or is stale |
+| `list_components` | the component keys, filtered by text or group |
+| `get_component` | one component on every cluster, with its drift state and tooltip details |
+| `get_cluster` | everything about one cluster, or one group of it |
+| `fleet_totals` | sum, minimum, maximum and average of numeric rows across the fleet |
+| `find_drift` | versions behind, configuration that differs, certificates close to expiry, failed scrapes |
+| `get_history` | the history of up to 10 components, over 1 to 30 days |
+| `list_changes` | the change feed |
+| `refresh` | start a scrape now |
+
+Every read tool takes `at` (RFC3339) to answer about the past. `fleet_totals` does the
+arithmetic on the hub, so "how many vCPUs does the fleet have" comes back exact.
+
+To connect a client, open **user menu, MCP access token** (`https://<hub-route>/mcp/token`)
+in the browser. It issues an OpenShift OAuth token of your own user and shows the
+command to add it:
+
+```bash
+claude mcp add --transport http periscope https://<hub-route>/mcp \
+  --header "Authorization: Bearer <token>"
+```
+
+The token is valid for `mcpTokenDays` (30 days by default). Its scopes are `user:info`
+and `user:check-access`, so it is of no use against the API server. Periscope checks
+your own rights on every call, and the token stops working when you lose them. The page
+also shows how to revoke it: `oc delete useroauthaccesstoken <name>`.
+
+The page needs the `periscope-mcp` OAuthClient, which needs the route host for its
+redirect. The chart reads the cluster apps domain at install. When it cannot (`helm
+template`, Argo CD), set `--set host=<hub-route-host>`. Without it, the page explains how
+to use `oc whoami -t` instead, which works but expires with your login.
+
+### Upgrading from 1.x
+
+2.0.0 removes the `oauth-proxy` sidecar. The hub signs readers in itself, with the same
+OpenShift login and the same access rule (`get` on services in the hub namespace).
+Re-apply the chart. Nothing about the data or the joined clusters changes.
+
+- The pod has one container, so `oc logs deploy/periscope` needs no `-c periscope`.
+- The hub serves TLS on 8443 with the service-ca certificate. The route stays
+  `reencrypt`.
+- The install creates the cluster-scoped `periscope-mcp` OAuthClient. Set `host` when
+  you render the chart without access to the cluster.
+- Readers sign in again once, because the session cookie is new.
+- To run the binary outside a cluster, pass `--auth=none`. The default is
+  `--auth=openshift`.
 
 ### Join a cluster from the UI
 
@@ -296,11 +364,11 @@ oc -n periscope label secret prod-emea periscope.io/order=10
 
 Whichever way you join a cluster, the hub picks it up on the next scrape.
 
-The `curl` is there because the route sits behind `oauth-proxy`. To let
+The `curl` is there because every route of the hub needs a login. To let
 `oc apply -f https://<hub-route>/yaml/new-cluster?name=prod-emea` work on its own,
-install the hub with `--set publicJoinYAML=true`, which adds
-`--skip-auth-regex=^/yaml/` to the proxy. Weigh that against what the document
-reveals: no credentials, but the namespace and label this hub reads.
+install the hub with `--set publicJoinYAML=true`, which serves `/yaml/` without one.
+Weigh that against what the document reveals: no credentials, but the namespace and
+label this hub reads.
 
 ### Remove a cluster, and purge what it left behind
 
@@ -336,29 +404,22 @@ status code.
 curl -sS -H "Authorization: Bearer $(oc whoami -t)" "https://<hub-route>/api/admin/clusters"
 ```
 
-Read the body, not just the code. A `403` has three unrelated causes and the message
-names which one it is: no token reached the app, the token could not be reviewed, or the
-review came back denied. The same line is logged at `warn`, so
-`oc -n periscope logs deploy/periscope -c periscope | grep 'refused an admin request'`
-answers it for a request made from the browser.
+Read the body, not just the code. The message names the cause, and the same line is
+logged at `warn`, so
+`oc -n periscope logs deploy/periscope | grep 'refused an admin request'` answers it
+for a request made from the browser.
 
 - `200` and the action is in the menu. It opens a dialog that says so when there is
   nothing to purge, so an empty result is not the same as a missing action.
-- `403` from a browser means you do not hold `create` on services in the hub namespace.
-  Check with `oc auth can-i create services -n periscope`, and grant it with
+- `401` means the token is expired, revoked or missing. `oc whoami -t` gives a fresh one.
+- `403` that names `create on services` means you do not hold that right in the hub
+  namespace. Check with `oc auth can-i create services -n periscope`, and grant it with
   `oc -n periscope policy add-role-to-user admin <user>` (the built-in `admin` and
   `edit` roles both include it).
-- `403` from `curl` usually means something else, and RBAC will not fix it: the proxy
-  builds a bearer-token authenticator only when `--openshift-delegate-urls` is set, and
-  refuses every `Authorization: Bearer` request otherwise. Upgrading the app image is
-  not enough for this feature. Re-apply `charts/periscope` after upgrading: it adds
-  that flag plus `--pass-access-token` and `--pass-user-bearer-token` to the sidecar.
-  Test in the browser first, since a session is gated differently from a token.
+- `403` that says the access review failed means the hub did not get an answer from
+  the API server. The log line carries the error.
 - `503` and the hub cannot reach a cluster registry, so it cannot tell an administrator
   from a reader and refuses to guess.
-
-A hub reached directly, with no proxy and no token, is answered with the pod's own
-rights, and those do not include creating a Service.
 
 ### Run the container
 
@@ -366,11 +427,13 @@ rights, and those do not include creating a Service.
 docker run --rm -p 8080:8080 \
   -v "$PWD/data:/data" \
   -v "$HOME/.kube:/root/.kube:ro" \
-  crozltd/periscope:latest serve --namespace periscope
+  crozltd/periscope:latest serve --auth=none --namespace periscope
 ```
 
 The UI is then on http://localhost:8080. Without joined clusters the matrix is
-empty, which is the expected starting state.
+empty, which is the expected starting state. `--auth=none` turns the login off, which
+is right on your own machine and wrong anywhere else: anyone who reaches the port reads
+the fleet.
 
 Images live at [`crozltd/periscope`](https://hub.docker.com/r/crozltd/periscope):
 `:latest` and `:<tag>` for releases, `:edge` for the tip of `master`. They are built
@@ -462,7 +525,15 @@ Flags common to `serve` and `report`:
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--addr` | `:8080` (`LISTEN_ADDR`) | HTTP listen address |
+| `--addr` | `:8080` (`LISTEN_ADDR`) | listen address |
+| `--auth` | `openshift` (`AUTH`) | `openshift`: OpenShift login and the read check. `none`: no login, local development only |
+| `--tls-cert` / `--tls-key` | none | serve HTTPS with this certificate, read again when it changes |
+| `--session-secret-file` | `/etc/periscope/session/session_secret` | secret that encrypts the session cookie |
+| `--oauth-client-id` | `system:serviceaccount:<namespace>:periscope` | OAuth client of the UI login, its secret is the ServiceAccount token |
+| `--mcp-client-id` | none | OAuthClient that issues MCP tokens on `/mcp/token` |
+| `--mcp-client-secret-file` | `/etc/periscope/mcp-client/secret` | secret of `--mcp-client-id` |
+| `--oauth-ca-file` | none | extra CA bundle to trust for the OAuth server, comma-separated |
+| `--public-join-yaml` | `false` | serve `/yaml/new-cluster` without a login |
 | `--interval` | `10m` | how often the whole fleet is scraped |
 | `--timeout` | `30s` | per-cluster scrape deadline |
 | `--concurrency` | `4` | clusters scraped in parallel |
@@ -486,10 +557,14 @@ Flags common to `serve` and `report`:
 | `POST /api/admin/purge` | remove the stored history of `{clusters: [...]}`, refusing any that are still joined |
 | `GET /yaml/new-cluster?name=<cluster>` | the join manifests for one cluster, ready for `oc apply -f` |
 | `GET /metrics` | Prometheus text exposition |
-| `GET /healthz` | liveness |
+| `POST /mcp` | the MCP server, see [MCP](#use-periscope-from-an-ai-assistant-mcp) |
+| `GET /mcp/token` | in a browser: issue an MCP token for the signed-in user |
+| `GET /oauth/start`, `/oauth/callback`, `/oauth/sign_out` | the browser login and sign-out |
+| `GET /healthz` | liveness, the only path with no login |
 
-Everything under `/api/admin` needs `create` on services in the hub namespace and
-answers `403` without it. See
+Every endpoint needs a login or a bearer token and `get` on services in the hub
+namespace: `401` without a valid token, `403` without the right. Everything under
+`/api/admin` needs `create` on services in the hub namespace and answers `403` without it. See
 [Remove a cluster](#remove-a-cluster-and-purge-what-it-left-behind).
 
 Two gauges are exported, both suitable for alerting:

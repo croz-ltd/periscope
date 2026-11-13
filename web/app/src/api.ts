@@ -1,3 +1,21 @@
+// apiFetch is fetch for the hub API. A 401 means the session ended (the login
+// token expired or was revoked). Reloading the page sends the browser through
+// the OpenShift login and back to the same view. The guard against a loop keeps
+// a hub that answers 401 to everything from reloading forever.
+const RELOAD_KEY = 'periscope.reloadedForLogin'
+
+async function apiFetch(input: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(input, init)
+  if (res.status === 401) {
+    const last = Number(sessionStorage.getItem(RELOAD_KEY) ?? 0)
+    if (Date.now() - last > 30_000) {
+      sessionStorage.setItem(RELOAD_KEY, String(Date.now()))
+      window.location.reload()
+    }
+  }
+  return res
+}
+
 export type CellState =
   // version compare
   | 'leader'
@@ -70,7 +88,7 @@ export interface Matrix {
 // fetchMatrix loads the live matrix, or the matrix as it stood at `at`.
 export async function fetchMatrix(at?: string): Promise<Matrix> {
   const url = at ? `/api/matrix?at=${encodeURIComponent(at)}` : '/api/matrix'
-  const res = await fetch(url, { headers: { Accept: 'application/json' } })
+  const res = await apiFetch(url, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`GET ${url} failed: ${res.status} ${res.statusText}`)
   return (await res.json()) as Matrix
 }
@@ -126,7 +144,7 @@ export async function fetchChanges(q: ChangeQuery = {}): Promise<ChangeFeed> {
   if (q.limit) params.set('limit', String(q.limit))
   if (!q.includeCounters) params.set('counters', 'false')
 
-  const res = await fetch(`/api/changes?${params}`, { headers: { Accept: 'application/json' } })
+  const res = await apiFetch(`/api/changes?${params}`, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`GET /api/changes failed: ${res.status} ${res.statusText}`)
   const body = (await res.json()) as { changes?: Change[]; hiddenCounters?: number }
   return { changes: body.changes ?? [], hiddenCounters: body.hiddenCounters ?? 0 }
@@ -140,7 +158,7 @@ export async function fetchChangeCalendar(from: Date, to: Date): Promise<ChangeC
     to: to.toISOString(),
     tzOffset: String(-new Date().getTimezoneOffset()),
   })
-  const res = await fetch(`/api/changes/calendar?${params}`, { headers: { Accept: 'application/json' } })
+  const res = await apiFetch(`/api/changes/calendar?${params}`, { headers: { Accept: 'application/json' } })
   if (!res.ok) throw new Error(`GET /api/changes/calendar failed: ${res.status} ${res.statusText}`)
   return (await res.json()) as ChangeCalendar
 }
@@ -211,7 +229,7 @@ async function fetchTimelineBatch(
 ): Promise<Timeline> {
   const params = new URLSearchParams({ key: keys.join(','), days: String(days) })
   if (at) params.set('at', at)
-  const res = await fetch(`/api/timeline?${params}`, { headers: { Accept: 'application/json' } })
+  const res = await apiFetch(`/api/timeline?${params}`, { headers: { Accept: 'application/json' } })
   if (!res.ok) {
     // The server says which rule refused, and that message is the whole point of
     // the error. Throwing the status alone leaves a reader with "400" and nothing.
@@ -222,7 +240,7 @@ async function fetchTimelineBatch(
 }
 
 export async function triggerRefresh(): Promise<void> {
-  const res = await fetch('/api/refresh', { method: 'POST' })
+  const res = await apiFetch('/api/refresh', { method: 'POST' })
   if (!res.ok && res.status !== 202) {
     throw new Error(`POST /api/refresh failed: ${res.status}`)
   }
@@ -253,7 +271,7 @@ const HUB_DEFAULTS: HubInfo = {
 // that renders nothing is worse than one quoting the standard namespace.
 export async function fetchHubInfo(): Promise<HubInfo> {
   try {
-    const res = await fetch('/api/version', { headers: { Accept: 'application/json' } })
+    const res = await apiFetch('/api/version', { headers: { Accept: 'application/json' } })
     if (!res.ok) return HUB_DEFAULTS
     const body = (await res.json()) as Partial<HubInfo>
     return {
@@ -286,7 +304,7 @@ export interface JoinResult {
 // and stores what it needs. The token travels in the body, never in the URL, so it
 // stays out of every request log on the way.
 export async function joinCluster(req: JoinRequest): Promise<JoinResult> {
-  const res = await fetch('/api/clusters', {
+  const res = await apiFetch('/api/clusters', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify(req),
@@ -309,12 +327,12 @@ export interface User {
   email: string
 }
 
-// fetchUser returns the signed-in user (empty when running without oauth-proxy,
+// fetchUser returns the signed-in user (empty when the hub runs with --auth=none,
 // or when the endpoint is unavailable). It never throws. An empty user hides
 // the user area entirely.
 export async function fetchUser(): Promise<User> {
   try {
-    const res = await fetch('/api/user', { headers: { Accept: 'application/json' } })
+    const res = await apiFetch('/api/user', { headers: { Accept: 'application/json' } })
     if (!res.ok) return { user: '', email: '' }
     return (await res.json()) as User
   } catch {
@@ -341,7 +359,7 @@ export interface StoredCluster {
 // purging out rather than offering an action that would only fail.
 export async function fetchStoredClusters(): Promise<StoredCluster[] | null> {
   try {
-    const res = await fetch('/api/admin/clusters', { headers: { Accept: 'application/json' } })
+    const res = await apiFetch('/api/admin/clusters', { headers: { Accept: 'application/json' } })
     if (!res.ok) return null
     const body = (await res.json()) as { clusters?: StoredCluster[] }
     return body.clusters ?? []
@@ -372,7 +390,7 @@ export interface PurgeResult {
 // rather than failing the whole request, so purging four of five clusters
 // still reports the four.
 export async function purgeClusters(names: string[]): Promise<PurgeResult> {
-  const res = await fetch('/api/admin/purge', {
+  const res = await apiFetch('/api/admin/purge', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ clusters: names }),

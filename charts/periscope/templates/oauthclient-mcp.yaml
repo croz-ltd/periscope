@@ -1,0 +1,43 @@
+{{- $host := include "periscope.host" . }}
+{{- if $host }}
+# The OAuth client that issues MCP tokens. A signed-in reader opens
+# https://<host>/mcp/token and gets a token of their own user, valid for
+# mcpTokenDays. The token can only say who the user is (the scope
+# restriction below), so it is of no use against the API server. Periscope
+# checks the user's own rights on every request.
+#
+# OAuthClient is cluster-scoped, so installing this chart needs cluster-admin.
+# The secret is kept across upgrades (via lookup). Both objects are in one file
+# so a new secret is the same in both.
+{{- $existing := lookup "v1" "Secret" "periscope" "periscope-mcp-client" }}
+{{- $secret := randAlphaNum 48 }}
+{{- if and $existing $existing.data (index $existing.data "secret") }}
+{{- $secret = index $existing.data "secret" | b64dec }}
+{{- end }}
+apiVersion: oauth.openshift.io/v1
+kind: OAuthClient
+metadata:
+  name: periscope-mcp
+  labels:
+    app.kubernetes.io/name: periscope
+secret: {{ $secret | quote }}
+redirectURIs:
+  - https://{{ $host }}/mcp/token/callback
+grantMethod: auto
+accessTokenMaxAgeSeconds: {{ mul (int .Values.mcpTokenDays) 86400 }}
+scopeRestrictions:
+  - literals:
+      - user:info
+      - user:check-access
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: periscope-mcp-client
+  namespace: periscope
+  labels:
+    app.kubernetes.io/name: periscope
+type: Opaque
+data:
+  secret: {{ $secret | b64enc }}
+{{- end }}

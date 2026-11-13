@@ -1,3 +1,4 @@
+{{- $host := include "periscope.host" . }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -20,7 +21,31 @@ spec:
         - name: periscope
           image: docker.io/crozltd/periscope:{{ .Values.version }}
           imagePullPolicy: IfNotPresent
-          args: ["serve"]
+          args:
+            - serve
+            # The hub serves TLS itself with the service-ca certificate, and the
+            # route reencrypts to it. It reads the certificate again when the
+            # service CA rotates it.
+            - --addr=:8443
+            - --tls-cert=/etc/tls/private/tls.crt
+            - --tls-key=/etc/tls/private/tls.key
+            # Every request needs an OpenShift login or token, and get on
+            # services in this namespace. The UI login uses this pod's
+            # ServiceAccount as the OAuth client, see serviceaccount.yaml.
+            - --auth=openshift
+            - --session-secret-file=/etc/periscope/session/session_secret
+{{- if $host }}
+            # Issues long-lived MCP tokens per user on /mcp/token. See
+            # oauthclient-mcp.yaml.
+            - --mcp-client-id=periscope-mcp
+            - --mcp-client-secret-file=/etc/periscope/mcp-client/secret
+{{- end }}
+{{- if .Values.publicJoinYAML }}
+            # The join document holds no credential, so it can be fetched without
+            # a login. That is what lets `oc apply -f <route>/yaml/new-cluster`
+            # work directly on a cluster being onboarded.
+            - --public-join-yaml
+{{- end }}
           env:
             # Discovery namespace = the pod's own namespace (where join Secrets live).
             - name: POD_NAMESPACE
@@ -35,18 +60,20 @@ spec:
             - name: LOG_FORMAT
               value: {{ .Values.logFormat | quote }}
           ports:
-            - name: http
-              containerPort: 8080
+            - name: public
+              containerPort: 8443
           readinessProbe:
             httpGet:
               path: /healthz
-              port: 8080
+              port: 8443
+              scheme: HTTPS
             initialDelaySeconds: 5
             periodSeconds: 10
           livenessProbe:
             httpGet:
               path: /healthz
-              port: 8080
+              port: 8443
+              scheme: HTTPS
             initialDelaySeconds: 15
             periodSeconds: 20
           resources:
@@ -59,62 +86,17 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-        - name: oauth-proxy
-          image: registry.redhat.io/openshift4/ose-oauth-proxy:latest
-          imagePullPolicy: IfNotPresent
-          args:
-            - --provider=openshift
-            - --https-address=:8443
-            - --http-address=
-            - --upstream=http://localhost:8080
-            - --tls-cert=/etc/tls/private/tls.crt
-            - --tls-key=/etc/tls/private/tls.key
-            - --cookie-secret-file=/etc/oauth/session/session_secret
-            - --openshift-service-account=periscope
-            - --pass-user-headers=true
-            # Reading the dashboard needs get on services in this namespace.
-            # This one gates a signed-in browser session.
-            - '--openshift-sar={"namespace":"periscope","resource":"services","verb":"get"}'
-            # The same check for a client that presents a bearer token instead of
-            # signing in, which is how the API and the exports are reached from a
-            # script. It has to be spelled out separately: the proxy only builds
-            # a token authenticator at all when a delegate URL is configured, so
-            # without this every `Authorization: Bearer` request is refused with
-            # a 403 before it reaches the app, whatever the caller may do.
-            #
-            # The elevated check for /api/admin is deliberately not expressed
-            # here. Delegate URLs are consulted only for token requests, so a
-            # per-path rule would leave a browser session ungated. The app makes
-            # that check itself, on every request. See admin.go.
-            - '--openshift-delegate-urls={"/":{"namespace":"periscope","resource":"services","verb":"get"}}'
-            # Forward the reader's own token as X-Forwarded-Access-Token, for a
-            # signed-in browser session and for a client that presented a token
-            # itself. It is the only way the app can ask what the reader may do
-            # rather than what this pod may do, which is how /api/admin decides
-            # who may purge stale cluster data. The proxy's own SAR cannot answer
-            # that: it is checked once per session, not per request path.
-            - --pass-access-token=true
-            - --pass-user-bearer-token=true
-{{- if .Values.publicJoinYAML }}
-            # The join document holds no credential, so it can be fetched without
-            # a login. That is what lets `oc apply -f <route>/yaml/new-cluster`
-            # work directly on a cluster being onboarded.
-            - --skip-auth-regex=^/yaml/
-{{- end }}
-          ports:
-            - name: public
-              containerPort: 8443
-          resources:
-            requests:
-              cpu: 10m
-              memory: 64Mi
-          volumeMounts:
             - name: tls-certs
               mountPath: /etc/tls/private
               readOnly: true
-            - name: oauth-session
-              mountPath: /etc/oauth/session
+            - name: session
+              mountPath: /etc/periscope/session
               readOnly: true
+{{- if $host }}
+            - name: mcp-client
+              mountPath: /etc/periscope/mcp-client
+              readOnly: true
+{{- end }}
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -122,6 +104,11 @@ spec:
         - name: tls-certs
           secret:
             secretName: periscope-tls
-        - name: oauth-session
+        - name: session
           secret:
             secretName: periscope-oauth-session
+{{- if $host }}
+        - name: mcp-client
+          secret:
+            secretName: periscope-mcp-client
+{{- end }}

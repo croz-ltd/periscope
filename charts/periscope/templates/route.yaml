@@ -6,13 +6,16 @@ metadata:
   labels:
     app.kubernetes.io/name: periscope
 spec:
+{{- if .Values.host }}
+  host: {{ .Values.host }}
+{{- end }}
   to:
     kind: Service
     name: periscope
   port:
     targetPort: public
   tls:
-    # oauth-proxy serves TLS with the service-ca cert; reencrypt lets the router
+    # The hub serves TLS with the service-ca cert; reencrypt lets the router
     # (which trusts the service CA on OpenShift) validate the backend leg.
     termination: reencrypt
     insecureEdgeTerminationPolicy: Redirect

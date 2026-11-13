@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -12,18 +13,56 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
 
+	"github.com/croz-ltd/periscope/internal/auth"
 	"github.com/croz-ltd/periscope/internal/cluster"
 	"github.com/croz-ltd/periscope/internal/model"
 	"github.com/croz-ltd/periscope/internal/scrape"
 	"github.com/croz-ltd/periscope/internal/store"
 )
 
-// adminToken is the token an elevated reader arrives with. The fake hub below
-// answers the access review by whether this exact token was used, which is what
-// tells "the caller may administer" apart from "this pod may".
+// adminToken is the token an elevated reader arrives with. Any other token in
+// readerTokens belongs to a reader who can see the dashboard and nothing more.
 const adminToken = "elevated-user-token"
+
+var readerTokens = []string{"some-readers-token", "a-readers-token"}
+
+// fakeReviewer stands in for the API server: it knows which user a token is,
+// and which rights each user holds.
+type fakeReviewer struct {
+	users    map[string]string // token -> user
+	rights   map[string]bool   // "user verb resource"
+	allowErr error             // returned by every Allowed call when set
+}
+
+func newFakeReviewer() *fakeReviewer {
+	f := &fakeReviewer{
+		users: map[string]string{adminToken: "admin"},
+		rights: map[string]bool{
+			"admin get services": true, "admin create services": true,
+			"reader get services": true,
+		},
+	}
+	for _, t := range readerTokens {
+		f.users[t] = "reader"
+	}
+	return f
+}
+
+func (f *fakeReviewer) Authenticate(_ context.Context, token string) (*auth.Identity, error) {
+	user, ok := f.users[token]
+	if !ok {
+		return nil, auth.ErrInvalidToken
+	}
+	return &auth.Identity{User: user, Token: token}, nil
+}
+
+func (f *fakeReviewer) Allowed(_ context.Context, id *auth.Identity, verb, resource string) (bool, error) {
+	if f.allowErr != nil && verb != auth.ReadVerb {
+		return false, f.allowErr
+	}
+	return f.rights[id.User+" "+verb+" "+resource], nil
+}
 
 // adminServer holds two clusters in the store, one of which still has a join
 // Secret on the hub. Only the other one is purgeable.
@@ -46,26 +85,32 @@ func adminServer(t *testing.T) *Server {
 
 	joined := &corev1.Secret{ObjectMeta: metav1.ObjectMeta{
 		Name: "live", Namespace: hubNS, Labels: map[string]string{"periscope.io/cluster": "true"}}}
-	hub := hubClient(false, joined)
+	reg := cluster.NewRegistryWithClient(hubNS, "periscope.io/cluster", "true", hubClient(false, joined))
+	return &Server{Store: st, Scheduler: &scrape.Scheduler{Registry: reg, Store: st}, Access: newFakeReviewer()}
+}
 
-	reg := cluster.NewRegistryWithClient(hubNS, "periscope.io/cluster", "true", hub)
-	// The hub's own client says no to everything (hubClient(false)); a client
-	// built for the admin token says yes. That is the real split: the pod cannot
-	// create services, an administrator can.
-	reg.AsUser = func(token string) (kubernetes.Interface, error) {
-		return hubClient(token == adminToken, joined), nil
+// guarded serves srv the way the hub does in a cluster: behind the auth guard.
+func guarded(t *testing.T, srv *Server) http.Handler {
+	t.Helper()
+	sealer, err := auth.NewSealer([]byte("a test session secret of some length"))
+	if err != nil {
+		t.Fatal(err)
 	}
-	return &Server{Store: st, Scheduler: &scrape.Scheduler{Registry: reg, Store: st}}
+	if srv.Access == nil {
+		srv.Access = newFakeReviewer()
+	}
+	g := &auth.Guard{Reviewer: srv.Access, Sealer: sealer, Namespace: hubNS}
+	return srv.Wrap(g.Wrap)
 }
 
 func adminRequest(t *testing.T, srv *Server, method, path, body, token string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
 	if token != "" {
-		req.Header.Set("X-Forwarded-Access-Token", token)
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	rec := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(rec, req)
+	guarded(t, srv).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -94,21 +139,23 @@ func TestAdminAPIRefusesAnOrdinaryReader(t *testing.T) {
 	}
 }
 
-// A request with no token at all is the one that arrives when the proxy is not
-// forwarding it, or is not there. In the cluster the hub's own rights answer it,
-// and they do not include creating a Service.
-//
-// The three ways a refusal happens share one status code and need three
-// different fixes, so each must say which it is: a bare 403 sends an operator
-// looking at RBAC when the sidecar is the problem.
+// The ways a request is refused need different fixes, so each must say which
+// it is.
 func TestRefusalSaysWhichFailureItWas(t *testing.T) {
-	t.Run("no token reached the server", func(t *testing.T) {
+	t.Run("no token at all", func(t *testing.T) {
 		rec := adminRequest(t, adminServer(t), http.MethodGet, "/api/admin/clusters", "", "")
-		if rec.Code != http.StatusForbidden {
-			t.Fatalf("status = %d, want 403", rec.Code)
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401", rec.Code)
 		}
-		if !strings.Contains(rec.Body.String(), "pass-access-token") {
-			t.Errorf("body = %q, want it to name the sidecar flag that is missing", rec.Body.String())
+		if rec.Header().Get("WWW-Authenticate") == "" {
+			t.Error("a 401 must say how to authenticate")
+		}
+	})
+
+	t.Run("a token the API server does not accept", func(t *testing.T) {
+		rec := adminRequest(t, adminServer(t), http.MethodGet, "/api/admin/clusters", "", "rubbish")
+		if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "expired, revoked") {
+			t.Fatalf("status = %d (%q), want 401 that names the token", rec.Code, rec.Body.String())
 		}
 	})
 
@@ -118,24 +165,19 @@ func TestRefusalSaysWhichFailureItWas(t *testing.T) {
 			t.Fatalf("status = %d, want 403", rec.Code)
 		}
 		body := rec.Body.String()
-		if !strings.Contains(body, "create on services in namespace "+hubNS) {
-			t.Errorf("body = %q, want it to name the right and the namespace", body)
-		}
-		if strings.Contains(body, "pass-access-token") {
-			t.Errorf("body = %q, must not blame the sidecar when a token did arrive", body)
+		if !strings.Contains(body, "create on services in namespace "+hubNS) || !strings.Contains(body, "reader") {
+			t.Errorf("body = %q, want it to name the right, the namespace and the user", body)
 		}
 	})
 
-	t.Run("the review could not be made", func(t *testing.T) {
+	t.Run("the review failed", func(t *testing.T) {
 		srv := adminServer(t)
-		srv.Scheduler.Registry.AsUser = func(string) (kubernetes.Interface, error) {
-			return nil, errors.New("the API server refused the token")
-		}
+		srv.Access.(*fakeReviewer).allowErr = errors.New("the API server is unreachable")
 		rec := adminRequest(t, srv, http.MethodGet, "/api/admin/clusters", "", adminToken)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("status = %d, want 403", rec.Code)
 		}
-		if !strings.Contains(rec.Body.String(), "the API server refused the token") {
+		if !strings.Contains(rec.Body.String(), "the API server is unreachable") {
 			t.Errorf("body = %q, want it to carry the reason the review failed", rec.Body.String())
 		}
 	})
@@ -248,28 +290,9 @@ func TestPurgeNeedsAClusterName(t *testing.T) {
 // A hub that cannot reach a cluster registry cannot tell an administrator from
 // a reader, so it must not serve the admin API at all.
 func TestAdminAPIWithoutARegistryIsUnavailable(t *testing.T) {
-	srv := &Server{Store: nil, Scheduler: nil}
+	srv := &Server{Store: nil, Scheduler: nil, Access: newFakeReviewer()}
 	rec := adminRequest(t, srv, http.MethodGet, "/api/admin/clusters", "", adminToken)
 	if rec.Code != http.StatusServiceUnavailable {
 		t.Errorf("status = %d, want 503", rec.Code)
-	}
-}
-
-func TestCallerTokenPrefersTheProxyHeader(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/api/admin/clusters", nil)
-	req.Header.Set("Authorization", "Bearer from-the-client")
-	if got := callerToken(req); got != "from-the-client" {
-		t.Errorf("callerToken = %q, want the bearer token", got)
-	}
-	req.Header.Set("X-Forwarded-Access-Token", "from-the-proxy")
-	if got := callerToken(req); got != "from-the-proxy" {
-		t.Errorf("callerToken = %q, want the proxy header to win", got)
-	}
-	// Basic auth is what oauth-proxy puts there by default, and it is not a
-	// token. Reading it as one would send rubbish to the access review.
-	plain := httptest.NewRequest(http.MethodGet, "/api/admin/clusters", nil)
-	plain.Header.Set("Authorization", "Basic dXNlcjpwYXNz")
-	if got := callerToken(plain); got != "" {
-		t.Errorf("callerToken = %q, want empty for a non-bearer header", got)
 	}
 }

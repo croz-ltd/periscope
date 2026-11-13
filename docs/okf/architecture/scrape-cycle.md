@@ -33,7 +33,7 @@ sources:
 
 # Extractors
 
-An extractor reads one part of a cluster and returns matrix rows. Version 1.10.0
+An extractor reads one part of a cluster and returns matrix rows. Version 2.0.0
 runs 18 of them:[^registry]
 
 | Extractor | Reads |

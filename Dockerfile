@@ -34,6 +34,6 @@ RUN CGO_ENABLED=0 go build -trimpath \
 FROM ${RUNTIME_IMAGE}
 COPY --from=build /out/periscope /usr/local/bin/periscope
 VOLUME /data
-EXPOSE 8080
+EXPOSE 8080 8443
 ENTRYPOINT ["/usr/local/bin/periscope"]
 CMD ["serve"]

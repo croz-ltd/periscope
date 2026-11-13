@@ -37,10 +37,17 @@ operator CRDs from returning `forbidden`. The trade-off is deliberate and docume
 [DESIGN.md](DESIGN.md). Substituting a curated least-privilege ClusterRole means
 editing `charts/periscope-join/templates/clusterrolebinding.yaml`.
 
-UI authentication is delegated to an `oauth-proxy` sidecar doing OpenShift SSO plus an
-RBAC access review, so Periscope contains no authentication code of its own. Reading
-the dashboard needs `get` on services in the hub namespace, which is the review the
-proxy makes.
+Every request needs an OpenShift identity. A browser signs in through the OpenShift
+OAuth server and gets a session cookie encrypted with AES-GCM. A script or an MCP
+client sends a bearer token. The hub checks each token with a `TokenReview` and the
+right with a `SubjectAccessReview`: reading needs `get` on services in the hub
+namespace. Answers are reused for one minute at most. A state-changing request that a
+browser marks as cross-site is refused, so the session cookie cannot be used from
+another site.
+
+MCP tokens from `/mcp/token` are OpenShift OAuth tokens of the user, issued by the
+`periscope-mcp` OAuthClient with the scopes `user:info` and `user:check-access` only.
+They cannot act on the API server, and the user can revoke each one.
 
 Three endpoints do more than read. `POST /api/refresh` triggers a scrape.
 `POST /api/clusters` writes a cluster's credential Secret in the hub namespace, and

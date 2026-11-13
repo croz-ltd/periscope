@@ -2,9 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/croz-ltd/periscope/internal/auth"
 	"github.com/croz-ltd/periscope/internal/logging"
 	"github.com/croz-ltd/periscope/internal/store"
 )
@@ -47,29 +49,13 @@ type purgeResponse struct {
 	Refused []refusal      `json:"refused,omitempty"`
 }
 
-// callerToken is the token the request is made with: the one oauth-proxy
-// forwards for a signed-in reader (--pass-access-token), or one a command-line
-// client presented itself. Empty when neither is there, which the access review
-// treats as "ask with the hub's own rights", and in the cluster that is a no.
-func callerToken(r *http.Request) string {
-	if t := strings.TrimSpace(r.Header.Get("X-Forwarded-Access-Token")); t != "" {
-		return t
-	}
-	auth := strings.TrimSpace(r.Header.Get("Authorization"))
-	if rest, found := strings.CutPrefix(auth, "Bearer "); found {
-		return strings.TrimSpace(rest)
-	}
-	return ""
-}
-
 // admitAdmin answers the request itself and returns false when the caller may
 // not use the admin API. The UI reads the status code alone: 403 means do not
 // offer purging to this reader, 503 means this hub cannot offer it at all.
 //
-// An operator needs more than the code. Three unrelated failures all end in 403
-// (no token arrived, the token is not one the API server accepts, the review
-// happened and said no) and they have three different fixes, so each says which
-// it is in the body and in a log line at warn.
+// The caller is the identity the auth guard put on the request. Without one the
+// hub runs with --auth=none (local development), and the question is asked with
+// the hub's own credentials, which off-cluster are the developer's kubeconfig.
 func (s *Server) admitAdmin(w http.ResponseWriter, r *http.Request) bool {
 	log := logging.For("api")
 	if s.Scheduler == nil || s.Scheduler.Registry == nil {
@@ -78,42 +64,45 @@ func (s *Server) admitAdmin(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 	reg := s.Scheduler.Registry
-	token := callerToken(r)
-	user := firstNonEmpty(
-		r.Header.Get("X-Forwarded-Preferred-Username"),
-		r.Header.Get("X-Forwarded-User"),
-		r.Header.Get("X-Forwarded-Email"),
-	)
+	id := auth.FromContext(r.Context())
 
-	ok, err := reg.CanAdminister(r.Context(), token)
+	var ok bool
+	var err error
+	switch {
+	case id != nil && s.Access != nil:
+		ok, err = s.Access.Allowed(r.Context(), id, "create", "services")
+	case id == nil && s.Access == nil:
+		ok, err = reg.CanAdminister(r.Context(), "")
+	default:
+		// An identity without a reviewer, or the reverse, is a wiring fault.
+		// Refuse rather than guess.
+		err = errors.New("the server is not wired for access checks")
+	}
+	user := userOf(r)
 	if ok {
 		log.Debug("admin request allowed", "path", r.URL.Path, "user", user)
 		return true
 	}
-
-	switch {
-	case token == "":
-		// The common one, and the only one that is not about the caller at all:
-		// the sidecar is not forwarding the token, so the review was answered
-		// with this pod's own rights instead of the reader's.
-		log.Warn("refused an admin request that carried no token",
-			"path", r.URL.Path, "user", user, "signedIn", user != "")
-		http.Error(w, "no token reached this server, so it cannot tell who is asking. "+
-			"Its oauth-proxy sidecar needs --pass-access-token and --pass-user-bearer-token: "+
-			"re-apply the periscope chart. Reaching this server directly, past the proxy, "+
-			"lands here too.", http.StatusForbidden)
-	case err != nil:
-		log.Warn("refused an admin request: the access review could not be made",
+	if err != nil {
+		log.Warn("refused an admin request: the access review failed",
 			"path", r.URL.Path, "user", user, "error", err)
-		http.Error(w, "the access review for this token could not be made, so the request "+
-			"is refused: "+err.Error(), http.StatusForbidden)
-	default:
-		log.Warn("refused an admin request: the access review said no",
-			"path", r.URL.Path, "user", user, "namespace", reg.Namespace)
-		http.Error(w, "the admin API needs create on services in namespace "+reg.Namespace+
-			", and the review for this token came back denied", http.StatusForbidden)
+		http.Error(w, "the access review failed, so the request is refused: "+err.Error(),
+			http.StatusForbidden)
+		return false
 	}
+	log.Warn("refused an admin request: the access review said no",
+		"path", r.URL.Path, "user", user, "namespace", reg.Namespace)
+	http.Error(w, "the admin API needs create on services in namespace "+reg.Namespace+
+		", and the review for "+user+" came back denied", http.StatusForbidden)
 	return false
+}
+
+// userOf names the caller for logs and the UI, empty without authentication.
+func userOf(r *http.Request) string {
+	if id := auth.FromContext(r.Context()); id != nil {
+		return id.User
+	}
+	return ""
 }
 
 // handleAdminClusters serves what the database holds per cluster, and whether
@@ -202,7 +191,7 @@ func (s *Server) handleAdminPurge(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			log.Info("purged a cluster no longer joined", "cluster", name,
-				"user", firstNonEmpty(r.Header.Get("X-Forwarded-Preferred-Username"), r.Header.Get("X-Forwarded-User")),
+				"user", userOf(r),
 				"snapshots", purged.Snapshots, "changes", purged.Changes)
 			resp.Purged = append(resp.Purged, purged)
 		}

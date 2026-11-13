@@ -72,19 +72,25 @@ as "behind". Partial-rollout drift stays visible.
 
 ## Access & security (resolved)
 
-- **UI auth:** oauth-proxy sidecar → OpenShift SSO + RBAC check (`get` on services in
-  the hub namespace). No custom auth code for reading.
-- **Proxy checks are per session, not per path:** `--openshift-sar` gates a signed-in
-  browser session; `--openshift-delegate-urls` is consulted only for bearer-token
-  requests, and the proxy builds no token authenticator at all without it, refusing
-  every token. The chart sets both to the same read check (`get` services).
-- **Admin API (`/api/admin`):** neither proxy flag can gate one endpoint harder than
-  the rest for a browser. The proxy forwards the reader's token
-  (`--pass-access-token`) and the app answers its own SubjectAccessReview for `create`
-  on services in the hub namespace, per request. No token means the pod's own rights
-  answer, and those do not include it, so going round the proxy does not go round the
-  check. Purging is further limited to clusters whose join Secret is already gone: the
-  configuration owns what exists, and the admin API only clears up after it.
+- **Auth in the hub (2.0, replaced the oauth-proxy sidecar):** `internal/auth` signs
+  browsers in through the OpenShift OAuth server (authorization code with PKCE; the hub
+  ServiceAccount is the OAuth client) and keeps an AES-GCM encrypted session cookie.
+  Every request, cookie or bearer token, goes the same way: `TokenReview` for the user,
+  then `SubjectAccessReview` for `get` on services in the hub namespace. Both are
+  cached for one minute. The proxy checked a browser session once per session and a
+  token per request, with two different flags. One path for both removes that split.
+- **Why the scopes are left out of the access review:** Periscope asks only for
+  `user:info user:check-access`, so its tokens cannot act on the API server. The
+  review asks whether the person can read the dashboard, so it is made for the user
+  and groups of the token, without the scopes.
+- **MCP tokens:** a separate cluster-scoped `OAuthClient` (`periscope-mcp`) with its
+  own token lifetime and a scope restriction to the two scopes above. Each token
+  belongs to one user and can be revoked alone. A shared ServiceAccount token was
+  rejected because the audit log then shows the ServiceAccount, not the person.
+- **Admin API (`/api/admin`):** the same review, for `create` on services in the hub
+  namespace, on every request. Purging is further limited to clusters whose join
+  Secret is already gone: the configuration owns what exists, and the admin API only
+  clears up after it.
 - **Remote creds:** per-cluster read-only ServiceAccount tokens, stored as labeled
   Secrets on the hub. Least-privilege, revocable per cluster.
 - **Reader RBAC mode (default `clusterReader`):** the read SA on each cluster binds to
@@ -97,7 +103,8 @@ as "behind". Partial-rollout drift stays visible.
   means editing `charts/periscope-join/templates/clusterrolebinding.yaml` and accepting
   that each new extractor can then need an RBAC change.
 - **Hub RBAC:** namespaced Role to list/watch labeled Secrets; the same reader mode for
-  self-scraping the local cluster; `system:auth-delegator` binding for oauth-proxy.
+  self-scraping the local cluster; `system:auth-delegator` binding for the token and
+  access reviews.
 - **Vendor CRDs covered:** Portworx `core.libopenstorage.org/v1 storageclusters`;
   Dell CSM `storage.dell.com/v1 containerstoragemodules`. Field paths are overridable
   via config (see `config/extractors.yaml`) since they vary by vendor version.
@@ -120,9 +127,10 @@ behind is cleared deliberately, through the admin API, and never by the scrape.
   - REST JSON API (the UI backend; also script-consumable)
   - CSV / JSON export of the current matrix
   - Prometheus `/metrics` (version info + drift gap gauges for alerting)
+  - MCP server on `/mcp` for AI assistants (2.0)
   - `report` CLI subcommand (prints the matrix to terminal/CI, no web UI)
 - **Packaging: two Helm charts.**
-  - *hub* chart: Deployment, oauth-proxy sidecar, SA + RBAC, PVC, Route, documents the
+  - *hub* chart: Deployment, SA + RBAC, PVC, Route, the `periscope-mcp` OAuthClient, documents the
     labeled-Secret join convention.
   - *joinee* chart: creates the read-only SA + token on a cluster to be joined and
     emits the labeled Secret to install on the hub.

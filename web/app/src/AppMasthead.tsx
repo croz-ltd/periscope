@@ -162,7 +162,15 @@ export function AppMasthead({ isSidebarOpen, onSidebarToggle, onAbout }: Props) 
       )}
     >
       <DropdownList>
-        <DropdownItem key="logout" component="a" href="/oauth/sign_out?rd=/">
+        <DropdownItem
+          key="mcp-token"
+          component="a"
+          href="/mcp/token"
+          description="A token for an AI assistant to read Periscope over MCP"
+        >
+          MCP access token
+        </DropdownItem>
+        <DropdownItem key="logout" component="a" href="/oauth/sign_out">
           Log out
         </DropdownItem>
       </DropdownList>

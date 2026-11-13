@@ -4,7 +4,7 @@ title: REST API
 description: The HTTP endpoints of the Periscope hub, for the UI, for scripts and for integrations.
 tags: [api, rest, export, integration]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-13T11:30:00Z }
 sources:
   - id: readme
     resource: https://github.com/croz-ltd/periscope/blob/master/README.md#api-and-metrics
@@ -13,15 +13,17 @@ sources:
 
 # Access
 
-The API sits behind the `oauth-proxy` sidecar, like the UI. From a script,
-send an OpenShift token:
+Every endpoint except `/healthz` needs a login. From a script, send an
+OpenShift token:
 
 ```bash
 curl -sS -H "Authorization: Bearer $(oc whoami -t)" "https://<hub-route>/api/matrix"
 ```
 
-The reader needs `get` on services in the hub namespace. `/api/admin` needs
-`create` on services. See [Access and security](../architecture/security.md).
+The reader needs `get` on services in the hub namespace. Without a valid token
+the answer is `401` with a `WWW-Authenticate` header, without the right it is
+`403`. `/api/admin` needs `create` on services. See
+[Access and security](../architecture/security.md).
 
 # Schema
 
@@ -42,7 +44,10 @@ The reader needs `get` on services in the hub namespace. `/api/admin` needs
 | `POST /api/admin/purge` | Delete the history of `{clusters: [...]}`. Refuses clusters that are still joined. |
 | `GET /yaml/new-cluster?name=<cluster>` | The join manifests for one cluster, for `oc apply -f` |
 | `GET /metrics` | Prometheus metrics. See [Prometheus metrics](metrics.md). |
-| `GET /healthz` | Liveness |
+| `POST /mcp` | The MCP server. See [MCP server](mcp.md). |
+| `GET /mcp/token` | In a browser: issue an MCP token for the signed-in user |
+| `GET /oauth/start`, `/oauth/callback`, `/oauth/sign_out` | The browser login and sign-out |
+| `GET /healthz` | Liveness. The only path with no login. |
 
 # Rules for `POST /api/clusters`
 

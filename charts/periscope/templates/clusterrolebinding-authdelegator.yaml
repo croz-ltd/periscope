@@ -1,4 +1,5 @@
-# oauth-proxy validates tokens via TokenReview/SubjectAccessReview (system:auth-delegator).
+# The hub checks every request with a TokenReview (who is it) and a
+# SubjectAccessReview (may they read), which system:auth-delegator allows.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:

@@ -4,7 +4,7 @@ title: Troubleshooting
 description: Symptoms, causes and fixes for stale clusters, empty cells, a missing Purge action and other common faults.
 tags: [troubleshooting, oncall, logs, operations]
 status: stable
-generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
+generated: { by: claude-code/claude-opus-5-5, at: 2026-11-13T11:30:00Z }
 sources:
   - id: readme
     resource: https://github.com/croz-ltd/periscope/blob/master/README.md
@@ -14,7 +14,7 @@ sources:
 # First look
 
 ```bash
-oc -n periscope logs deploy/periscope -c periscope
+oc -n periscope logs deploy/periscope
 ```
 
 At `info`, a healthy hub writes one line per scrape cycle and one line per
@@ -65,16 +65,27 @@ curl -sS -H "Authorization: Bearer $(oc whoami -t)" "https://<hub-route>/api/adm
 | Answer | Meaning | Fix |
 |---|---|---|
 | `200` | The action is in the menu | Nothing. An empty list is not a missing action. |
-| `403` from the browser | No `create` on services in the hub namespace | `oc -n periscope policy add-role-to-user admin <user>` |
-| `403` from `curl` | The proxy refuses bearer tokens | Apply `charts/periscope` again. Older charts lack `--openshift-delegate-urls`. |
-| `503` | The hub cannot check access | Check the hub API server and the auth-delegator binding |
+| `401` | The token is expired, revoked or missing | Get a new one with `oc whoami -t` |
+| `403` that names `create on services` | No `create` on services in the hub namespace | `oc -n periscope policy add-role-to-user admin <user>` |
+| `403` that says the access review failed | The hub cannot ask the API server | Check the hub API server and the auth-delegator binding |
+| `503` | The hub has no cluster registry | Check the hub logs at startup |
 
-The body of a `403` says which of three causes it is: no token, a token that
-could not be reviewed, or access denied. The logs have the same line:
+The body says which cause it is. The logs have the same line:
 
 ```bash
-oc -n periscope logs deploy/periscope -c periscope | grep 'refused an admin request'
+oc -n periscope logs deploy/periscope | grep 'refused an admin request'
 ```
+
+# Sign-in fails
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `502` with `cannot read the OAuth server metadata` | The hub cannot reach its own API server | Check the pod network and the `system:auth-delegator` binding |
+| `502` with `cannot finish the login` and a TLS error | The hub does not trust the certificate of the `oauth-openshift` route | Pass the CA with `--oauth-ca-file` |
+| The OpenShift login says the redirect URI is not valid | The route name or host changed | The ServiceAccount annotation points at the Route `periscope`. Keep that name. |
+| `No access` page after the login | The user has no `get` on services in the hub namespace | `oc -n periscope policy add-role-to-user view <user>` |
+| `/mcp/token` explains `oc whoami -t` instead of issuing a token | The chart did not know the host, so it made no `periscope-mcp` OAuthClient | Set `host` in the chart values and apply again |
+| An MCP client gets `401` | The MCP token expired or was revoked | Open `/mcp/token` for a new one |
 
 # The Changes page is quiet during an outage
 

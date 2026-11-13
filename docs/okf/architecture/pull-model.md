@@ -32,11 +32,11 @@ labeled Secrets ───►│   scheduler ──► SQLite (PVC)      │─�
 | Part | Role |
 |---|---|
 | Hub cluster | Runs the Periscope pod. Any OpenShift cluster that reaches the API servers of the fleet. |
-| Periscope pod | The `periscope` container plus an `oauth-proxy` sidecar for sign-in. |
+| Periscope pod | One `periscope` container. It also serves TLS and the OpenShift login. |
 | Labeled Secrets | One Secret per joined cluster, in the hub namespace. They are the cluster registry. See [The cluster Secret](../configuration/cluster-secret.md). |
 | Scheduler | Reads all clusters on an interval, in parallel, with a deadline per cluster. See [The scrape cycle](scrape-cycle.md). |
 | SQLite on a PVC | Holds every snapshot. It survives pod restarts and needs no external database. |
-| Read surfaces | The web UI, the REST API, CSV and JSON export, Prometheus metrics and the `report` command. |
+| Read surfaces | The web UI, the REST API, CSV and JSON export, Prometheus metrics, the MCP server and the `report` command. |
 
 # Decisions
 

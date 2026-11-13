@@ -69,13 +69,14 @@ internal/
   cluster/                discover clusters from labeled Secrets
   scrape/                 periodic parallel scrape scheduler
   store/                  SQLite persistence (history + recorded change feed)
-  api/                    REST + CSV/JSON export + /metrics
+  api/                    REST + CSV/JSON export + /metrics + MCP server (mcp.go)
+  auth/                   OpenShift login, session cookie, token + access reviews
   report/                 text-table report for the CLI
   config/                 optional extractor configuration
 web/                      go:embed'd UI, PatternFly app in web/app, built to web/dist
   app/mock/               synthetic fleet + dev-server middleware (npm run dev:mock)
 charts/
-  periscope/              hub chart (Deployment, oauth-proxy, RBAC, PVC, Route)
+  periscope/              hub chart (Deployment, RBAC, PVC, Route, MCP OAuthClient)
   periscope-join/         per-cluster read-only SA + token + RBAC
 tekton/                   example on-cluster build (OpenShift Pipelines)
 examples/                 custom grouping ConfigMap

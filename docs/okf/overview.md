@@ -5,7 +5,7 @@ description: A single Go binary that shows version and configuration drift acros
 resource: https://github.com/croz-ltd/periscope
 tags: [openshift, fleet, drift, inventory, overview]
 status: stable
-app_version: "1.10.1"
+app_version: "2.0.0"
 license: Apache-2.0
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
 sources:
@@ -58,6 +58,10 @@ The full list of rows is in [Component keys](reference/components.md).
   charts and as a timeline.
 
 The pages are described in [UI views](reference/views.md).
+
+The same data is open to scripts through the [REST API](reference/api.md) and to
+AI assistants through the [MCP server](reference/mcp.md). Both use the OpenShift
+login and the same access rule as the UI.
 
 # What it does not do
 

@@ -15,6 +15,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/croz-ltd/periscope/internal/auth"
 	"github.com/croz-ltd/periscope/internal/drift"
 	"github.com/croz-ltd/periscope/internal/logging"
 	"github.com/croz-ltd/periscope/internal/provision"
@@ -37,9 +38,18 @@ type Server struct {
 	// Provision builds the client used to prepare a cluster being joined. Nil means
 	// the real one; a test supplies a fake cluster.
 	Provision provision.ClientFactory
+	// Access answers the admin check for the signed-in caller. Nil when the hub
+	// runs without authentication (--auth=none).
+	Access auth.Reviewer
 }
 
+// Handler serves every route with no authentication in front, for local
+// development (--auth=none) and for tests. The hub in a cluster uses Wrap.
 func (s *Server) Handler() http.Handler {
+	return s.Wrap(func(h http.Handler) http.Handler { return h })
+}
+
+func (s *Server) mux() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/matrix", s.handleMatrix)
 	mux.HandleFunc("/api/changes", s.handleChanges)
@@ -57,9 +67,21 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/version", s.handleVersion)
 	mux.HandleFunc("/yaml/new-cluster", s.handleJoinYAML)
 	mux.HandleFunc("/metrics", s.handleMetrics)
+	mux.Handle("/mcp", s.mcpHandler())
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("ok")) })
 	mux.Handle("/", web.Handler())
-	return logRequests(mux)
+	return mux
+}
+
+// Wrap puts the routes behind a guard. The request log sits outside it, so a
+// refused request is logged too.
+//
+// A browser session is a cookie, so a page on another site can make the
+// browser send a POST with it. Cross-origin protection refuses a state changing
+// request that a browser marks as cross-site. Scripts and MCP clients send no
+// such marks and pass.
+func (s *Server) Wrap(guard func(http.Handler) http.Handler) http.Handler {
+	return logRequests(http.NewCrossOriginProtection().Handler(guard(s.mux())))
 }
 
 // logRequests records every request once it has finished. Served pages are
@@ -288,18 +310,12 @@ func parseTimeParam(raw string) time.Time {
 	return t
 }
 
-// handleUser returns the signed-in user, taken from the headers oauth-proxy
-// forwards (--pass-user-headers). Empty when running without the proxy (dev).
+// handleUser returns the signed-in user. Empty when the hub runs without
+// authentication (local development), which the UI reads as "no user menu".
+// OpenShift users carry no e-mail address in the token review, so email stays
+// empty. The field is kept for the UI.
 func (s *Server) handleUser(w http.ResponseWriter, r *http.Request) {
-	name := firstNonEmpty(
-		r.Header.Get("X-Forwarded-Preferred-Username"),
-		r.Header.Get("X-Forwarded-User"),
-		r.Header.Get("X-Forwarded-Email"),
-	)
-	writeJSON(w, map[string]string{
-		"user":  name,
-		"email": r.Header.Get("X-Forwarded-Email"),
-	})
+	writeJSON(w, map[string]string{"user": userOf(r), "email": ""})
 }
 
 // handleVersion reports the version stamped into the binary at build time. The

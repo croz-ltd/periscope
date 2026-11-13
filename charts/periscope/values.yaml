@@ -9,6 +9,16 @@ logLevel: info
 # Log output format: json for the cluster's log collector, text to read by eye.
 logFormat: json
 
+# Host name of the route. Leave it empty for the OpenShift default,
+# periscope-periscope.<apps domain>, which the chart reads from the cluster.
+# Set it when rendering with `helm template` (Argo CD), which cannot read the
+# cluster: without a host the chart creates no OAuth client for MCP tokens.
+host: ""
+
+# How long an MCP token from /mcp/token stays valid. The user can revoke it
+# earlier with `oc delete useroauthaccesstoken <name>`.
+mcpTokenDays: 30
+
 # Serve /yaml/new-cluster without a login, so a cluster can be onboarded with
 # `oc apply -f https://<route>/yaml/new-cluster?name=<cluster>` directly. The
 # document creates a read-only ServiceAccount and RBAC and carries no credential,

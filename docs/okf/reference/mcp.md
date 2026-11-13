@@ -4,7 +4,7 @@ title: MCP server
 description: The MCP tools an AI assistant uses to read the Periscope fleet, how a user gets a token, and how to connect a client.
 tags: [mcp, ai, api, tokens]
 status: stable
-app_version: "2.0.1"
+app_version: "2.0.2"
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-13T11:30:00Z }
 sources:
   - id: readme
@@ -47,9 +47,14 @@ sources:
 # Get a token
 
 1. Open the hub in a browser and sign in.
-2. Open the user menu, **MCP access token** (`/mcp/token`).
-3. The page shows a token of your own user and the command to add it to a
-   client. Copy it, because the page does not show it again.
+2. Open **Docs, MCP** and click **Get an MCP token**, or open the user menu,
+   **MCP access token** (`/mcp/token`).
+3. The browser comes back to **Docs, MCP**. The page shows the token once and
+   fills it into every example. Copy it, because a reload does not show it
+   again.
+
+The token reaches the page in an encrypted cookie that only `/api/mcp/issued`
+reads, once. It is never in a URL.
 
 The token is an OpenShift OAuth token from the `periscope-mcp` OAuthClient:
 
@@ -62,30 +67,33 @@ The token is an OpenShift OAuth token from the `periscope-mcp` OAuthClient:
   name.
 
 Without the OAuthClient (the chart did not know the route host), the page
-explains how to use `oc whoami -t` instead. That works, but it expires with the
-OpenShift login, often after 24 hours.
+explains how to use `$(oc whoami -t)` instead. That works, but it expires with
+the OpenShift login, often after 24 hours.
 
 # Connect a client
 
+Put the token in the environment first. Most clients read it from there, so
+their configuration holds no secret:
+
 ```bash
-# Claude Code
-claude mcp add --transport http periscope https://<hub-route>/mcp \
-  --header "Authorization: Bearer <token>"
+export PERISCOPE_TOKEN='<token>'
 ```
 
-Other clients take the same URL and header in their config:
+**Docs, MCP** has a tab per client, each with a command and a config file,
+filled in with the URL of the hub:
 
-```json
-{
-  "mcpServers": {
-    "periscope": {
-      "type": "http",
-      "url": "https://<hub-route>/mcp",
-      "headers": { "Authorization": "Bearer <token>" }
-    }
-  }
-}
-```
+| Client | Command | Config file |
+|---|---|---|
+| Claude Code | `claude mcp add --transport http --scope user periscope https://<hub-route>/mcp --header "Authorization: Bearer $PERISCOPE_TOKEN"` | `.mcp.json` or `~/.claude.json`: `"headers": {"Authorization": "Bearer ${PERISCOPE_TOKEN}"}` |
+| Codex CLI | `codex mcp add periscope --url https://<hub-route>/mcp --bearer-token-env-var PERISCOPE_TOKEN` | `~/.codex/config.toml`: `[mcp_servers.periscope]` with `url` and `bearer_token_env_var = "PERISCOPE_TOKEN"` |
+| Copilot CLI | `copilot mcp add --transport http periscope https://<hub-route>/mcp --header "Authorization: Bearer $PERISCOPE_TOKEN"` | `~/.copilot/mcp-config.json`: `"type": "http"`, `url`, `headers` with the token itself |
+| Gemini CLI | `gemini mcp add --scope user --transport http --header "Authorization: Bearer $PERISCOPE_TOKEN" periscope https://<hub-route>/mcp` | `~/.gemini/settings.json`: `httpUrl` and `"headers": {"Authorization": "Bearer $PERISCOPE_TOKEN"}` |
+| VS Code | `code --add-mcp "{\"name\":\"periscope\",\"type\":\"http\",\"url\":\"https://<hub-route>/mcp\",\"headers\":{\"Authorization\":\"Bearer $PERISCOPE_TOKEN\"}}"` | `.vscode/mcp.json`: `servers.periscope` with `"type": "http"` and an `inputs` password prompt for the token |
+
+* Claude Code, Codex CLI and Gemini CLI read `PERISCOPE_TOKEN` when they start.
+  Their config files can be committed.
+* VS Code asks for the token once and keeps it in its secret storage.
+* The Copilot CLI config file holds the token itself. Keep it private.
 
 # Examples
 

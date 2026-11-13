@@ -256,6 +256,11 @@ export interface HubInfo {
   // Whether this hub can join a cluster itself. False means it only serves the
   // manifests for an operator to apply, so the UI offers that mode alone.
   canJoinClusters: boolean
+  // How a client authenticates: 'openshift' needs a bearer token, 'none' is a
+  // hub in local development with the login off.
+  auth: 'openshift' | 'none'
+  // Whether this hub issues MCP tokens on /mcp/token.
+  mcpTokens: boolean
 }
 
 // The defaults match the charts, and they are what an older server or a UI served
@@ -265,6 +270,8 @@ const HUB_DEFAULTS: HubInfo = {
   namespace: 'periscope',
   clusterLabel: 'periscope.io/cluster=true',
   canJoinClusters: false,
+  auth: 'openshift',
+  mcpTokens: false,
 }
 
 // fetchHubInfo never throws. Every field has a usable default, and a Docs page
@@ -279,6 +286,8 @@ export async function fetchHubInfo(): Promise<HubInfo> {
       namespace: body.namespace || HUB_DEFAULTS.namespace,
       clusterLabel: body.clusterLabel || HUB_DEFAULTS.clusterLabel,
       canJoinClusters: body.canJoinClusters === true,
+      auth: body.auth === 'none' ? 'none' : 'openshift',
+      mcpTokens: body.mcpTokens === true,
     }
   } catch {
     return HUB_DEFAULTS
@@ -399,4 +408,24 @@ export async function purgeClusters(names: string[]): Promise<PurgeResult> {
     throw new Error((await res.text()).trim() || `POST /api/admin/purge failed: ${res.status}`)
   }
   return (await res.json()) as PurgeResult
+}
+
+// IssuedToken is a new MCP token, handed to the UI once after /mcp/token.
+export interface IssuedToken {
+  token: string
+  user: string
+  expires: string
+  name?: string // the UserOAuthAccessToken, for oc delete
+}
+
+// fetchIssuedToken returns the token from the last MCP login, or null. The hub
+// hands it over once, so a reload shows the page without it.
+export async function fetchIssuedToken(): Promise<IssuedToken | null> {
+  try {
+    const res = await apiFetch('/api/mcp/issued', { headers: { Accept: 'application/json' } })
+    if (res.status !== 200) return null
+    return (await res.json()) as IssuedToken
+  } catch {
+    return null
+  }
 }

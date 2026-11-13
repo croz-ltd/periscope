@@ -118,6 +118,21 @@ export function mockApi(): Plugin {
               namespace: 'periscope',
               clusterLabel: 'periscope.io/cluster=true',
               canJoinClusters: true,
+              auth: 'openshift',
+              mcpTokens: true,
+            })
+          case '/mcp/issued':
+            // The token flow needs an OpenShift login, so the mock never has a
+            // fresh token to hand over. Set MOCK_ISSUED_TOKEN to see that state.
+            if (!process.env.MOCK_ISSUED_TOKEN) {
+              res.statusCode = 204
+              return res.end()
+            }
+            return json({
+              token: process.env.MOCK_ISSUED_TOKEN,
+              user: mockUser.user,
+              expires: new Date(Date.now() + 30 * 864e5).toISOString(),
+              name: 'sha256~mock-token-object-name',
             })
           default:
             return json({ error: `no mock for ${url.pathname}` }, 404)

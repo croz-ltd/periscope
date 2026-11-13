@@ -255,24 +255,36 @@ for one minute, so a revoked token or a removed role stops working within a minu
 Every read tool takes `at` (RFC3339) to answer about the past. `fleet_totals` does the
 arithmetic on the hub, so "how many vCPUs does the fleet have" comes back exact.
 
-To connect a client, open **Docs, MCP** in the UI, or **user menu, MCP access token**
-(`https://<hub-route>/mcp/token`) in the browser. It issues an OpenShift OAuth token of your own user and shows the
-command to add it:
+To connect a client, open **Docs, MCP** in the UI and click **Get an MCP token** (or
+**user menu, MCP access token**). It issues an OpenShift OAuth token of your own user
+and brings you back to the same page, which shows the token once and fills it into the
+examples. Put it in the environment, because most clients read it from there and their
+configuration then holds no secret:
 
 ```bash
-claude mcp add --transport http periscope https://<hub-route>/mcp \
-  --header "Authorization: Bearer <token>"
+export PERISCOPE_TOKEN='<token>'
 ```
+
+The page has a tab per client, each with a command and a config file. In short:
+
+| Client | Command | Config file |
+|---|---|---|
+| Claude Code | `claude mcp add --transport http --scope user periscope https://<hub-route>/mcp --header "Authorization: Bearer $PERISCOPE_TOKEN"` | `.mcp.json` or `~/.claude.json`: `"headers": {"Authorization": "Bearer ${PERISCOPE_TOKEN}"}` |
+| Codex CLI | `codex mcp add periscope --url https://<hub-route>/mcp --bearer-token-env-var PERISCOPE_TOKEN` | `~/.codex/config.toml`: `[mcp_servers.periscope]` with `url` and `bearer_token_env_var = "PERISCOPE_TOKEN"` |
+| Copilot CLI | `copilot mcp add --transport http periscope https://<hub-route>/mcp --header "Authorization: Bearer $PERISCOPE_TOKEN"` | `~/.copilot/mcp-config.json`: `"type": "http"`, `url`, `headers` with the token itself |
+| Gemini CLI | `gemini mcp add --scope user --transport http --header "Authorization: Bearer $PERISCOPE_TOKEN" periscope https://<hub-route>/mcp` | `~/.gemini/settings.json`: `httpUrl` and `"headers": {"Authorization": "Bearer $PERISCOPE_TOKEN"}` |
+| VS Code | `code --add-mcp "{\"name\":\"periscope\",\"type\":\"http\",\"url\":\"https://<hub-route>/mcp\",\"headers\":{\"Authorization\":\"Bearer $PERISCOPE_TOKEN\"}}"` | `.vscode/mcp.json`: `servers.periscope` with `"type": "http"` and an `inputs` password prompt for the token |
 
 The token is valid for `mcpTokenDays` (30 days by default). Its scopes are `user:info`
 and `user:check-access`, so it is of no use against the API server. Periscope checks
 your own rights on every call, and the token stops working when you lose them. The page
-also shows how to revoke it: `oc delete useroauthaccesstoken <name>`.
+also shows how to revoke it: `oc delete useroauthaccesstoken <name>`. The token reaches
+the page in an encrypted cookie that only `/api/mcp/issued` reads, once, never in a URL.
 
 The page needs the `periscope-mcp` OAuthClient, which needs the route host for its
 redirect. The chart reads the cluster apps domain at install. When it cannot (`helm
 template`, Argo CD), set `--set host=<hub-route-host>`. Without it, the page explains how
-to use `oc whoami -t` instead, which works but expires with your login.
+to use `$(oc whoami -t)` as the token instead, which works but expires with your login.
 
 ### Migrating from 1.x to 2.x
 
@@ -657,7 +669,8 @@ Flags common to `serve` and `report`:
 | `GET /yaml/new-cluster?name=<cluster>` | the join manifests for one cluster, ready for `oc apply -f` |
 | `GET /metrics` | Prometheus text exposition |
 | `POST /mcp` | the MCP server, see [MCP](#use-periscope-from-an-ai-assistant-mcp) |
-| `GET /mcp/token` | in a browser: issue an MCP token for the signed-in user |
+| `GET /mcp/token` | in a browser: issue an MCP token for the signed-in user, then open **Docs, MCP** |
+| `GET /api/mcp/issued` | the token from the last `/mcp/token`, once, for the UI |
 | `GET /oauth/start`, `/oauth/callback`, `/oauth/sign_out` | the browser login and sign-out |
 | `GET /healthz` | liveness, the only path with no login |
 

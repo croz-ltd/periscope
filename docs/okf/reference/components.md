@@ -1,10 +1,10 @@
 ---
 type: Reference
 title: Component keys
-description: Every matrix row Periscope 2.0.1 produces, with its key, group, page and source on the cluster.
+description: Every matrix row Periscope 2.0.2 produces, with its key, group, page and source on the cluster.
 tags: [components, keys, extractors, matrix]
 status: stable
-app_version: "2.0.1"
+app_version: "2.0.2"
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
 sources:
   - id: extract

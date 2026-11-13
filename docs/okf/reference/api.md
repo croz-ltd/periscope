@@ -45,7 +45,8 @@ the answer is `401` with a `WWW-Authenticate` header, without the right it is
 | `GET /yaml/new-cluster?name=<cluster>` | The join manifests for one cluster, for `oc apply -f` |
 | `GET /metrics` | Prometheus metrics. See [Prometheus metrics](metrics.md). |
 | `POST /mcp` | The MCP server. See [MCP server](mcp.md). |
-| `GET /mcp/token` | In a browser: issue an MCP token for the signed-in user |
+| `GET /mcp/token` | In a browser: issue an MCP token for the signed-in user, then open **Docs, MCP** |
+| `GET /api/mcp/issued` | The token from the last `/mcp/token`, once, for the UI. `204` when there is none. |
 | `GET /oauth/start`, `/oauth/callback`, `/oauth/sign_out` | The browser login and sign-out |
 | `GET /healthz` | Liveness. The only path with no login. |
 

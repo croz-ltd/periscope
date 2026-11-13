@@ -25,6 +25,10 @@ const (
 	PathSignOut     = "/oauth/sign_out"
 	PathMCPToken    = "/mcp/token"
 	PathMCPCallback = "/mcp/token/callback"
+	// PathMCPIssued hands a new MCP token to the UI, once.
+	PathMCPIssued = "/api/mcp/issued"
+	// mcpDocsPage is the UI page that shows a new token and how to use it.
+	mcpDocsPage = "/#/docs/mcp"
 )
 
 // OAuthClient is one client registered with the OpenShift OAuth server.
@@ -135,13 +139,17 @@ func (g *Guard) Wrap(next http.Handler) http.Handler {
 				return
 			}
 			if g.MCP == nil {
-				writePage(w, http.StatusOK, noMCPClientPage, tokenPageData(r, id, "", time.Time{}))
+				// The MCP page explains the oc whoami -t way instead.
+				http.Redirect(w, r, mcpDocsPage, http.StatusFound)
 				return
 			}
 			g.startFlow(w, r, "mcp", g.MCP, "")
 			return
 		case PathMCPCallback:
 			g.callback(w, r, id)
+			return
+		case PathMCPIssued:
+			g.issued(w, r, id)
 			return
 		}
 		next.ServeHTTP(w, r)
@@ -353,8 +361,18 @@ func (g *Guard) callback(w http.ResponseWriter, r *http.Request, signedIn *Ident
 			return
 		}
 		log.Info("issued an MCP token", "user", id.User, "expires", expires.UTC().Format(time.RFC3339))
-		w.Header().Set("Cache-Control", "no-store")
-		writePage(w, http.StatusOK, tokenPage, tokenPageData(r, id, tok.AccessToken, expires))
+		// The UI shows the token. It reaches the UI in an encrypted cookie that
+		// only PathMCPIssued reads, once, and never in a URL, where it would
+		// stay in the browser history and in access logs.
+		err := g.Sealer.writeIssued(w, r, issuedToken{
+			Token: tok.AccessToken, User: id.User, Expires: expires,
+			Until: g.now().Add(issuedTTL),
+		})
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		http.Redirect(w, r, mcpDocsPage, http.StatusFound)
 		return
 	}
 
@@ -429,4 +447,30 @@ func (g *Guard) exchange(ctx context.Context, client *OAuthClient, code, redirec
 		return nil, fmt.Errorf("token endpoint answered %d: %s %s", res.StatusCode, tok.Error, tok.Description)
 	}
 	return &tok, nil
+}
+
+// IssuedToken is what the UI gets from PathMCPIssued.
+type IssuedToken struct {
+	Token   string    `json:"token"`
+	User    string    `json:"user"`
+	Expires time.Time `json:"expires"`
+	// Name is the UserOAuthAccessToken that stores the token, for oc delete.
+	Name string `json:"name,omitempty"`
+}
+
+// issued hands the token from the last MCP login to the UI and forgets it.
+// The answer is 204 when there is none, which is the normal case for a reader
+// who opens the MCP page without asking for a token.
+func (g *Guard) issued(w http.ResponseWriter, r *http.Request, id *Identity) {
+	w.Header().Set("Cache-Control", "no-store")
+	t, ok := g.Sealer.readIssued(r, g.now())
+	clearIssued(w, r)
+	if !ok || t.User != id.User {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(IssuedToken{
+		Token: t.Token, User: t.User, Expires: t.Expires, Name: tokenObjectName(t.Token),
+	})
 }

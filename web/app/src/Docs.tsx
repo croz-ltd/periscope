@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Table, Thead, Tbody, Tr, Th, Td } from '@patternfly/react-table'
 import {
+  Alert,
   Button,
   ClipboardCopy,
   Content,
@@ -10,14 +11,20 @@ import {
   FormSelect,
   FormSelectOption,
   SearchInput,
+  Tab,
+  Tabs,
+  TabTitleText,
   Title,
+  ToggleGroup,
+  ToggleGroupItem,
   Toolbar,
   ToolbarContent,
   ToolbarItem,
 } from '@patternfly/react-core'
 import { CubesIcon, KeyIcon } from '@patternfly/react-icons'
 import type { Row } from './api'
-import { fetchHubInfo, type HubInfo } from './api'
+import { fetchHubInfo, fetchIssuedToken, type HubInfo, type IssuedToken } from './api'
+import { clientsFor, TOKEN_ENV, type McpClient } from './mcpClients'
 import { AddClusterButton, CopyableCommand } from './AddCluster'
 
 // The Docs pages. Each one is about one way of using this hub, and every
@@ -214,38 +221,130 @@ const MCP_TOOLS: [tool: string, answers: string, example: string][] = [
   ['refresh', 'Start a scrape now', 'Scrape the fleet again and tell me what changed.'],
 ]
 
-export function DocsMCP() {
-  const url = `${hubURL()}/mcp`
-  const claude = `claude mcp add --transport http periscope ${url} \\
-  --header "Authorization: Bearer <TOKEN>"`
-  const json = JSON.stringify(
-    {
-      mcpServers: {
-        periscope: { type: 'http', url, headers: { Authorization: 'Bearer <TOKEN>' } },
-      },
-    },
-    null,
-    2,
+// The token and how to put it in the environment: step one of connecting.
+function TokenStep({ hub, issued }: { hub: HubInfo | null; issued: IssuedToken | null }) {
+  if (hub?.auth === 'none') {
+    return (
+      <Content component="p" className="cc-prose">
+        This hub runs with the login off (<code>--auth=none</code>), so a client needs no token.
+      </Content>
+    )
+  }
+  const exportLine = `export ${TOKEN_ENV}='${issued?.token ?? '<TOKEN>'}'`
+  return (
+    <>
+      {issued ? (
+        <Alert
+          isInline
+          variant="success"
+          title={`Token issued to ${issued.user}, valid until ${new Date(issued.expires).toLocaleString()}`}
+          className="cc-doc-alert"
+        >
+          <Content component="p">
+            Copy it now. Periscope does not keep it, and this page does not show it again after a
+            reload. The examples below already carry it.
+          </Content>
+          <ClipboardCopy isReadOnly hoverTip="Copy" clickTip="Copied">
+            {issued.token}
+          </ClipboardCopy>
+        </Alert>
+      ) : hub?.mcpTokens ? (
+        <>
+          <Content component="p" className="cc-prose">
+            A token of your own user, valid for 30 days unless this hub sets another lifetime. It
+            reads Periscope with your rights and can do nothing else on the cluster.
+          </Content>
+          <Button component="a" href="/mcp/token" icon={<KeyIcon />}>
+            Get an MCP token
+          </Button>
+        </>
+      ) : (
+        <Content component="p" className="cc-prose">
+          This hub issues no MCP tokens: its chart was installed without a route host, so it has
+          no OAuth client for them. Your own OpenShift token works too, until your login expires
+          (often after 24 hours): use <code>$(oc whoami -t)</code> as the token below.
+        </Content>
+      )}
+      <Content component="p" className="cc-prose cc-doc-gap">
+        Put the token in the environment. Most clients below read it from there, so their
+        configuration holds no secret. Add the line to your shell profile to keep it.
+      </Content>
+      <CopyableCommand label="token-env" command={exportLine} />
+    </>
   )
+}
+
+function ClientSnippets({ clients }: { clients: McpClient[] }) {
+  const [active, setActive] = useState(clients[0].id)
+  const [mode, setMode] = useState<'command' | 'config'>('command')
+  const client = clients.find((c) => c.id === active) ?? clients[0]
+  const snippet = mode === 'command' ? client.command : client.config
+
+  return (
+    <>
+      <Tabs
+        activeKey={active}
+        onSelect={(_e, key) => setActive(String(key))}
+        aria-label="MCP clients"
+        isBox
+        className="cc-doc-tabs"
+      >
+        {clients.map((c) => (
+          <Tab key={c.id} eventKey={c.id} title={<TabTitleText>{c.name}</TabTitleText>} />
+        ))}
+      </Tabs>
+      <ToggleGroup aria-label="Command or config file" className="cc-doc-toggle">
+        <ToggleGroupItem text="Command" isSelected={mode === 'command'} onChange={() => setMode('command')} />
+        <ToggleGroupItem
+          text="Config file"
+          isSelected={mode === 'config'}
+          onChange={() => setMode('config')}
+        />
+      </ToggleGroup>
+      <Content component="p" className="cc-prose cc-doc-gap">
+        {mode === 'command' ? (
+          <>Run this in a shell where <code>{TOKEN_ENV}</code> is set.</>
+        ) : (
+          <>
+            Add this to <code>{client.config.file}</code>.
+          </>
+        )}
+      </Content>
+      <CopyableCommand label={`${client.id}-${mode}`} command={snippet.text} />
+      {snippet.note && (
+        <Content component="p" className="cc-step-note">
+          {snippet.note}
+        </Content>
+      )}
+    </>
+  )
+}
+
+export function DocsMCP() {
+  const hub = useHubInfo()
+  const [issued, setIssued] = useState<IssuedToken | null>(null)
+  useEffect(() => {
+    void fetchIssuedToken().then(setIssued)
+  }, [])
+
+  const url = `${hubURL()}/mcp`
+  const clients = clientsFor(url, hub?.auth !== 'none', issued?.token ?? '<TOKEN>')
+
   return (
     <>
       <Section title="Connect an assistant">
         <Content component="p" className="cc-prose">
           This hub is an MCP server at <code>{url}</code>. An assistant connected to it reads the
-          same data as these pages, with your rights. Get a token of your own user first. It is
-          valid for 30 days unless the hub sets another lifetime, and it can only read Periscope.
+          same data as these pages, with your rights.
         </Content>
-        <Button component="a" href="/mcp/token" icon={<KeyIcon />}>
-          Get an MCP token
-        </Button>
-        <Content component="p" className="cc-prose cc-doc-gap">
-          Then add the server to the assistant. For Claude Code:
-        </Content>
-        <CopyableCommand label="claude-mcp" command={claude} />
-        <Content component="p" className="cc-prose cc-doc-gap">
-          Other clients take the same URL and header in their configuration:
-        </Content>
-        <CopyableCommand label="mcp-json" command={json} />
+        <Title headingLevel="h3" className="cc-doc-subtitle">
+          1. Get a token
+        </Title>
+        <TokenStep hub={hub} issued={issued} />
+        <Title headingLevel="h3" className="cc-doc-subtitle">
+          2. Add Periscope to your client
+        </Title>
+        <ClientSnippets clients={clients} />
       </Section>
 
       <Divider className="cc-doc-divider" />
@@ -282,11 +381,16 @@ export function DocsMCP() {
 
       <Section title="Revoke a token">
         <Content component="p" className="cc-prose">
-          The token page shows the name of each token. To end one before it expires:
+          A token is an OpenShift OAuth token of your user. To end it before it expires:
         </Content>
-        <CopyableCommand label="revoke" command="oc delete useroauthaccesstoken <TOKEN_NAME>" />
+        <CopyableCommand
+          label="revoke"
+          command={`oc delete useroauthaccesstoken ${issued?.name ?? '<TOKEN_NAME>'}`}
+        />
         <Content component="p" className="cc-prose cc-doc-gap">
-          A token also stops working within a minute when you lose read access to Periscope.
+          <code>oc get useroauthaccesstokens</code> lists yours, with the client that issued each:
+          Periscope tokens show <code>periscope-mcp</code>. A token also stops working within a
+          minute when you lose read access to Periscope.
         </Content>
       </Section>
     </>

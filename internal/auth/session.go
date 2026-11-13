@@ -23,8 +23,52 @@ const (
 	// login page until the callback.
 	flowTTL = 10 * time.Minute
 	// maxSession bounds a browser session even when the token lives longer.
-	maxSession = 24 * time.Hour
+	maxSession   = 24 * time.Hour
+	issuedCookie = "periscope_mcp_issued"
+	// issuedTTL is how long a new MCP token waits for the UI to fetch it.
+	issuedTTL = 5 * time.Minute
 )
+
+// issuedToken carries a new MCP token from the OAuth callback to the UI.
+type issuedToken struct {
+	Token   string    `json:"t"`
+	User    string    `json:"u"`
+	Expires time.Time `json:"e"` // when the token expires
+	Until   time.Time `json:"x"` // when this hand-over expires
+}
+
+// The hand-over cookie is scoped to the one path that reads it, so no other
+// request carries the token.
+func (s *Sealer) writeIssued(w http.ResponseWriter, r *http.Request, t issuedToken) error {
+	value, err := s.seal(issuedCookie, t)
+	if err != nil {
+		return err
+	}
+	http.SetCookie(w, &http.Cookie{
+		Name: issuedCookie, Value: value, Path: PathMCPIssued,
+		Expires: t.Until, HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteStrictMode,
+	})
+	return nil
+}
+
+func (s *Sealer) readIssued(r *http.Request, now time.Time) (*issuedToken, bool) {
+	c, err := r.Cookie(issuedCookie)
+	if err != nil {
+		return nil, false
+	}
+	var t issuedToken
+	if s.open(issuedCookie, c.Value, &t) != nil || !now.Before(t.Until) || t.Token == "" {
+		return nil, false
+	}
+	return &t, true
+}
+
+func clearIssued(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{
+		Name: issuedCookie, Value: "", Path: PathMCPIssued, MaxAge: -1,
+		HttpOnly: true, Secure: isHTTPS(r), SameSite: http.SameSiteStrictMode,
+	})
+}
 
 // session is what the session cookie holds.
 type session struct {

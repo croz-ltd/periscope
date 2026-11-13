@@ -41,6 +41,9 @@ type Server struct {
 	// Access answers the admin check for the signed-in caller. Nil when the hub
 	// runs without authentication (--auth=none).
 	Access auth.Reviewer
+	// MCPTokens is true when the hub can issue MCP tokens on /mcp/token. The
+	// MCP page offers the button only then.
+	MCPTokens bool
 }
 
 // Handler serves every route with no authentication in front, for local
@@ -334,6 +337,10 @@ func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
 		// Whether this hub can join a cluster itself, or only serve the manifests
 		// for an operator to apply. The UI offers the choice accordingly.
 		"canJoinClusters": false,
+		// How a client authenticates, for the MCP and API pages: "openshift"
+		// needs a bearer token, "none" needs nothing.
+		"auth":      map[bool]string{true: "openshift", false: "none"}[s.Access != nil],
+		"mcpTokens": s.MCPTokens,
 	}
 	if s.Scheduler != nil && s.Scheduler.Registry != nil {
 		reg := s.Scheduler.Registry

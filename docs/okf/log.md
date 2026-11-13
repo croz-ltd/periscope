@@ -1,5 +1,8 @@
 # Directory Update Log
 
+## 2026-11-13 (2.0.2)
+* **Update**: The [MCP server](reference/mcp.md) page now covers Claude Code, Codex CLI, Copilot CLI, Gemini CLI and VS Code, with a command and a config file each, and the token page inside the UI.
+
 ## 2026-11-13 (2.0.1)
 * **Update**: The Docs page of the UI is split into Clusters, Components, MCP and API in [UI views](reference/views.md). [Deploy the hub](operations/deploy-hub.md) points to the full migration steps from 1.x.
 

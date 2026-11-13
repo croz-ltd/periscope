@@ -5,7 +5,7 @@ description: A single Go binary that shows version and configuration drift acros
 resource: https://github.com/croz-ltd/periscope
 tags: [openshift, fleet, drift, inventory, overview]
 status: stable
-app_version: "2.0.1"
+app_version: "2.0.2"
 license: Apache-2.0
 generated: { by: claude-code/claude-opus-5-5, at: 2026-11-11T04:05:30Z }
 sources:

@@ -187,6 +187,7 @@ func serve(args []string) {
 			fatal("cannot set up authentication", "error", err)
 		}
 		srv.Access = guard.Reviewer
+		srv.MCPTokens = *mcpClient != ""
 		handler = srv.Wrap(guard.Wrap)
 		slog.Info("authentication on", "loginClient", clientID, "mcpClient", *mcpClient,
 			"publicJoinYAML", *publicJoinYAML)

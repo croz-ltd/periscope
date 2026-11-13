@@ -115,7 +115,9 @@ func (b *browser) get(target string) *httptest.ResponseRecorder {
 	req := httptest.NewRequest(http.MethodGet, "https://periscope.apps.example"+target, nil)
 	req.Header.Set("Accept", "text/html")
 	for _, c := range b.cookies {
-		req.AddCookie(c)
+		if c.Path == "" || strings.HasPrefix(req.URL.Path, c.Path) {
+			req.AddCookie(c)
+		}
 	}
 	rec := httptest.NewRecorder()
 	b.h.ServeHTTP(rec, req)
@@ -240,20 +242,59 @@ func TestMCPTokenFlow(t *testing.T) {
 		t.Fatalf("MCP flow went to %q", rec.Header().Get("Location"))
 	}
 	rec = b.get(callback)
-	body := rec.Body.String()
-	if rec.Code != http.StatusOK || !strings.Contains(body, "sha256~mcp-token") || rec.Header().Get("Cache-Control") != "no-store" {
-		t.Fatalf("token page = %d, cache %q: %.300s", rec.Code, rec.Header().Get("Cache-Control"), body)
+	if rec.Code != http.StatusFound || rec.Header().Get("Location") != mcpDocsPage {
+		t.Fatalf("MCP callback = %d %q, want a redirect to the MCP page", rec.Code, rec.Header().Get("Location"))
 	}
-	for _, want := range []string{"https://periscope.apps.example/mcp", "oc delete useroauthaccesstoken " + tokenObjectName("sha256~mcp-token")} {
-		if !strings.Contains(body, want) {
-			t.Errorf("token page lacks %q", want)
-		}
+	if strings.Contains(rec.Header().Get("Location"), "mcp-token") {
+		t.Error("the token is in the redirect URL")
+	}
+	c := b.cookies[issuedCookie]
+	if c == nil || c.Path != PathMCPIssued || !c.HttpOnly || c.SameSite != http.SameSiteStrictMode {
+		t.Fatalf("hand-over cookie = %+v, want HttpOnly, strict, scoped to %s", c, PathMCPIssued)
 	}
 
-	// Without an MCP client the page explains the fallback.
+	// The UI fetches the token once. The cookie path matters in a browser,
+	// so the test browser sends it only to that path, like a real one.
+	rec = b.get(PathMCPIssued)
+	var got IssuedToken
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("issued = %d %s", rec.Code, rec.Body)
+	}
+	if got.Token != "sha256~mcp-token" || got.User != "alice" || got.Name != tokenObjectName("sha256~mcp-token") ||
+		rec.Header().Get("Cache-Control") != "no-store" {
+		t.Errorf("issued = %+v", got)
+	}
+	if rec = b.get(PathMCPIssued); rec.Code != http.StatusNoContent {
+		t.Errorf("second fetch = %d, want 204: the token is handed over once", rec.Code)
+	}
+
+	// Without an MCP client the token link leads to the MCP page, which
+	// explains the fallback.
 	g.MCP = nil
-	if rec := b.get(PathMCPToken); !strings.Contains(rec.Body.String(), "oc whoami -t") {
-		t.Errorf("page without an MCP client = %.200s", rec.Body)
+	if rec := b.get(PathMCPToken); rec.Code != http.StatusFound || rec.Header().Get("Location") != mcpDocsPage {
+		t.Errorf("token link without an MCP client = %d %q", rec.Code, rec.Header().Get("Location"))
+	}
+}
+
+// A hand-over cookie of one user is not handed to another.
+func TestIssuedTokenStaysWithItsUser(t *testing.T) {
+	g := testGuard(t, newOAuthServer(t))
+	g.Reviewer.(*testReviewer).readers["bob"] = true
+	h := g.Wrap(whoami)
+
+	rec := httptest.NewRecorder()
+	if err := g.Sealer.writeIssued(rec, httptest.NewRequest(http.MethodGet, "/", nil), issuedToken{
+		Token: "sha256~mcp-token", User: "alice", Expires: time.Now().Add(time.Hour), Until: time.Now().Add(time.Minute),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, PathMCPIssued, nil)
+	req.Header.Set("Authorization", "Bearer bob-token")
+	req.AddCookie(rec.Result().Cookies()[0])
+	out := httptest.NewRecorder()
+	h.ServeHTTP(out, req)
+	if out.Code != http.StatusNoContent || strings.Contains(out.Body.String(), "mcp-token") {
+		t.Errorf("bob got %d %q, want nothing", out.Code, out.Body)
 	}
 }
 

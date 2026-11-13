@@ -711,3 +711,16 @@ html:not(.pf-v6-theme-glass) .pf-v6-c-page__sidebar {
 .cc-doc-gap {
   margin-block-start: var(--pf-t--global--spacer--md);
 }
+/* Steps and client tabs on the Docs, MCP page. */
+.cc-doc-subtitle {
+  margin-block: var(--pf-t--global--spacer--lg) var(--pf-t--global--spacer--sm);
+}
+.cc-doc-alert {
+  max-width: 62rem;
+}
+.cc-doc-tabs {
+  max-width: 62rem;
+}
+.cc-doc-toggle {
+  margin-block-start: var(--pf-t--global--spacer--md);
+}
